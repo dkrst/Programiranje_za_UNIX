@@ -1,5 +1,6 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
+LDFLAGS = 
 TARGETS = pozdrav pozdrav_fn
 
 default: pozdrav_fn
@@ -7,7 +8,7 @@ default: pozdrav_fn
 all: $(TARGETS)
 
 pozdrav: pozdrav.o
-	$(CC) $(CFLAGS) pozdrav.o -o pozdrav
+	$(CC) $(LDLAGS) pozdrav.o -o pozdrav
 
 pozdrav_fn: pozdrav_fn.o funkcije.o
 	$(CC) $(CFLAGS) pozdrav_fn.o funkcije.o -o pozdrav_fn
