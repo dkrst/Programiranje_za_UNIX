@@ -1,5 +1,5 @@
 CC = /usr/bin/gcc
-FLAGS = -Wall
+CFLAGS = -Wall
 TARGETS = read_file io_copy f_strip f_hole perm_mask f_write f_cat 
 
 default: perm_mask
@@ -31,4 +31,4 @@ clean:
 	rm -f $(TARGETS) *.o *~ a.out file.strip file.hole datoteka1 datoteka2
 
 .c.o:
-	$(CC) $(FLAGS) -c $<
+	$(CC) $(CFLAGS) -c $<
