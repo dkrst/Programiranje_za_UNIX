@@ -14,17 +14,16 @@ int main() {
   fd=creat("file.hole", (mode_t)0644);
   if (fd==-1) {
     perror("creat");
-    return -1;
+    return 1;
   }
   
   if (write(fd, buf1, strlen(buf1)+1)!=strlen(buf1)+1) {
     perror("write buf1");
-    return -1;
+    return 1;
   }
   
   if (lseek(fd, 15, SEEK_CUR)==-1) {
     perror("lseek");
-    return -1;
   }
   
   if (write(fd, buf2, strlen(buf2)+1)!=strlen(buf2)+1) 

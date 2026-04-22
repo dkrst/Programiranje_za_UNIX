@@ -13,7 +13,7 @@ int main() {
   while((n=read(STDIN_FILENO, buf, BUFFSIZE)) > 0) {
       if (write(STDOUT_FILENO, buf, n) != n) {
 	  perror("write");
-	  return -1;
+	  return 1;
       }
   }
     
