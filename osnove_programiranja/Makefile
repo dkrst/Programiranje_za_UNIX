@@ -8,10 +8,10 @@ default: pozdrav_fn
 all: $(TARGETS)
 
 pozdrav: pozdrav.o
-	$(CC) $(LDLAGS) pozdrav.o -o pozdrav
+	$(CC) $(LDFLAGS) pozdrav.o -o pozdrav
 
 pozdrav_fn: pozdrav_fn.o funkcije.o
-	$(CC) $(CFLAGS) pozdrav_fn.o funkcije.o -o pozdrav_fn
+	$(CC) $(LDFLAGS) pozdrav_fn.o funkcije.o -o pozdrav_fn
 
 clean:
 	rm -f $(TARGETS) *.o *~ a.out
