@@ -12,7 +12,7 @@ int main() {
 
   umask(S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
   if (creat("datoteka2", PRAVA) < 0)
-    perror("creat datoteka1");
+    perror("creat datoteka2");
   
   return 0;
 }
