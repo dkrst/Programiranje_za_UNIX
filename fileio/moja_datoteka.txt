@@ -1,0 +1,7 @@
+Programiranje za UNIX
+
+Primjeri zadataka iz poglavlja "file_io"
+read_file.c
+f_copy.c
+f_strip.c
+f_hole.c

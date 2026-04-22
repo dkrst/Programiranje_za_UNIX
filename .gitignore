@@ -1,0 +1,7 @@
+# Ignoriraj objektne i privremene datoteke
+*.o
+*~
+# Ignoriraj radne i privremene direktorije
+WORK
+tmp
+
