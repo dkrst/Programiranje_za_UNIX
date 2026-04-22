@@ -17,12 +17,15 @@ int main(int argc, char *argv[]) {
 
   fd = creat(argv[1], FMODE);
   if (fd == -1) {
-    perror("open");
+    perror("creat");
     return 1;
   }
  
   while((n=read(STDIN_FILENO, &s, 1)) > 0)
-    write(fd, &s, 1);
+    if (write(fd, &s, 1) < 0) {
+      perror("write");
+      return 1;
+    }
   
   close(fd);
   return 0;

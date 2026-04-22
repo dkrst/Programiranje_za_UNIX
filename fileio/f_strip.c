@@ -27,8 +27,10 @@ int main() {
     return 1;
   }
   
-  if (write(fd, buf2, strlen(buf2)+1)!=strlen(buf2)+1) 
+  if (write(fd, buf2, strlen(buf2)+1)!=strlen(buf2)+1)  {
     perror("write buf2");
+    return 1;
+  }
   
   close(fd);
   exit(0);
