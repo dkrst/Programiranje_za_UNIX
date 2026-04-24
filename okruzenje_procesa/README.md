@@ -1,10 +1,8 @@
-# okruzenje_procesa
+# Okruženje procesa
 
 Primjeri uz poglavlje **Okruženje procesa** iz knjige *Programiranje za UNIX*.
 
 U ovom poglavlju dani su primjeri koji demonstriraju upravljanje procesima na UNIX-u: dohvaćanje argumenata naredbenog retka i okruženja UNIX procesa, stvaranje procesa, pokretanje programa i upravljanje limitima. Svaki od ovih mehanizama vezan je uz jedan ili više sistemskih poziva — `fork()`, `exec` obitelj, `wait()`, `dup2()`, `setrlimit()` — koji zajedno tvore jezgru UNIX-ove filozofije upravljanja procesima. Primjeri su poredani tako da se teme grade postupno — od najjednostavnijih (ispis primljenih argumenata) prema složenijima (kombinacija `fork`, `exec`, `dup2` i `wait` u jednom programu).
-
-## Sadržaj
 
 ### Argumenti naredbenog retka
 
@@ -162,15 +160,15 @@ Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje
 
 #### Koji oblik koristiti?
 
-**Preferirani oblik je `environ`**, iz nekoliko razloga:
+Preferirani oblik je `environ`, iz nekoliko razloga:
 
 - **Standardiziran je u POSIX-u**, dok je `envp` samo implementacijska ekstenzija u Annexu ISO C standarda.
 - **Uvijek odražava trenutno stanje okoline** — promjene napravljene pozivima `setenv()`/`putenv()`/`unsetenv()` reflektiraju se u `environ`-u, ali ne i u `envp`-u, pa korištenje `envp`-a nakon takvih izmjena vodi u nedefinirano ponašanje.
 - **Dostupna je iz bilo koje funkcije programa**, ne samo iz `main`. Predaja `envp`-a niz funkcijske pozive zahtijeva da ga svaka funkcija koja ga treba primi kao argument.
 
-`envp` ima jednu malu prednost — ne zahtijeva ručnu deklaraciju vanjske varijable na vrhu programa, što ga čini nešto kraćim u jednostavnim primjerima. U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba mehanizma — funkcionalno daju isti rezultat, ali ilustriraju razliku u načinu pristupa okruženju iz koda.
+U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba mehanizma — funkcionalno daju isti rezultat, ali ilustriraju razliku u načinu pristupa okruženju iz koda.
 
-- **`listenv1.c`** — ispisuje sve varijable okruženja procesa korištenjem **trećeg argumenta funkcije `main`** (`envp`):
+- **`listenv1.c`** — ispisuje sve varijable okruženja procesa korištenjem trećeg argumenta funkcije `main` (`envp`):
 
   ```c
   int main(int argc, char *argv[], char *envp[])
@@ -197,23 +195,25 @@ Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje
 
   Funkcija `main` koristi standardni dvoargumentni oblik, a okruženju se pristupa preko globalne varijable. Ispis je identičan onom iz `listenv1`. Ovaj oblik je preporučen za stvarne programe iz razloga navedenih u prethodnom odjeljku.
 
-### Stvaranje novog procesa (`fork`)
+  U `listenv2.c` smo se uz to malo poigrali s pokazivačkom aritmetikom — umjesto da koristimo brojač i indeksiramo polje kao u `listenv1.c` (`envp[k]`), ovdje izravno pomičemo sam pokazivač `environ` izrazom `*environ++` u svakoj iteraciji petlje. Funkcionalno je rezultat potpuno isti — petlja redom prolazi kroz sve elemente niza dok ne naiđe na završni `NULL` — samo što sada uloga "indeksa" više nije zasebna varijabla `k`, nego sam pokazivač koji se pomiče po nizu.
 
-- **`novi.c`** — minimalni primjer sistemskog poziva `fork()`. **`fork()` je jedini način na koji u UNIX-u može nastati novi proces.** Ova funkcija u osnovi radi kopiju memorijske slike postojećeg procesa — proces dijete (*child*) je klon procesa roditelja (*parent*). Činjenica da nasljeđuje memorijsku sliku roditeljskog procesa znači da nasljeđuje i stanje svih varijabli, heap i stog — tj. da nastavlja izvršavanje od prve naredbe koja u kodu slijedi iza `fork`-a, kao da su se do tog trenutka oba procesa izvršavala paralelno, na potpuno jednak način, bez ikakve razlike u stanju varijabli, okruženja procesa, ili dinamički alocirane memorije na hrpi. Od tog trenutka dva procesa počinju živjeti odvojene živote — promjena bilo koje varijable u jednom od njih nikad ne utječe na drugoga, jer svaki ima potpuno svoju kopiju memorije.
+### Životni ciklus procesa
 
-  Povratna vrijednost `fork()`-a je jedini mehanizam po kojem dva procesa mogu razlikovati svoju ulogu: roditelj dobiva PID djeteta, a dijete dobiva 0. Program to iskorištava za granjanje logike — istim `printf`-om ispisuje različit tekst ovisno o tome tko ga izvršava:
+Životni ciklus UNIX procesa započinje sistemskim pozivom `fork`, što je jedini način za stvaranje novog procesa na UNIX-u. U ovom trenutku proces dobija **PID**, koji predstavlja jedinstveni identitet procesa i nepromjenjiv je za cijelo vrijeme njegovog postojanja, te memorijski prostor u kojem se proces izvršava — nakon čega je spreman za izvršavanje.
 
-  ```
-  $ ./novi
-  PARENT (25017)	 PID: 25016	 PPID: 14567
-  CHILD  (0)	 PID: 25017	 PPID: 25016
-  ```
+```c
+#include <unistd.h>
 
-  PID djeteta (25017) koji je roditelj dobio kao povratnu vrijednost `fork()`-a točno odgovara PID-u koji dijete prijavljuje pozivom `getpid()`; istovremeno dijete vidi PPID jednak PID-u roditelja, što potvrđuje odnos roditelj–dijete u procesnom stablu. Redoslijed ispisa između roditelja i djeteta nije određen — ovisi o raspoređivaču (*scheduleru*) koji odlučuje koji će od dva spremna procesa dobiti procesor prvi.
+pid_t fork(void);
+```
 
-- **`nproc.c`** — ilustrira ključnu posljedicu činjenice da novi proces dobiva vlastitu kopiju memorijskog prostora roditelja: uključujući kopiju svih varijabli na stogu i hrpi. Program u petlji tri puta poziva `fork()` i tek potom ispisuje PID i PPID. Naivan odgovor na pitanje koliko procesa nastaje bio bi 4 (jedan originalni plus tri stvorena u tri iteracije), no stvarni odgovor je **8**. Razlog leži u tome što varijabla `k` iz `for` petlje nakon `fork`-a postoji u **obje** kopije procesa, pa oba nastavljaju dalje kroz istu petlju — svaki sa svojom kopijom iste vrijednosti `k`.
+**Povratna vrijednost:** u roditeljskom procesu `fork()` vraća PID novostvorenog djeteta (pozitivna cjelobrojna vrijednost); u djetetu vraća `0`; u slučaju greške (npr. kada je dosegnut sistemski limit broja procesa), vraća `-1` (samo u parent procesu — nije stvoren child proces).
 
-  Razvoj kroz iteracije, uz broj procesa i vrijednost varijable `k` koja nakon `fork`-a postoji nezavisno u svakome:
+Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku postojećeg procesa — procesa roditelja koji je pozvao `fork()`. Ova funkcija **poziva se jednom, a vraća dva puta**: u postojećem procesu (proces roditelj, *parent process*) i u novonastalom procesu (proces dijete, *child process*), koji je identična kopija roditeljskog procesa — uključujući stanje stoga, hrpe i svih varijabli, ali i **brojača instrukcija** (engl. *program counter*, PC) — posebnog registra u UNIX procesu koji pokazuje na sljedeću instrukciju u strojnom kodu koja se treba izvršiti. Ovo efektivno znači da proces dijete nastavlja točno tamo gdje se proces roditelj nalazio u trenutku poziva funkcije `fork()` — kao da su se do tog trenutka oba procesa izvršavala na potpuno jednak način i nalaze se u identičnom stanju, iako je zapravo postojao samo jedan proces. Od tog trenutka dva procesa počinju živjeti odvojene živote — promjena bilo koje varijable u jednom od njih ne utječe na vrijednost varijabli u drugom procesu, jer se svaki proces izvršava u svom memorijskom prostoru.
+
+- **`nproc.c`** — ilustrira upravo opisano svojstvo `fork()`-a: novi proces dobiva vlastitu kopiju memorijskog prostora roditelja, uključujući sve varijable na stogu i hrpi, te nastavlja izvršavanje točno tamo gdje se roditelj nalazio u trenutku poziva. Program u petlji poziva `fork()` tri puta. Nakon završetka petlje program ispisuje svoj jedinstveni process ID (PID) i proces ID procesa roditelja koristeći funkcije `getpid()` i `getppid()`. Ova informacija ispisuje se **8 puta** — što znači da izvršavanje petlje rezultira s ukupno 8 procesa, iako bi na prvu mogli pomisliti da je logičan broj procesa nakon izvršavanja petlje 4 (jedan izvorni i tri kopije, stvorene u tri iteracije petlje).
+
+  Ovo je posljedica upravo gore opisanog načina funkcioniranja sistemskog poziva `fork()` — kopiranjem memorijske slike procesa kopira se i varijabla `k`, ali i brojač instrukcija (PC) koji pokazuje na sljedeću instrukciju koja se treba izvršiti. U svakoj iteraciji petlje iz jednog procesa nastaju dva potpuno identična procesa, koja se od te točke izvršavaju nezavisno — oba procesa nalaze se usred petlje i nastavljaju dalje kroz istu petlju. Razvoj kroz iteracije, uz broj procesa i vrijednost varijable `k` koja nakon `fork`-a postoji nezavisno u svakome:
 
   ```
   prije petlje:                          1 proces,  k=0
@@ -234,22 +234,41 @@ Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje
   printf() izvršava se u svih 8
   ```
 
-  Stablo procesa nakon tri iteracije (svaki `fork` je nova grana; izvorni proces nakon `fork`-a je uvijek "lijeva" grana, dijete je "desna"):
+  Stablo procesa nakon tri iteracije, s oznakama `P0` (izvorni proces) do `P7` (posljednje stvoreno dijete). Svaki `fork()` poziv udvostručuje skup aktivnih procesa — u svakoj iteraciji svi postojeći procesi paralelno kloniraju sebe, tako da nakon tri iteracije imamo 8 procesa:
 
   ```
-                              P
-                             / \
-                      (k=0) /   \
-                           P     P'
-                          /|     |\
-                   (k=1) / |     | \
-                        P  P'   P'  P''
-                       /|  |\   /|  |\
-                (k=2)/ |  | \ / |  | \
-                    P P' P' P''P' P''P''P'''
+  prije petlje:       P0
+
+  nakon k=0:          P0   P1
+                      ↓    ↓            (svaki se u k=1 forka)
+  nakon k=1:          P0   P1   P2   P3
+                      ↓    ↓    ↓    ↓   (svaki se u k=2 forka)
+  nakon k=2:          P0   P1   P2   P3   P4   P5   P6   P7
   ```
 
-  Formula za broj procesa nakon `n` uzastopnih `fork()` poziva je **2ⁿ** — svaki `fork()` udvostručuje broj aktivnih procesa. U ovom primjeru **u petlju ulazi 1 proces, a iz nje izlazi 8**. Iz ispisanih PPID-ova moguće je rekonstruirati cijelo stablo — svaki proces zna tko mu je neposredni roditelj.
+  Odnos roditelj–dijete u stablu:
+
+  ```
+                                  P0
+                            ┌─────┴─────┐
+                            P0          P1         (nakon k=0)
+                         ┌──┴──┐      ┌──┴──┐
+                         P0    P2     P1    P3     (nakon k=1)
+                       ┌─┴─┐ ┌─┴─┐  ┌─┴─┐ ┌─┴─┐
+                       P0  P4 P2 P6 P1  P5 P3  P7  (nakon k=2)
+  ```
+
+  Formula za broj procesa nakon `n` uzastopnih `fork()` poziva je **2ⁿ** — svaki `fork()` udvostručuje broj aktivnih procesa. U ovom primjeru u petlju ulazi 1 proces, a iz nje izlazi 8. Iz ispisanih PPID-ova moguće je rekonstruirati cijelo stablo — svaki proces zna tko mu je neposredni roditelj.
+
+- **`novi.c`** — korištenje povratne vrijednosti `fork()`-a za razlikovanje uloge roditelja i djeteta. Iako su oba procesa identične kopije jedan drugog, njih dva trebaju se u nastavku ponašati različito: roditelj obično nastavlja svoj prethodni posao, a dijete izvršava neki novi zadatak. Jedini mehanizam po kojem dva procesa mogu razaznati tko je tko jest upravo povratna vrijednost `fork()`-a — roditelj dobiva PID djeteta, a dijete dobiva 0. Program to iskorištava za granjanje logike — istim `printf`-om ispisuje različit tekst ovisno o tome tko ga izvršava:
+
+  ```
+  $ ./novi
+  PARENT (25017)	 PID: 25016	 PPID: 14567
+  CHILD  (0)	 PID: 25017	 PPID: 25016
+  ```
+
+  PID djeteta (25017) koji je roditelj dobio kao povratnu vrijednost `fork()`-a točno odgovara PID-u koji dijete prijavljuje pozivom `getpid()`; istovremeno dijete vidi PPID jednak PID-u roditelja, što potvrđuje odnos roditelj–dijete u procesnom stablu. Redoslijed ispisa između roditelja i djeteta nije određen — ovisi o raspoređivaču koji odlučuje koji će od dva spremna procesa dobiti procesor prvi.
 
 ### Zamjena programa u procesu (`exec`)
 
@@ -376,7 +395,7 @@ Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje
   sys     0m0.001s
   ```
 
-### Životni ciklus procesa
+### Osirotjeli procesi
 
 - **`noparent.c`** — detaljniji primjer `fork()` mehanizma koji prikazuje što se dogodi kada **roditelj završi prije djeteta**. Program stvara stablo od tri procesa — `PARENT 1`, `CHILD 1` i `CHILD 2` — pri čemu `CHILD 2` (unuk po odnosu prema `PARENT 1`) namjerno spava duže od svog direktnog roditelja (`CHILD 1`). Zbog toga `CHILD 1` završi dok njegovo dijete još radi, a time `CHILD 2` postaje **osirotjeli proces** (*orphan*). U takvoj situaciji jezgra automatski preuzima ulogu novog roditelja — tradicionalno je to proces `init` s PID-om 1.
 
