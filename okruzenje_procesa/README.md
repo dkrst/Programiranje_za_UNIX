@@ -70,9 +70,11 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
 
 ### Varijable okruženja
 
-Pored argumenata naredbenog retka, svaki UNIX proces nasljeđuje od svog roditelja i drugu vrstu konteksta — **varijable okruženja** (engl. *environment variables*). To je niz parova oblika `IME=vrijednost` koji procesu prenose informacije o sistemskoj konfiguraciji i korisničkim postavkama, bez potrebe da se one zadaju kao eksplicitni argumenti naredbenog retka. Vrijednosti pojedinih varijabli postavljaju se u inicijalizacijskim skriptama ljuske, a sve naredbe pokrenute iz iste sesije ih dijele kao zajednički kontekst.
+Pored argumenata naredbenog retka, svaki UNIX proces u svom memorijskom prostoru sadrži i drugu vrstu konteksta — **varijable okruženja** (engl. *environment variables*). Ovaj skup vrijednosti proces nasljeđuje od svog roditelja — procesa koji je inicirao njegovo stvaranje korištenjem sistemskog poziva `fork()`, a može se mijenjati tijekom izvršavanja procesa.
 
-Najpoznatije varijable okruženja na svakom UNIX sustavu su:
+Varijable okruženja nalaze se u memoriji procesa, pri samom vrhu adresnog prostora (odmah "ispod" argumenata naredbenog retka), a zadane su u formi niza parova oblika `"IME=vrijednost"`. Ove vrijednosti procesu prenose informacije o sistemskoj konfiguraciji i korisničkim postavkama, bez potrebe da se eksplicitno zadaju kao argumenti naredbenog retka. Vrijednosti pojedinih varijabli postavljaju se u inicijalizacijskim skriptama ljuske, a sve naredbe pokrenute iz iste sesije ih dijele kao zajednički kontekst.
+
+Najčešće varijable okruženja na svakom UNIX sustavu su:
 
 | Varijabla | Značenje |
 |---|---|
@@ -84,11 +86,16 @@ Najpoznatije varijable okruženja na svakom UNIX sustavu su:
 | `PWD` | Trenutno radni direktorij. |
 | `TERM` | Tip terminala u kojem se sesija odvija. |
 
-Iz **ljuske** se varijabla okruženja čita prefiksom `$` ispred imena, a postavlja naredbom `export`:
+Vrijednostima varijabli okruženja možemo pristupati i mijenjati ih direktno iz UNIX ljuske. Vrijednost varijable okruženja čitamo korištenjem prefiksa `$` ispred imena. Na primjer, ukoliko želimo saznati koji je naš korisnički direktorij, dovoljno je izvršiti:
 
 ```sh
 $ echo $HOME
 /home/dkrst
+```
+
+Za promjenu vrijednosti postojeće, ili dodavanje nove varijable okruženja koristimo naredbu `export`:
+
+```sh
 $ export MOJA_VAR="neka vrijednost"
 $ echo $MOJA_VAR
 neka vrijednost
