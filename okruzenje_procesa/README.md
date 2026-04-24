@@ -270,9 +270,35 @@ Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku p
 
   PID djeteta (25017) koji je roditelj dobio kao povratnu vrijednost `fork()`-a točno odgovara PID-u koji dijete prijavljuje pozivom `getpid()`; istovremeno dijete vidi PPID jednak PID-u roditelja, što potvrđuje odnos roditelj–dijete u procesnom stablu. Redoslijed ispisa između roditelja i djeteta nije određen — ovisi o raspoređivaču koji odlučuje koji će od dva spremna procesa dobiti procesor prvi.
 
-### Zamjena programa u procesu (`exec`)
+### Pokretanje novog programa
 
-- **`myls.c`** — prvi primjer funkcija iz **`exec` obitelji**: poziv `execlp()` zamjenjuje trenutni programski kod procesa kodom nekog drugog programa — u ovom slučaju UNIX naredbe `ls`. Za razliku od `fork()`, koji stvara novi proces, `exec()` **ne stvara novi proces** — PID ostaje isti, promijeni se samo programski kod koji se izvršava.
+Proces i program su dva povezana ali različita koncepta. **Proces** je aktivna instanca izvršavanja — entitet koji ima svoj PID, memorijski prostor i resurse. **Program** je statičan zapis: strojni kod pohranjen u izvršnoj datoteci, niz instrukcija koje proces izvršava.
+
+Odnos između programa i procesa možemo usporediti s receptima i kuhanjem ručka. Svaki recept u osnovi predstavlja "program" za kuhanje: niz precizno definiranih koraka i postupaka s naredbama kontrole toka (`if (nedovoljno_slano): dodaj_soli`), petljama (`while(meso_tvrdo): nastavi_kuhanje`) i svim ostalim instrukcijama potrebnim da dobijemo očekivani rezultat u vidu ukusnog ručka. Sam postupak kuhanja u osnovi je pokretanje procesa koji izvršava program, tj. prati zadani recept korak po korak. Pri tom ne postoji nikakva prepreka da više kuhara istovremeno ne pokrene proces kuhanja po istom receptu. Tada svaki od kuhara zapravo nezavisno izvršava svoj "proces", ali svi kuhaju po istom receptu, tj. u svim procesima izvršava se isti "program".
+
+Na UNIX-u proces "kuhanja" započinje s pripremom: stvaranjem novog procesa i pripadajućeg memorijskog prostora u kojem će se proces izvršavati — pozivom funkcije `fork()`, kao što smo vidjeli u prethodnoj sekciji. Nakon toga krećemo s kuhanjem po odgovarajućem receptu — programu zapisanom u izvršnoj datoteci — korištenjem sistemskog poziva `exec`, koji kao argument uzima izvršnu datoteku koju želimo pokrenuti. Valja napomenuti da je `exec` zapravo **obitelj funkcija**, koje imaju istu funkcionalnost (učitavanje programa-recepta), a razlikuju se u načinu kako se zadaju argumenti naredbenog retka i put do izvršne datoteke:
+
+```c
+#include <unistd.h>
+
+int execl (const char *path,  const char *arg0, ... /*, NULL */);
+int execlp(const char *file,  const char *arg0, ... /*, NULL */);
+int execle(const char *path,  const char *arg0, ... /*, NULL, char *const envp[] */);
+int execv (const char *path,  char *const argv[]);
+int execvp(const char *file,  char *const argv[]);
+int execve(const char *path,  char *const argv[], char *const envp[]);
+```
+
+Razlike među varijantama kodirane su u sufiksima iza `exec`:
+
+- **`l`** (*list*) — argumenti nove naredbe prenose se kao redom navedena **lista** pojedinačnih stringova, završena `NULL`-om (npr. `execlp("ls", "ls", "-al", NULL)`). Sjetimo se da polje pokazivača `argv` u funkciji `main` uvijek završava `NULL` pokazivačem — upravo zato i u pozivu `execl` `NULL` moramo navesti kao posljednji argument.
+- **`v`** (*vector*) — argumenti se prenose kao **polje pokazivača** na stringove, završeno `NULL`-om (npr. `execvp("ls", argv)`). Prikladno kad broj argumenata nije poznat u trenutku pisanja koda, odnosno kada se argumenti dobivaju u istom obliku (kao u `argv`) od samog pozivatelja.
+- **`p`** (*path*) — izvršna datoteka pronalazi se pretragom direktorija iz varijable okoline `PATH`, pa se umjesto pune putanje može navesti samo ime (npr. `"ls"` umjesto `"/bin/ls"`). Varijante bez `p` očekuju punu putanju.
+- **`e`** (*environment*) — poziv prima dodatni posljednji argument `envp`, niz pokazivača na stringove `"IME=vrijednost"` završen `NULL`-om, čime se novoj naredbi može eksplicitno zadati drugačije okruženje od onog koje ima trenutni proces. Varijante bez `e` ne mijenjaju trenutno okruženje procesa.
+
+Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — ostalih pet je omotač koji pogodnije pakira argumente. Zajedničko svim varijantama je da **ne stvaraju novi proces**: PID ostaje isti, mijenja se samo kod koji se izvršava. Ako `exec` uspije, poziv se nikad ne vraća — izvorni kod programa zamijenjen je novim, učitanim iz izvršne datoteke, varijable na stogu i hrpi se brišu, a brojač instrukcija (PC) postavlja se na prvu instrukciju u novom programu. Vraćanje iz `exec`-a znači grešku (npr. izvršna datoteka nije pronađena ili nemamo pravo izvršavanja).
+
+- **`myls.c`** — prvi primjer funkcija iz `exec` obitelji: poziv `execlp()` zamjenjuje trenutni programski kod procesa kodom nekog drugog programa — u ovom slučaju UNIX naredbe `ls`. Za razliku od `fork()`, koji stvara novi proces, `exec()` **ne stvara novi proces** — PID ostaje isti, promijeni se samo programski kod koji se izvršava.
 
   ```c
   execlp("ls", "ls", "-al", NULL);
@@ -280,7 +306,7 @@ Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku p
 
   Valja primijetiti da su **prva dva argumenta poziva `execlp` identična**: prvi (`"ls"`) je ime izvršne datoteke koju treba naći i pokrenuti, a drugi (`"ls"`) je ono što će nova naredba dobiti kao svoj `argv[0]`. Ovo je neočigledno, ali nužno — podsjetimo se da po konvenciji svaka naredba u svom `argv[0]` očekuje vlastito ime (upravo iz tog razloga poruke o korištenju koriste `argv[0]`). Teoretski je moguće proslijediti i različito ime — tako bi program vidio da je pokrenut pod drugim imenom — ali u normalnoj uporabi oba se argumenta podudaraju.
 
-  Sufiks `lp` u imenu funkcije sažima način predaje: **`l`** (*list*) — argumenti nove naredbe zadaju se kao lista završena s `NULL`; **`p`** (*path*) — za pronalazak izvršne datoteke koristi se varijabla okoline `PATH`, pa nije potrebno navoditi punu putanju. Ako `execlp()` uspije, poziv se nikad ne vraća — zato je `perror("execlp")` dosežljiv samo u slučaju greške (npr. naredba `ls` nije pronađena u `PATH`-u).
+  Ako `execlp()` uspije, poziv se nikad ne vraća — zato je `perror("execlp")` dosežljiv samo u slučaju greške (npr. naredba `ls` nije pronađena u `PATH`-u).
 
   ```
   $ ./myls
@@ -292,7 +318,7 @@ Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku p
   ...
   ```
 
-- **`pokreni.c`** — uopćena verzija prethodnog primjera: program prima proizvoljnu naredbu s argumentima kao svoje argumente naredbenog retka i pokreće je pozivom `execvp()`. Sufiks **`v`** (*vector*) označava da se argumenti prenose kao jedno polje pokazivača na stringove, završeno `NULL`-om — točno u formi u kojoj ih funkcija `main` pokrenutog programa i dobije kao `argv`. Kako funkcija `main` već dobiva argumente u tom obliku, dovoljno je proslijediti pokazivač na `argv[1]`:
+- **`pokreni.c`** — uopćena verzija prethodnog primjera: program prima proizvoljnu naredbu s argumentima kao svoje argumente naredbenog retka i pokreće je pozivom `execvp()`. Kako funkcija `main` već dobiva argumente u obliku polja pokazivača (`argv`), upravo takav oblik očekuje i `execvp` — dovoljno je proslijediti pokazivač na `argv[1]`:
 
   ```c
   execvp(argv[1], &argv[1]);
