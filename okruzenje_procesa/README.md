@@ -123,38 +123,79 @@ Funkcija `getenv` vraća pokazivač na string s vrijednošću tražene varijable
   NEPOSTOJECA: environment varijabla ne postoji
   ```
 
-#### Treći argument funkcije `main`
+#### Treći argument funkcije `main` — `envp`
 
 Pored dva standardna oblika funkcije `main` opisana ranije, na UNIX sustavima česta je i sljedeća, proširena varijanta:
 
 ```c
-int main(int argc, char *argv[], char *envp[])
+int main(int argc, char *argv[], char *envp[]) {
+    // envp je ovdje lokalni parametar funkcije
+}
 ```
 
-Treći argument `envp` je polje pokazivača na stringove oblika `"IME=vrijednost"`, završeno `NULL`-om — i sadrži kompletno okruženje koje je proces naslijedio pri pokretanju. Funkcionalno je ekvivalentan globalnoj varijabli `environ` koju nudi standardna biblioteka, deklariranoj kao `extern char **environ;`. Organizacija polja `environ` (i `envp`) u memoriji shematski je prikazana na sljedećoj slici:
+Treći argument `envp` je polje pokazivača na stringove oblika `"IME=vrijednost"`, završeno `NULL`-om — i sadrži kompletno okruženje koje je proces naslijedio pri pokretanju.
+
+Treba imati na umu da **`envp` nije dio ISO C standarda** — ISO/IEC 9899:2018 u Annexu J.5.1 (*Common extensions*) spominje ovaj treći argument samo kao uobičajenu implementacijsku ekstenziju, što znači da je implementacije smiju ali nisu dužne podržavati. Ni POSIX.1-2017 ne propisuje `envp` kao standardni oblik — naprotiv, izričito preporučuje korištenje varijable `environ` (opisane u nastavku). U praksi je ipak treći argument `main`-a podržan na praktički svim modernim UNIX i Linux distribucijama, kao i u Microsoft C kompajleru.
+
+#### Vanjska varijabla `environ`
+
+Drugi način pristupa okolini iz programa pisanog u jeziku C jest preko vanjske globalne varijable `environ`. Za razliku od `envp`, koji je lokalni parametar funkcije `main`, `environ` je dostupna iz bilo koje funkcije programa nakon što se na nju prethodno deklarira:
+
+```c
+#include <unistd.h>
+extern char **environ;     // deklaracija vanjske varijable
+
+int main(int argc, char *argv[]) {
+    // environ je dostupan ovdje iako nije u zagradama main-a
+}
+```
+
+Pokazivač `environ` pokazuje na isti niz pokazivača kao i `envp` u trenutku pokretanja procesa — drugim riječima, oba mehanizma daju početno isti pogled na okruženje. Razlika postaje vidljiva tek nakon poziva funkcija `setenv()`, `putenv()` ili `unsetenv()`: te funkcije ažuriraju varijablu `environ` (eventualno realocirajući memoriju), dok `envp` ostaje pokazivati na izvornu, sada zastarjelu kopiju. Drugim riječima, `envp` je "snapshot" okoline u trenutku ulaska u `main`, a `environ` je "živa" referenca.
+
+Organizacija varijabli okruženja u memoriji procesa shematski je prikazana na sljedećoj slici. Bez obzira pristupa li se okruženju kroz `environ` ili kroz `envp`, sama struktura u memoriji uvijek je ista — niz pokazivača na stringove oblika `"IME=vrijednost"` završen `NULL`-om. Razlikuje se samo ime varijable kroz koju mu pristupamo.
 
 <p align="center">
   <img src="slike/environ.png" alt="Organizacija varijabli okruženja u memoriji procesa" width="450">
 </p>
 
-Treba imati na umu da **niti `envp`, niti varijabla `environ` nisu dio ISO C standarda** — ISO C u Annexu J.5.1 spominje `envp` samo kao "common extension", što znači da implementacije smiju ali nisu dužne podržavati ovaj oblik. Što se POSIX-a tiče, `environ` jest standardiziran (POSIX.1) i mora biti dostupan na svakom POSIX-kompatibilnom sustavu, no oblik `main` s tri argumenta POSIX explicitno **ne propisuje** kao standardan — preporučuje korištenje `environ` umjesto njega. U praksi, treći argument `main`-a podržan je na praktički svim modernim UNIX i Linux distribucijama, kao i u Microsoft C kompajleru, i u nestandardnim, jednokratnim alatima često se koristi zbog svoje jednostavnosti.
+Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje je POSIX.1-2017. Zanimljivo, to je jedini objekt u POSIX-u kojeg ne deklarira nijedna sistemska zaglavna datoteka, pa korisnik mora sam navesti deklaraciju `extern char **environ;` u svom programu (kao u primjeru iznad). ISO C, ponovo, ovu varijablu uopće ne spominje.
 
-- **`listenv.c`** — ispisuje **sve** varijable okruženja procesa korištenjem upravo navedenog trećeg argumenta funkcije `main`:
+#### Koji oblik koristiti?
+
+**Preferirani oblik je `environ`**, iz nekoliko razloga:
+
+- **Standardiziran je u POSIX-u**, dok je `envp` samo implementacijska ekstenzija u Annexu ISO C standarda.
+- **Uvijek odražava trenutno stanje okoline** — promjene napravljene pozivima `setenv()`/`putenv()`/`unsetenv()` reflektiraju se u `environ`-u, ali ne i u `envp`-u, pa korištenje `envp`-a nakon takvih izmjena vodi u nedefinirano ponašanje.
+- **Dostupna je iz bilo koje funkcije programa**, ne samo iz `main`. Predaja `envp`-a niz funkcijske pozive zahtijeva da ga svaka funkcija koja ga treba primi kao argument.
+
+`envp` ima jednu malu prednost — ne zahtijeva ručnu deklaraciju vanjske varijable na vrhu programa, što ga čini nešto kraćim u jednostavnim primjerima. U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba mehanizma — funkcionalno daju isti rezultat, ali ilustriraju razliku u načinu pristupa okruženju iz koda.
+
+- **`listenv1.c`** — ispisuje sve varijable okruženja procesa korištenjem **trećeg argumenta funkcije `main`** (`envp`):
 
   ```c
-  int main(int argc, char *argv[], char *environ[]);
+  int main(int argc, char *argv[], char *envp[])
   ```
 
-  Umjesto korištenja globalne varijable `environ`, ovdje se okolina prima izravno kao parametar. Petlja iterira kroz polje sve dok ne naiđe na završni `NULL`. Funkcionalno je ekvivalentan UNIX naredbi `env`:
+  Petlja iterira kroz polje `envp` sve dok ne naiđe na završni `NULL`. Funkcionalno je ekvivalentan UNIX naredbi `env`:
 
   ```
-  $ ./listenv
+  $ ./listenv1
   SHELL=/bin/bash
   HOME=/home/dkrst
   PATH=/usr/local/bin:/usr/bin:/bin
   LANG=hr_HR.UTF-8
   ...
   ```
+
+- **`listenv2.c`** — ista funkcionalnost kao `listenv1.c`, ali umjesto trećeg argumenta `main`-a koristi vanjsku varijablu `environ`:
+
+  ```c
+  extern char **environ;
+
+  int main(int argc, char *argv[])
+  ```
+
+  Funkcija `main` koristi standardni dvoargumentni oblik, a okruženju se pristupa preko globalne varijable. Ispis je identičan onom iz `listenv1`. Ovaj oblik je preporučen za stvarne programe iz razloga navedenih u prethodnom odjeljku.
 
 ### Stvaranje novog procesa (`fork`)
 

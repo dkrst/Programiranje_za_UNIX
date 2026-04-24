@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = argumenti zbroji readenv listenv myls pokreni pokreni2 preusmjeri novi nproc noparent potrosac limitraj
+TARGETS = argumenti zbroji readenv listenv1 listenv2 myls pokreni pokreni2 preusmjeri novi nproc noparent potrosac limitraj
 
 default: novi
 
@@ -16,8 +16,11 @@ zbroji: zbroji.o
 readenv: readenv.o
 	$(CC) $(LDFLAGS) readenv.o -o readenv
 
-listenv: listenv.o
-	$(CC) $(LDFLAGS) listenv.o -o listenv
+listenv1: listenv1.o
+	$(CC) $(LDFLAGS) listenv1.o -o listenv1
+
+listenv2: listenv2.o
+	$(CC) $(LDFLAGS) listenv2.o -o listenv2
 
 myls: myls.o
 	$(CC) $(LDFLAGS) myls.o -o myls
