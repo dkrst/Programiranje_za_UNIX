@@ -11,11 +11,11 @@ U ovom poglavlju dani su primjeri koji demonstriraju upravljanje procesima na UN
 Funkcija `main` prema ISO C standardu može imati dva osnovna oblika:
 
 ```c
-int main(void);
-int main(int argc, char *argv[]);
+int main(void)
+int main(int argc, char *argv[])
 ```
 
-Prvi oblik koristi se kada program ne treba pristupati argumentima naredbenog retka, dok drugi prima informacije o tome kako je program pokrenut.
+Prvi oblik koristimo kada program ne očekuje dodatne opcije i argumente koje korisnik može zadati prilikom pokretanja programa. Međutim, često je korisniku ostavljena mogućnost da putem dodatnih argumenata, koji se zadaju kao stringovi u naredbenom retku iza same naredbe kojom je program pozvan, usmjerava način izvršavanja našeg programa. U ovom slučaju koristimo drugi oblik funkcije `main`, kako bi mogli pristupiti svim argumentima koji su u naredbenom retku zadani.
 
 Prilikom pozivanja bilo koje naredbe u UNIX ljusci, ljuska analizira niz znakova kojim korisnik želi pokrenuti naredbu i dijeli ga na podnizove odvojene razmacima. Ovaj postupak nazivamo **tokenizacija**, a rezultat je niz **tokena** — stringova koji redom sadrže pozvanu naredbu i sve argumente koje je korisnik naveo. Ukoliko ovim stringovima želimo pristupiti iz našeg programa, koristimo drugi oblik funkcije `main`, kod kojeg funkcija prima dva argumenta: cjelobrojni `argc` u kojem je pohranjen ukupan broj stringova navedenih u naredbenom retku (uključujući i naredbu kojom je program pozvan), i polje pokazivača na znakovni niz `argv`, u kojem su ovi stringovi redom pohranjeni.
 
@@ -43,7 +43,11 @@ argv[3] = "drugi_argument"
 argv[4] = NULL
 ```
 
-Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja temeljem razmaka (*space*) — praznog prostora između njih. Pri tom je svejedno koristimo li jedan ili više razmaka (više puta pritisnuta tipka *space* prilikom unosa). Dodatno, pored pokazivača `argv[0]` do `argv[argc-1]`, uvijek postoji i posljednji pokazivač u nizu s indeksom `argc`, koji pokazuje na vrijednost `NULL`, tj. `(void*)0`.
+Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja temeljem razmaka (*space*) — praznog prostora između njih. Pri tom je svejedno koristimo li jedan ili više razmaka (više puta pritisnuta tipka *space* prilikom unosa). Dodatno, pored pokazivača `argv[0]` do `argv[argc-1]`, uvijek postoji i posljednji pokazivač u nizu s indeksom `argc`, koji pokazuje na vrijednost `NULL`, tj. `(void*)0`. Organizacija polja `argv` u memoriji shematski je prikazana na sljedećoj slici:
+
+<p align="center">
+  <img src="slike/args.png" alt="Organizacija argumenata naredbenog retka u memoriji procesa" width="450">
+</p>
 
 - **`argumenti.c`** — najjednostavniji mogući primjer rada s argumentima naredbenog retka. Program u petlji prolazi kroz polje `argv[0], ..., argv[argc-1]` i ispisuje indeks i vrijednost svakog argumenta. Koristi se za vizualnu provjeru kako ljuska prenosi naredbeni redak programu — posebno korisno za razumijevanje razdvajanja riječi po razmacima, ponašanja navodnika, ili kako `argv[0]` uvijek nosi ime kojim je program pokrenut.
 
@@ -64,9 +68,46 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
   17 + 25 = 42
   ```
 
-### Environment varijable
+### Varijable okruženja
 
-- **`readenv.c`** — čita vrijednost jedne environment varijable čije se ime zadaje kao argument naredbenog retka, pozivom `getenv()` iz standardne C biblioteke. `getenv()` vraća pokazivač na string s vrijednošću varijable, ili `NULL` ako varijabla nije postavljena. Program razlikuje ta dva slučaja i prikazuje odgovarajuću poruku. Ilustrira temeljni način na koji program pristupa okolini koju je naslijedio od ljuske — varijable poput `HOME`, `PATH`, `USER` ili vlastite varijable postavljene naredbom `export`.
+Pored argumenata naredbenog retka, svaki UNIX proces nasljeđuje od svog roditelja i drugu vrstu konteksta — **varijable okruženja** (engl. *environment variables*). To je niz parova oblika `IME=vrijednost` koji procesu prenose informacije o sistemskoj konfiguraciji i korisničkim postavkama, bez potrebe da se one zadaju kao eksplicitni argumenti naredbenog retka. Vrijednosti pojedinih varijabli postavljaju se u inicijalizacijskim skriptama ljuske, a sve naredbe pokrenute iz iste sesije ih dijele kao zajednički kontekst.
+
+Najpoznatije varijable okruženja na svakom UNIX sustavu su:
+
+| Varijabla | Značenje |
+|---|---|
+| `HOME` | Apsolutna putanja korisničkog *home* direktorija. |
+| `PATH` | Popis direktorija (odvojenih dvotočkom) u kojima ljuska traži izvršne datoteke. |
+| `USER` | Korisničko ime trenutno prijavljenog korisnika. |
+| `SHELL` | Apsolutna putanja korisnikove zadane ljuske. |
+| `LANG` | Lokalizacijske postavke (jezik, kodna stranica). |
+| `PWD` | Trenutno radni direktorij. |
+| `TERM` | Tip terminala u kojem se sesija odvija. |
+
+Iz **ljuske** se varijabla okruženja čita prefiksom `$` ispred imena, a postavlja naredbom `export`:
+
+```sh
+$ echo $HOME
+/home/dkrst
+$ export MOJA_VAR="neka vrijednost"
+$ echo $MOJA_VAR
+neka vrijednost
+```
+
+Naredba `env` (bez argumenata) ispisuje sve varijable okruženja trenutne sesije.
+
+Iz programa pisanih u **C**-u, varijablama okruženja pristupa se kroz funkcije iz standardne C biblioteke deklarirane u `<stdlib.h>`:
+
+```c
+char *getenv(const char *name)
+int   setenv(const char *name, const char *value, int overwrite)
+int   unsetenv(const char *name)
+int   putenv(char *string)
+```
+
+Funkcija `getenv` vraća pokazivač na string s vrijednošću tražene varijable, ili `NULL` ako varijabla nije postavljena. Funkcije `setenv`, `unsetenv` i `putenv` koriste se za izmjenu okruženja samog procesa — promjene se **ne** propagiraju natrag u roditeljski proces (ljusku), nego ostaju lokalne tekućem procesu i njegovim potomcima.
+
+- **`readenv.c`** — čita vrijednost jedne varijable okruženja čije se ime zadaje kao argument naredbenog retka, pozivom `getenv()` iz standardne C biblioteke. `getenv()` vraća pokazivač na string s vrijednošću varijable, ili `NULL` ako varijabla nije postavljena. Program razlikuje ta dva slučaja i prikazuje odgovarajuću poruku. Ilustrira temeljni način na koji program pristupa okolini koju je naslijedio od ljuske — varijable poput `HOME`, `PATH`, `USER` ili vlastite varijable postavljene naredbom `export`.
 
   ```
   $ ./readenv HOME
@@ -75,13 +116,29 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
   NEPOSTOJECA: environment varijabla ne postoji
   ```
 
-- **`listenv.c`** — ispisuje **sve** environment varijable procesa. Demonstrira treći, nestandardni argument funkcije `main` koji većina udžbenika ne spominje:
+#### Treći argument funkcije `main`
+
+Pored dva standardna oblika funkcije `main` opisana ranije, na UNIX sustavima česta je i sljedeća, proširena varijanta:
+
+```c
+int main(int argc, char *argv[], char *envp[])
+```
+
+Treći argument `envp` je polje pokazivača na stringove oblika `"IME=vrijednost"`, završeno `NULL`-om — i sadrži kompletno okruženje koje je proces naslijedio pri pokretanju. Funkcionalno je ekvivalentan globalnoj varijabli `environ` koju nudi standardna biblioteka, deklariranoj kao `extern char **environ;`. Organizacija polja `environ` (i `envp`) u memoriji shematski je prikazana na sljedećoj slici:
+
+<p align="center">
+  <img src="slike/environ.png" alt="Organizacija varijabli okruženja u memoriji procesa" width="450">
+</p>
+
+Treba imati na umu da **niti `envp`, niti varijabla `environ` nisu dio ISO C standarda** — ISO C u Annexu J.5.1 spominje `envp` samo kao "common extension", što znači da implementacije smiju ali nisu dužne podržavati ovaj oblik. Što se POSIX-a tiče, `environ` jest standardiziran (POSIX.1) i mora biti dostupan na svakom POSIX-kompatibilnom sustavu, no oblik `main` s tri argumenta POSIX explicitno **ne propisuje** kao standardan — preporučuje korištenje `environ` umjesto njega. U praksi, treći argument `main`-a podržan je na praktički svim modernim UNIX i Linux distribucijama, kao i u Microsoft C kompajleru, i u nestandardnim, jednokratnim alatima često se koristi zbog svoje jednostavnosti.
+
+- **`listenv.c`** — ispisuje **sve** varijable okruženja procesa korištenjem upravo navedenog trećeg argumenta funkcije `main`:
 
   ```c
   int main(int argc, char *argv[], char *environ[]);
   ```
 
-  Umjesto korištenja globalne varijable `environ` (deklarirane u `<unistd.h>`), ovdje se okolina prima izravno kao parametar — polje pokazivača na stringove oblika `"IME=vrijednost"` završeno `NULL`-om. Petlja iterira kroz polje sve dok ne naiđe na taj `NULL`. Funkcionalno je ekvivalentan UNIX naredbi `env`:
+  Umjesto korištenja globalne varijable `environ`, ovdje se okolina prima izravno kao parametar. Petlja iterira kroz polje sve dok ne naiđe na završni `NULL`. Funkcionalno je ekvivalentan UNIX naredbi `env`:
 
   ```
   $ ./listenv
