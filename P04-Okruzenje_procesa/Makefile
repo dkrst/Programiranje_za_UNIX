@@ -1,9 +1,9 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = argumenti zbroji readenv listenv1 listenv2 myls pokreni pokreni2 preusmjeri novi nproc noparent potrosac limitraj retstat
+TARGETS = argumenti zbroji readenv listenv1 listenv2 myls pokreni pokreni2 preusmjeri novi nproc noparent potrosac limitraj ret_stat ptr_err
 
-default: retstat
+default: ret_stat
 
 all: $(TARGETS)
 
@@ -31,14 +31,17 @@ pokreni: pokreni.o
 pokreni2: pokreni2.o
 	$(CC) $(LDFLAGS) pokreni2.o -o pokreni2
 
+ptr_err: ptr_err.o
+	$(CC) $(LDFLAGS) ptr_err.o -o ptr_err
+
 preusmjeri: preusmjeri.o
 	$(CC) $(LDFLAGS) preusmjeri.o -o preusmjeri
 
 novi: novi.o
 	$(CC) $(LDFLAGS) novi.o -o novi
 
-retstat: retstat.o
-	$(CC) $(LDFLAGS) retstat.o -o retstat
+ret_stat: ret_stat.o
+	$(CC) $(LDFLAGS) ret_stat.o -o ret_stat
 
 nproc: nproc.o
 	$(CC) $(LDFLAGS) nproc.o -o nproc
