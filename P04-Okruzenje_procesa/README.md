@@ -47,7 +47,7 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
   <img src="slike/args.png" alt="Organizacija argumenata naredbenog retka u memoriji procesa" width="450">
 </p>
 
-- **`argumenti.c`** — najjednostavniji mogući primjer rada s argumentima naredbenog retka. Program u petlji prolazi kroz polje `argv[0], ..., argv[argc-1]` i ispisuje indeks i vrijednost svakog argumenta. Koristi se za vizualnu provjeru kako ljuska prenosi naredbeni redak programu — posebno korisno za razumijevanje razdvajanja riječi po razmacima, ponašanja navodnika, ili kako `argv[0]` uvijek nosi ime kojim je program pokrenut.
+- [**`argumenti.c`**](argumenti.c) — najjednostavniji mogući primjer rada s argumentima naredbenog retka. Program u petlji prolazi kroz polje `argv[0], ..., argv[argc-1]` i ispisuje indeks i vrijednost svakog argumenta. Koristi se za vizualnu provjeru kako ljuska prenosi naredbeni redak programu — posebno korisno za razumijevanje razdvajanja riječi po razmacima, ponašanja navodnika, ili kako `argv[0]` uvijek nosi ime kojim je program pokrenut.
 
   ```
   $ ./argumenti jedan dva tri
@@ -57,7 +57,7 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
   3:	 tri
   ```
 
-- **`zbroji.c`** — program koji dva argumenta naredbenog retka tumači kao cijele brojeve i ispisuje njihov zbroj. Uvodi praksu **provjere broja argumenata** na početku programa (`argc < 3` → ispis upute za korištenje i izlaz) te funkciju `atoi()` iz standardne C biblioteke za konverziju stringa u `int`. Uobičajeni UNIX obrazac: poruka o korištenju uvijek koristi `argv[0]` kako bi točno odražavala naziv pod kojim je program pozvan.
+- [**`zbroji.c`**](zbroji.c) — program koji dva argumenta naredbenog retka tumači kao cijele brojeve i ispisuje njihov zbroj. Uvodi praksu **provjere broja argumenata** na početku programa (`argc < 3` → ispis upute za korištenje i izlaz) te funkciju `atoi()` iz standardne C biblioteke za konverziju stringa u `int`. Uobičajeni UNIX obrazac: poruka o korištenju uvijek koristi `argv[0]` kako bi točno odražavala naziv pod kojim je program pozvan.
 
   ```
   $ ./zbroji
@@ -112,7 +112,7 @@ int   putenv(char *string)
 
 Funkcija `getenv` vraća pokazivač na string s vrijednošću tražene varijable, ili `NULL` ako varijabla nije postavljena. Funkcije `setenv`, `unsetenv` i `putenv` koriste se za izmjenu okruženja samog procesa — promjene se **ne** propagiraju natrag u roditeljski proces (ljusku), nego ostaju lokalne tekućem procesu i njegovim potomcima.
 
-- **`readenv.c`** — čita vrijednost jedne varijable okruženja čije se ime zadaje kao argument naredbenog retka, pozivom `getenv()` iz standardne C biblioteke. `getenv()` vraća pokazivač na string s vrijednošću varijable, ili `NULL` ako varijabla nije postavljena. Program razlikuje ta dva slučaja i prikazuje odgovarajuću poruku. Ilustrira temeljni način na koji program pristupa okolini koju je naslijedio od ljuske — varijable poput `HOME`, `PATH`, `USER` ili vlastite varijable postavljene naredbom `export`.
+- [**`readenv.c`**](readenv.c) — čita vrijednost jedne varijable okruženja čije se ime zadaje kao argument naredbenog retka, pozivom `getenv()` iz standardne C biblioteke. `getenv()` vraća pokazivač na string s vrijednošću varijable, ili `NULL` ako varijabla nije postavljena. Program razlikuje ta dva slučaja i prikazuje odgovarajuću poruku. Ilustrira temeljni način na koji program pristupa okolini koju je naslijedio od ljuske — varijable poput `HOME`, `PATH`, `USER` ili vlastite varijable postavljene naredbom `export`.
 
   ```
   $ ./readenv HOME
@@ -168,7 +168,7 @@ Preferirani oblik je `environ`, iz nekoliko razloga:
 
 U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba mehanizma — funkcionalno daju isti rezultat, ali ilustriraju razliku u načinu pristupa okruženju iz koda.
 
-- **`listenv1.c`** — ispisuje sve varijable okruženja procesa korištenjem trećeg argumenta funkcije `main` (`envp`):
+- [**`listenv1.c`**](listenv1.c) — ispisuje sve varijable okruženja procesa korištenjem trećeg argumenta funkcije `main` (`envp`):
 
   ```c
   int main(int argc, char *argv[], char *envp[])
@@ -185,7 +185,7 @@ U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba meh
   ...
   ```
 
-- **`listenv2.c`** — ista funkcionalnost kao `listenv1.c`, ali umjesto trećeg argumenta `main`-a koristi vanjsku varijablu `environ`:
+- [**`listenv2.c`**](listenv2.c) — ista funkcionalnost kao `listenv1.c`, ali umjesto trećeg argumenta `main`-a koristi vanjsku varijablu `environ`:
 
   ```c
   extern char **environ;
@@ -211,7 +211,7 @@ pid_t fork(void);
 
 Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku postojećeg procesa — procesa roditelja koji je pozvao `fork()`. Ova funkcija **poziva se jednom, a vraća dva puta**: u postojećem procesu (proces roditelj, *parent process*) i u novonastalom procesu (proces dijete, *child process*), koji je identična kopija roditeljskog procesa — uključujući stanje stoga, hrpe i svih varijabli, ali i **brojača instrukcija** (engl. *program counter*, PC) — posebnog registra u UNIX procesu koji pokazuje na sljedeću instrukciju u strojnom kodu koja se treba izvršiti. Ovo efektivno znači da proces dijete nastavlja točno tamo gdje se proces roditelj nalazio u trenutku poziva funkcije `fork()` — kao da su se do tog trenutka oba procesa izvršavala na potpuno jednak način i nalaze se u identičnom stanju, iako je zapravo postojao samo jedan proces. Od tog trenutka dva procesa počinju živjeti odvojene živote — promjena bilo koje varijable u jednom od njih ne utječe na vrijednost varijabli u drugom procesu, jer se svaki proces izvršava u svom memorijskom prostoru.
 
-- **`nproc.c`** — ilustrira upravo opisano svojstvo `fork()`-a: novi proces dobiva vlastitu kopiju memorijskog prostora roditelja, uključujući sve varijable na stogu i hrpi, te nastavlja izvršavanje točno tamo gdje se roditelj nalazio u trenutku poziva. Program u petlji poziva `fork()` tri puta. Nakon završetka petlje program ispisuje svoj jedinstveni process ID (PID) i proces ID procesa roditelja koristeći funkcije `getpid()` i `getppid()`. Ova informacija ispisuje se **8 puta** — što znači da izvršavanje petlje rezultira s ukupno 8 procesa, iako bi na prvu mogli pomisliti da je logičan broj procesa nakon izvršavanja petlje 4 (jedan izvorni i tri kopije, stvorene u tri iteracije petlje).
+- [**`nproc.c`**](nproc.c) — ilustrira upravo opisano svojstvo `fork()`-a: novi proces dobiva vlastitu kopiju memorijskog prostora roditelja, uključujući sve varijable na stogu i hrpi, te nastavlja izvršavanje točno tamo gdje se roditelj nalazio u trenutku poziva. Program u petlji poziva `fork()` tri puta. Nakon završetka petlje program ispisuje svoj jedinstveni process ID (PID) i proces ID procesa roditelja koristeći funkcije `getpid()` i `getppid()`. Ova informacija ispisuje se **8 puta** — što znači da izvršavanje petlje rezultira s ukupno 8 procesa, iako bi na prvu mogli pomisliti da je logičan broj procesa nakon izvršavanja petlje 4 (jedan izvorni i tri kopije, stvorene u tri iteracije petlje).
 
   Ovo je posljedica upravo gore opisanog načina funkcioniranja sistemskog poziva `fork()` — kopiranjem memorijske slike procesa kopira se i varijabla `k`, ali i brojač instrukcija (PC) koji pokazuje na sljedeću instrukciju koja se treba izvršiti. U svakoj iteraciji petlje iz jednog procesa nastaju dva potpuno identična procesa, koja se od te točke izvršavaju nezavisno — oba procesa nalaze se usred petlje i nastavljaju dalje kroz istu petlju. Razvoj kroz iteracije, uz broj procesa i vrijednost varijable `k` koja nakon `fork`-a postoji nezavisno u svakome:
 
@@ -260,7 +260,7 @@ Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku p
 
   Formula za broj procesa nakon `n` uzastopnih `fork()` poziva je **2ⁿ** — svaki `fork()` udvostručuje broj aktivnih procesa. U ovom primjeru u petlju ulazi 1 proces, a iz nje izlazi 8. Iz ispisanih PPID-ova moguće je rekonstruirati cijelo stablo — svaki proces zna tko mu je neposredni roditelj.
 
-- **`novi.c`** — korištenje povratne vrijednosti `fork()`-a za razlikovanje uloge roditelja i djeteta. Iako su oba procesa identične kopije jedan drugog, njih dva trebaju se u nastavku ponašati različito: roditelj obično nastavlja svoj prethodni posao, a dijete izvršava neki novi zadatak. Jedini mehanizam po kojem dva procesa mogu razaznati tko je tko jest upravo povratna vrijednost `fork()`-a — roditelj dobiva PID djeteta, a dijete dobiva 0. Program to iskorištava za granjanje logike — istim `printf`-om ispisuje različit tekst ovisno o tome tko ga izvršava:
+- [**`novi.c`**](novi.c) — korištenje povratne vrijednosti `fork()`-a za razlikovanje uloge roditelja i djeteta. Iako su oba procesa identične kopije jedan drugog, njih dva trebaju se u nastavku ponašati različito: roditelj obično nastavlja svoj prethodni posao, a dijete izvršava neki novi zadatak. Jedini mehanizam po kojem dva procesa mogu razaznati tko je tko jest upravo povratna vrijednost `fork()`-a — roditelj dobiva PID djeteta, a dijete dobiva 0. Program to iskorištava za granjanje logike — istim `printf`-om ispisuje različit tekst ovisno o tome tko ga izvršava:
 
   ```
   $ ./novi
@@ -269,6 +269,69 @@ Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku p
   ```
 
   PID djeteta (25017) koji je roditelj dobio kao povratnu vrijednost `fork()`-a točno odgovara PID-u koji dijete prijavljuje pozivom `getpid()`; istovremeno dijete vidi PPID jednak PID-u roditelja, što potvrđuje odnos roditelj–dijete u procesnom stablu. Redoslijed ispisa između roditelja i djeteta nije određen — ovisi o raspoređivaču koji odlučuje koji će od dva spremna procesa dobiti procesor prvi.
+
+#### Čekanje završetka djeteta — sistemski poziv `wait`
+
+U mnogim slučajevima roditeljski proces nakon `fork()`-a treba pričekati da dijete završi svoj posao prije nego nastavi sa svojim radom. UNIX za to nudi sistemski poziv `wait`:
+
+```c
+#include <sys/wait.h>
+
+pid_t wait(int *wstatus);
+```
+
+**Povratna vrijednost:** PID djeteta koje je završilo, ili `-1` u slučaju greške (npr. proces nema djece koja bi mogla završiti).
+
+`wait()` blokira pozivajući proces sve dok jedno od njegove djece ne završi izvršavanje. Kad se to dogodi, jezgra puni varijablu na koju pokazuje `wstatus` informacijama o tome kako je dijete završilo: je li završilo normalno (npr. pozivom `return` ili `exit()`), je li prekinuto signalom, te koja je njegova povratna vrijednost odnosno koji je signal uzrokovao prekid. Ako pozivatelja zanima samo to da pričeka dijete, ali ne i sam status, kao argument se može proslijediti `NULL`.
+
+Ovaj statusni broj **nije izravno** povratna vrijednost djeteta — riječ je o pakiranom cjelobrojnom polju u kojem su različite informacije o završetku procesa smještene u različite skupove bitova. Konkretno, izlazni status (vrijednost koju je dijete vratilo iz `main`-a ili predalo `exit()`-u, u rasponu **0 do 255**) zapisuje se u bitove 8–15 statusne riječi. Da bi se ta vrijednost izvukla, koristi se makro `WEXITSTATUS()` iz iste zaglavne datoteke `<sys/wait.h>`.
+
+Posljedica je da bezuvjetan ispis statusnog broja kao cijele vrijednosti ne daje povratnu vrijednost djeteta, nego njezino "pomaknuto" prikazivanje: ako dijete vrati `5`, raw status bit će `5 << 8 = 1280`; ako vrati `255`, raw status bit će `65280`.
+
+- [**`ret_stat.c`**](ret_stat.c) — minimalan primjer koji ilustrira upravo opisani odnos između raw statusnog broja i `WEXITSTATUS`-a. Roditelj pozivom `fork()` stvara dijete koje jednostavno vrati cjelobrojnu vrijednost zadanu kao argument naredbenog retka:
+
+  ```c
+  } else if (pid == 0) {
+      return atoi(argv[1]);   // child: vrati zadanu vrijednost
+  } else {
+      wait(&rv);
+      printf("CHILD EXIT STATUS: %d\n", rv);
+      // printf("CHILD EXIT STATUS: %d\n", WEXITSTATUS(rv));
+  }
+  ```
+
+  Pokrenimo program s nekoliko različitih vrijednosti u rasponu 0–255 (sve dopuštene povratne vrijednosti procesa):
+
+  ```
+  $ ./ret_stat 0
+  CHILD EXIT STATUS: 0
+  $ ./ret_stat 1
+  CHILD EXIT STATUS: 256
+  $ ./ret_stat 5
+  CHILD EXIT STATUS: 1280
+  $ ./ret_stat 255
+  CHILD EXIT STATUS: 65280
+  ```
+
+  Samo prva vrijednost (`0`) odgovara onome što je dijete uistinu vratilo. Ostali brojevi su pomnoženi sa 256 — odnosno, gledano kao niz bitova, izvorna vrijednost je pomaknuta osam mjesta ulijevo. To su upravo bitovi 8–15 statusne riječi, gdje jezgra po POSIX konvenciji pohranjuje izlazni status. Ostali bitovi statusnog broja rezervirani su za druge informacije (signal koji je prekinuo proces, oznaka core-dumpa itd.) — te ćemo informacije iskoristiti u sekciji **Pokretanje novog programa**.
+
+  Da bismo dobili izvornu povratnu vrijednost, koristi se makro `WEXITSTATUS()`. U primjeru `ret_stat.c` zakomentiraj prvi `printf` i otkomentiraj drugi:
+
+  ```c
+  // printf("CHILD EXIT STATUS: %d\n", rv);
+  printf("CHILD EXIT STATUS: %d\n", WEXITSTATUS(rv));
+  ```
+
+  Nakon ponovnog prevođenja, ispis je upravo onakav kakav očekujemo:
+
+  ```
+  $ ./ret_stat 5
+  CHILD EXIT STATUS: 5
+  $ ./ret_stat 255
+  CHILD EXIT STATUS: 255
+  ```
+
+  Makro `WEXITSTATUS(s)` ne radi ništa "magično" — interno samo izvuče bitove 8–15 iz statusnog broja, što je ekvivalentno izrazu `(s >> 8) & 0xFF`. Korištenje makroa, međutim, čini kod jasnijim, neovisnim o konkretnoj implementaciji statusne riječi i prenosivim na različite UNIX sustave.
 
 ### Pokretanje novog programa
 
@@ -298,7 +361,7 @@ Razlike među varijantama kodirane su u sufiksima iza `exec`:
 
 Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — ostalih pet je omotač koji pogodnije pakira argumente. Zajedničko svim varijantama je da **ne stvaraju novi proces**: PID ostaje isti, mijenja se samo kod koji se izvršava. Ako `exec` uspije, poziv se nikad ne vraća — izvorni kod programa zamijenjen je novim, učitanim iz izvršne datoteke, varijable na stogu i hrpi se brišu, a brojač instrukcija (PC) postavlja se na prvu instrukciju u novom programu. Vraćanje iz `exec`-a znači grešku (npr. izvršna datoteka nije pronađena ili nemamo pravo izvršavanja).
 
-- **`myls.c`** — prvi primjer funkcija iz `exec` obitelji: poziv `execlp()` zamjenjuje trenutni programski kod procesa kodom nekog drugog programa — u ovom slučaju UNIX naredbe `ls`. Za razliku od `fork()`, koji stvara novi proces, `exec()` **ne stvara novi proces** — PID ostaje isti, promijeni se samo programski kod koji se izvršava.
+- [**`myls.c`**](myls.c) — prvi primjer funkcija iz `exec` obitelji: poziv `execlp()` zamjenjuje trenutni programski kod procesa kodom nekog drugog programa — u ovom slučaju UNIX naredbe `ls`. Za razliku od `fork()`, koji stvara novi proces, `exec()` **ne stvara novi proces** — PID ostaje isti, promijeni se samo programski kod koji se izvršava.
 
   ```c
   execlp("ls", "ls", "-al", NULL);
@@ -318,7 +381,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   ...
   ```
 
-- **`pokreni.c`** — uopćena verzija prethodnog primjera: program prima proizvoljnu naredbu s argumentima kao svoje argumente naredbenog retka i pokreće je pozivom `execvp()`. Kako funkcija `main` već dobiva argumente u obliku polja pokazivača (`argv`), upravo takav oblik očekuje i `execvp` — dovoljno je proslijediti pokazivač na `argv[1]`:
+- [**`pokreni.c`**](pokreni.c) — uopćena verzija prethodnog primjera: program prima proizvoljnu naredbu s argumentima kao svoje argumente naredbenog retka i pokreće je pozivom `execvp()`. Kako funkcija `main` već dobiva argumente u obliku polja pokazivača (`argv`), upravo takav oblik očekuje i `execvp` — dovoljno je proslijediti pokazivač na `argv[1]`:
 
   ```c
   execvp(argv[1], &argv[1]);
@@ -352,17 +415,34 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
   Jedan isti proces redom mijenja svoj sadržaj tri puta: prvi `pokreni` kod je zamijenjen drugim pozivom `pokreni`, taj pozivom trećeg `pokreni`-a, i on na kraju pozivom `ls -al`. PID ostaje isti kroz sve četiri metamorfoze, a ono što korisnik vidi kao rezultat — ispis sadržaja direktorija — potpuno je nerazlučivo od običnog poziva `ls -al`. Ova rekurzija ilustrira što `exec` zapravo jest: ne pokretanje novog procesa, nego **zamjena tijela postojećeg procesa drugim kodom**.
 
-- **`pokreni2.c`** — ključan korak prema pravoj ljusci: **kombinacija `fork()` i `exec()`**. U prethodnom primjeru `pokreni` je nakon `execvp()` prestao postojati kao `pokreni` — njegov je kod zamijenjen kodom pokrenute naredbe, pa nakon završetka naredbe nema ničeg na što bi se vratilo. U realnoj ljusci želimo zadržati roditelja živim kako bi mogao primiti sljedeću naredbu, a za svaku naredbu pokrenuti novi proces.
+- [**`pokreni2.c`**](pokreni2.c) — ključan korak prema pravoj ljusci: **kombinacija `fork()` i `exec()`**. U prethodnom primjeru `pokreni` je nakon `execvp()` prestao postojati kao `pokreni` — njegov je kod zamijenjen kodom pokrenute naredbe, pa nakon završetka naredbe nema ničeg na što bi se vratilo. U realnoj ljusci želimo zadržati roditelja živim kako bi mogao primiti sljedeću naredbu, a za svaku naredbu pokrenuti novi proces.
 
   Obrazac koji slijedi je upravo onaj koji **svaka UNIX ljuska koristi svaki put kad korisnik utipka naredbu**: ljuska pozivom `fork` stvori novi proces (kopiju same sebe), potom u tom novom procesu pozivom `exec` pokrene traženu naredbu, a u roditeljskom procesu čeka njen završetak pozivom `wait`. Ljuska ovo radi u petlji — nakon svakog `wait`-a korisniku daje novu ljuskinu oznaku (*prompt*) i mogućnost da unese sljedeću naredbu.
 
-  Roditelj iz poziva `wait()` preuzima statusni broj kroz koji jezgra pakira informaciju o tome je li dijete završilo normalno i s kojim izlaznim statusom. Makro `WEXITSTATUS(s)` iz `<sys/wait.h>` izdvaja pravu povratnu vrijednost (onu koju je dijete predalo kroz `return` iz `main`-a ili `exit()`-om). Povratna vrijednost 127, koju `pokreni2` koristi u grani kad `execvp()` ne uspije, je UNIX konvencija za "naredba nije pronađena".
+  U prethodnom odjeljku, kod primjera `ret_stat.c`, već smo se susreli s makroom `WEXITSTATUS()` koji iz statusne riječi izvlači izlazni status djeteta. U `pokreni2` koristimo dva dodatna makroa iz `<sys/wait.h>` koji nam pomažu razlikovati **na koji način** je dijete završilo:
 
-  Isprobajmo s različitim naredbama:
+  ```c
+  WIFEXITED(status)    // istina ako je dijete završilo normalno (return / exit)
+  WIFSIGNALED(status)  // istina ako je dijete prekinuto signalom
+  WTERMSIG(status)     // broj signala koji je prekinuo dijete
+  ```
+
+  Ovi makroi ispituju različite skupove bitova iste statusne riječi: `WIFEXITED` provjerava bit koji označava "uredan izlazak", `WIFSIGNALED` ispituje bit "prekinut signalom", a `WTERMSIG` izvlači broj signala iz dijela rezerviranog za signale (bitovi 0–6). Za bilo koji statusni broj točno jedan od `WIFEXITED` i `WIFSIGNALED` vratit će istinu — proces ne može istovremeno završiti i normalno i biti ubijen signalom. `pokreni2` na temelju toga ispisuje različitu poruku:
+
+  ```c
+  if (WIFEXITED(s))
+      printf("Noramaln izlaz, izlazni status: %d\n", WEXITSTATUS(s));
+  else if (WIFSIGNALED(s))
+      printf("Prekid signalom, signal: %d\n", WTERMSIG(s));
+  ```
+
+  Povratna vrijednost 127, koju `pokreni2` koristi u grani kad `execvp()` ne uspije, je UNIX konvencija za "naredba nije pronađena".
+
+  Isprobajmo s različitim naredbama koje **uredno završavaju**:
 
   ```
   $ ./pokreni2 ls
-  argumenti  argumenti.c  listenv  listenv.c  ...
+  argumenti  argumenti.c  listenv1  listenv1.c  ...
   Noramaln izlaz, izlazni status: 0
 
   $ ./pokreni2 asdasdasd
@@ -374,11 +454,28 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   Noramaln izlaz, izlazni status: 2
   ```
 
-  **Zašto se izlazni status razlikuje** među tri slučaja? U prvom slučaju `ls` je uspješno obavio svoj posao i `exit`-ao s 0 — to je UNIX konvencija "sve je prošlo dobro". U drugom slučaju `execvp` u djetetu nije uspio (naredba `asdasdasd` ne postoji u `PATH`-u), pa se dijete vratilo na idući redak koda — `perror` i zatim `return 127`. Broj 127 je namjerno odabran jer po POSIX konvenciji upravo on označava "naredba nije pronađena". U trećem slučaju `ls` se uspješno pokrenuo, ali je pri otvaranju datoteke `sdfsdfsdf` utvrdio da ne postoji, ispisao poruku o grešci na standardni izlaz za greške i vratio 2 — što je specifična konvencija same naredbe `ls` za "ozbiljnija greška".
+  **Zašto se izlazni status razlikuje** među tri slučaja? U prvom slučaju `ls` je uspješno obavio svoj posao i `exit`-ao s 0 — to je UNIX konvencija "sve je prošlo dobro". U drugom slučaju `execvp` u djetetu nije uspio (naredba `asdasdasd` ne postoji u `PATH`-u), pa se dijete vratilo na idući redak koda — `perror` i zatim `return 127`. U trećem slučaju `ls` se uspješno pokrenuo, ali je pri otvaranju datoteke `sdfsdfsdf` utvrdio da ne postoji, ispisao poruku o grešci na standardni izlaz za greške i vratio 2 — što je specifična konvencija same naredbe `ls` za "ozbiljnija greška". Sva tri scenarija su uredan izlazak; razlikuje se samo vrijednost koju je dijete vratilo.
 
-  **Zašto uopće `pokreni2` vraća ovaj status?** Zato što nam je `wait(&s)` iz djeteta predao statusni broj: za `pokreni2` je svaka od ove tri situacije uobičajeno ponašanje koje se razlikuje samo vrijednošću. Ljuska koju svakodnevno koristimo radi upravo to isto — izlazni status posljednje naredbe dostupan je preko posebne varijable `$?`, što omogućuje pisanje skripti koje granjaju svoju logiku ovisno o ishodu prethodnog poziva.
+- [**`ptr_err.c`**](ptr_err.c) — pratilac primjer koji namjerno proizvodi grešku radi demonstracije druge grane u `pokreni2`-u. Sav posao programa svodi se na nekoliko redaka koda:
 
-- **`preusmjeri.c`** — povezuje koncepte iz ovog poglavlja s mehanizmom preusmjeravanja ulaza/izlaza obrađenim u poglavlju o ulazno-izlaznim operacijama. Program prima dva ili više argumenata: prvi je ime datoteke u koju želimo preusmjeriti standardni izlaz, a ostatak je naredba koju želimo pokrenuti. Redoslijed koraka je:
+  ```c
+  int main() {
+      int *val = (int*)99;
+      *val = 3;
+      return 0;
+  }
+  ```
+
+  Pokazivač `val` postavlja se na potpuno proizvoljnu numeričku vrijednost (`99`) koja sigurno nije valjana adresa u memorijskom prostoru procesa, a zatim se kroz njega pokušava upisati. Jezgra to detektira i procesu šalje signal `SIGSEGV` (signal broj 11), kojim se proces prisilno prekida. Sam `ptr_err` direktno pokrenut iz ljuske ispiše `Segmentation fault` i završi — a ako ga pokrenemo kroz `pokreni2`, vidimo i statusnu informaciju koju je `pokreni2` izvukao iz `wait()`-a:
+
+  ```
+  $ ./pokreni2 ./ptr_err
+  Prekid signalom, signal: 11
+  ```
+
+  Za razliku od svih prethodnih scenarija, `WIFEXITED` ovdje vraća laž — dijete nije završilo normalno — pa se izvršava `else if (WIFSIGNALED(s))` grana, a `WTERMSIG(s)` vraća `11`, što je broj signala `SIGSEGV`. Ovaj primjer ujedno odgovara na pitanje koje smo postavili kod `ret_stat`: bitovi statusne riječi koji nisu izlazni status (a koje smo tamo "preskočili" pomoću `WEXITSTATUS`) sadrže upravo informaciju o signalu, a sad smo vidjeli i kako se ona čita.
+
+- [**`preusmjeri.c`**](preusmjeri.c) — povezuje koncepte iz ovog poglavlja s mehanizmom preusmjeravanja ulaza/izlaza obrađenim u poglavlju o ulazno-izlaznim operacijama. Program prima dva ili više argumenata: prvi je ime datoteke u koju želimo preusmjeriti standardni izlaz, a ostatak je naredba koju želimo pokrenuti. Redoslijed koraka je:
 
   1. Pozivom `creat()` otvori se izlazna datoteka s pravima `0644`.
   2. Pozivom `dup2(fd, STDOUT_FILENO)` file deskriptor datoteke se duplicira na deskriptor 1 — upravo onaj koji proces koristi za standardni izlaz. Od tog trenutka svaki `write` ili `printf` kojemu je odredište `STDOUT_FILENO` efektivno piše u otvorenu datoteku.
@@ -399,7 +496,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
 ### Ograničavanje resursa (`setrlimit`)
 
-- **`limitraj.c`** i **`potrosac.c`** — ilustriraju sistemski poziv `setrlimit()`, kojim proces može postaviti ograničenje na različite resurse koje mu sustav dopušta koristiti. `limitraj` postavlja `RLIMIT_CPU` na 3 sekunde (i tvrdo i meko ograničenje), što znači da sljedeći proces smije potrošiti najviše 3 sekunde procesorskog vremena; nakon toga jezgra mu šalje signal koji ga prekida. Nakon postavljanja limita, `limitraj` pozivom `execvp()` pokreće naredbu zadanu argumentima. Kako se limiti resursa — kao i file deskriptori — **nasljeđuju kroz `exec()`**, pokrenuta naredba nasljeđuje i ograničenje. Ovo je osnovna ideja iza mehanizma ugrađene naredbe `ulimit` u ljusci, kao i alata poput `timeout` i različitih "sandbox" okruženja.
+- [**`limitraj.c`**](limitraj.c) i [**`potrosac.c`**](potrosac.c) — ilustriraju sistemski poziv `setrlimit()`, kojim proces može postaviti ograničenje na različite resurse koje mu sustav dopušta koristiti. `limitraj` postavlja `RLIMIT_CPU` na 3 sekunde (i tvrdo i meko ograničenje), što znači da sljedeći proces smije potrošiti najviše 3 sekunde procesorskog vremena; nakon toga jezgra mu šalje signal koji ga prekida. Nakon postavljanja limita, `limitraj` pozivom `execvp()` pokreće naredbu zadanu argumentima. Kako se limiti resursa — kao i file deskriptori — **nasljeđuju kroz `exec()`**, pokrenuta naredba nasljeđuje i ograničenje. Ovo je osnovna ideja iza mehanizma ugrađene naredbe `ulimit` u ljusci, kao i alata poput `timeout` i različitih "sandbox" okruženja.
 
   Program `potrosac.c` je pratilac koji služi samo za demonstraciju djelovanja `limitraj`-a — sastoji se od jedne jedine beskonačne petlje `while(1);`, bez ijednog sistemskog poziva ili I/O operacije. Kad se pokrene samostalno, trošio bi procesor neograničeno dugo. Pokrenut kroz `limitraj`, nasljeđuje njegov CPU limit:
 
@@ -423,7 +520,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
 ### Osirotjeli procesi
 
-- **`noparent.c`** — detaljniji primjer `fork()` mehanizma koji prikazuje što se dogodi kada **roditelj završi prije djeteta**. Program stvara stablo od tri procesa — `PARENT 1`, `CHILD 1` i `CHILD 2` — pri čemu `CHILD 2` (unuk po odnosu prema `PARENT 1`) namjerno spava duže od svog direktnog roditelja (`CHILD 1`). Zbog toga `CHILD 1` završi dok njegovo dijete još radi, a time `CHILD 2` postaje **osirotjeli proces** (*orphan*). U takvoj situaciji jezgra automatski preuzima ulogu novog roditelja — tradicionalno je to proces `init` s PID-om 1.
+- [**`noparent.c`**](noparent.c) — detaljniji primjer `fork()` mehanizma koji prikazuje što se dogodi kada **roditelj završi prije djeteta**. Program stvara stablo od tri procesa — `PARENT 1`, `CHILD 1` i `CHILD 2` — pri čemu `CHILD 2` (unuk po odnosu prema `PARENT 1`) namjerno spava duže od svog direktnog roditelja (`CHILD 1`). Zbog toga `CHILD 1` završi dok njegovo dijete još radi, a time `CHILD 2` postaje **osirotjeli proces** (*orphan*). U takvoj situaciji jezgra automatski preuzima ulogu novog roditelja — tradicionalno je to proces `init` s PID-om 1.
 
   Očekivani ispis s konkretnim PID-ovima (skraćeno; `SH` je PID ljuske iz koje je program pokrenut, npr. 14567; `PARENT 1` dobiva PID 25016, `CHILD 1` 25017, `CHILD 2` 25018):
 
