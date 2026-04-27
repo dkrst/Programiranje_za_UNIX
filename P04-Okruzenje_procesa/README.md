@@ -270,9 +270,11 @@ Sistemski poziv `fork()` nema argumenata i jednostavno kopira memorijsku sliku p
 
   PID djeteta (25017) koji je roditelj dobio kao povratnu vrijednost `fork()`-a točno odgovara PID-u koji dijete prijavljuje pozivom `getpid()`; istovremeno dijete vidi PPID jednak PID-u roditelja, što potvrđuje odnos roditelj–dijete u procesnom stablu. Redoslijed ispisa između roditelja i djeteta nije određen — ovisi o raspoređivaču koji odlučuje koji će od dva spremna procesa dobiti procesor prvi.
 
-#### Čekanje završetka djeteta — sistemski poziv `wait`
+#### Izlazni status procesa — sistemski poziv `wait`
 
-U mnogim slučajevima roditeljski proces nakon `fork()`-a treba pričekati da dijete završi svoj posao prije nego nastavi sa svojim radom. UNIX za to nudi sistemski poziv `wait`:
+Nakon stvaranja novog procesa sistemskim pozivom `fork`, jezgra zapisuje informacije o novonastalom procesu u **tablicu procesa** — istu onu u kojoj se čuva i informacija o svim otvorenim deskriptorima datoteka. Ovaj zapis u tablici procesa čuva se sve dok ima potrebe za tim — sve dok proces postoji, ali ponekad i duže. Sjetimo se da funkcija `main` ima povratnu vrijednost `int`. Vjerojatno ste se već zapitali čemu ova vrijednost služi i kome se uopće vraća, s obzirom da je `main` prva funkcija koja se poziva u novopokrenutom programu i ne postoji funkcija koja bi ju pozivala.
+
+Upravo ova vrijednost osigurava mehanizam putem kojeg proces roditelj može saznati što se dogodilo s njegovim procesom djetetom: je li izvršio svoju zadaću ili je došlo do greške, i što je tu grešku uzrokovalo? Naime, poziv `return` u funkciji `main`, isto kao i poziv sistemskog poziva `exit` u bilo kojoj drugoj funkciji, prekidaju izvršavanje procesa i predaju jezgri **izlazni status procesa** — cjelobrojnu vrijednost od 0 do 255. Jezgra ovu vrijednost pohranjuje u slog u tablici procesa koji odgovara procesu koji je upravo završio. Zadatak procesa roditelja je da ovu vrijednost pročita i na temelju nje sazna sudbinu svog djeteta, a to može napraviti sistemskim pozivom `wait`:
 
 ```c
 #include <sys/wait.h>
@@ -280,7 +282,7 @@ U mnogim slučajevima roditeljski proces nakon `fork()`-a treba pričekati da di
 pid_t wait(int *wstatus);
 ```
 
-**Povratna vrijednost:** PID djeteta koje je završilo, ili `-1` u slučaju greške (npr. proces nema djece koja bi mogla završiti).
+**Povratna vrijednost:** PID djeteta koje je završilo, ili `-1` u slučaju greške (npr. proces nema djece koja bi mogla završiti). Izlazni status child procesa upisuje se u cjelobrojnu varijablu na koju pokazuje argument `wstatus`.
 
 `wait()` blokira pozivajući proces sve dok jedno od njegove djece ne završi izvršavanje. Kad se to dogodi, jezgra puni varijablu na koju pokazuje `wstatus` informacijama o tome kako je dijete završilo: je li završilo normalno (npr. pozivom `return` ili `exit()`), je li prekinuto signalom, te koja je njegova povratna vrijednost odnosno koji je signal uzrokovao prekid. Ako pozivatelja zanima samo to da pričeka dijete, ali ne i sam status, kao argument se može proslijediti `NULL`.
 
@@ -315,7 +317,7 @@ Posljedica je da bezuvjetan ispis statusnog broja kao cijele vrijednosti ne daje
 
   Samo prva vrijednost (`0`) odgovara onome što je dijete uistinu vratilo. Ostali brojevi su pomnoženi sa 256 — odnosno, gledano kao niz bitova, izvorna vrijednost je pomaknuta osam mjesta ulijevo. To su upravo bitovi 8–15 statusne riječi, gdje jezgra po POSIX konvenciji pohranjuje izlazni status. Ostali bitovi statusnog broja rezervirani su za druge informacije (signal koji je prekinuo proces, oznaka core-dumpa itd.) — te ćemo informacije iskoristiti u sekciji **Pokretanje novog programa**.
 
-  Da bismo dobili izvornu povratnu vrijednost, koristi se makro `WEXITSTATUS()`. U primjeru `ret_stat.c` zakomentiraj prvi `printf` i otkomentiraj drugi:
+  Da bismo dobili izvornu povratnu vrijednost, koristi se makro `WEXITSTATUS()`. U primjeru `ret_stat.c` zakomentirajte prvi `printf` i otkomentirajte drugi:
 
   ```c
   // printf("CHILD EXIT STATUS: %d\n", rv);
@@ -367,9 +369,9 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   execlp("ls", "ls", "-al", NULL);
   ```
 
-  Valja primijetiti da su **prva dva argumenta poziva `execlp` identična**: prvi (`"ls"`) je ime izvršne datoteke koju treba naći i pokrenuti, a drugi (`"ls"`) je ono što će nova naredba dobiti kao svoj `argv[0]`. Ovo je neočigledno, ali nužno — podsjetimo se da po konvenciji svaka naredba u svom `argv[0]` očekuje vlastito ime (upravo iz tog razloga poruke o korištenju koriste `argv[0]`). Teoretski je moguće proslijediti i različito ime — tako bi program vidio da je pokrenut pod drugim imenom — ali u normalnoj uporabi oba se argumenta podudaraju.
+  Primijetite da su **prva dva argumenta poziva `execlp` identična**: prvi (`"ls"`) je ime izvršne datoteke koju treba naći i pokrenuti, a drugi (`"ls"`) je ono što će nova naredba dobiti kao svoj `argv[0]`. Podsjetimo se da po konvenciji svaka naredba u svom `argv[0]` očekuje vlastito ime (upravo iz tog razloga poruke o korištenju koriste `argv[0]`). Teoretski je moguće proslijediti i različito ime — tako bi program vidio da je pokrenut pod drugim imenom — ali u normalnoj uporabi oba se argumenta podudaraju.
 
-  Ako `execlp()` uspije, poziv se nikad ne vraća — zato je `perror("execlp")` dosežljiv samo u slučaju greške (npr. naredba `ls` nije pronađena u `PATH`-u).
+  Ako `execlp()` uspije, poziv se nikad ne vraća — zato će se `perror("execlp")` izvršiti samo u slučaju greške (npr. naredba `ls` nije pronađena u `PATH`-u). Stoga nije potrebno provjeravati povratnu vrijednost funkcije `execlp`. Za razliku od poziva `fork()`, koji se poziva jednom a vraća dva puta, `execlp` (kao i ostale funkcije iz obitelji `exec`) ne vraća se nikad — osim u slučaju greške.
 
   ```
   $ ./myls
@@ -413,11 +415,9 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   $ ./pokreni ./pokreni ./pokreni ls -al
   ```
 
-  Jedan isti proces redom mijenja svoj sadržaj tri puta: prvi `pokreni` kod je zamijenjen drugim pozivom `pokreni`, taj pozivom trećeg `pokreni`-a, i on na kraju pozivom `ls -al`. PID ostaje isti kroz sve četiri metamorfoze, a ono što korisnik vidi kao rezultat — ispis sadržaja direktorija — potpuno je nerazlučivo od običnog poziva `ls -al`. Ova rekurzija ilustrira što `exec` zapravo jest: ne pokretanje novog procesa, nego **zamjena tijela postojećeg procesa drugim kodom**.
+  Jedan isti proces redom mijenja svoj sadržaj tri puta: prvi `pokreni` kod je zamijenjen drugim pozivom `pokreni`, taj pozivom trećeg `pokreni`-a, i on na kraju pozivom `ls -al`. PID ostaje isti kroz sve četiri metamorfoze, a ono što korisnik vidi kao rezultat — ispis sadržaja direktorija — potpuno je isto kao da smo `ls -al` pozvali direktno. Ova rekurzija ilustrira što `exec` zapravo jest: ne pokretanje novog procesa, nego **zamjena tijela postojećeg procesa drugim kodom**.
 
-- [**`pokreni2.c`**](pokreni2.c) — ključan korak prema pravoj ljusci: **kombinacija `fork()` i `exec()`**. U prethodnom primjeru `pokreni` je nakon `execvp()` prestao postojati kao `pokreni` — njegov je kod zamijenjen kodom pokrenute naredbe, pa nakon završetka naredbe nema ničeg na što bi se vratilo. U realnoj ljusci želimo zadržati roditelja živim kako bi mogao primiti sljedeću naredbu, a za svaku naredbu pokrenuti novi proces.
-
-  Obrazac koji slijedi je upravo onaj koji **svaka UNIX ljuska koristi svaki put kad korisnik utipka naredbu**: ljuska pozivom `fork` stvori novi proces (kopiju same sebe), potom u tom novom procesu pozivom `exec` pokrene traženu naredbu, a u roditeljskom procesu čeka njen završetak pozivom `wait`. Ljuska ovo radi u petlji — nakon svakog `wait`-a korisniku daje novu ljuskinu oznaku (*prompt*) i mogućnost da unese sljedeću naredbu.
+- [**`pokreni2.c`**](pokreni2.c) — pokretanje programa u novom procesu: **kombinacija `fork()` i `exec()`**. U prethodnom primjeru `pokreni` je nakon `execvp()` prestao postojati kao `pokreni` — njegov je kod zamijenjen kodom pokrenute naredbe, pa nakon završetka naredbe nema ničeg na što bi se vratilo. U praksi često želimo zadržati roditelja živim kako bi nastavio izvršavati svoju primarnu zadaću, ili čak pokrenuo novu naredbu nakon što se program pokrenut s `exec` u child procesu završi. Ovaj obrazac slijedi UNIX ljuska svaki put kada korisnik utipka naredbu: ljuska pozivom `fork` stvori novi proces (kopiju same sebe), potom u tom novom procesu pozivom `exec` pokrene traženu naredbu, a u roditeljskom procesu čeka njen završetak pozivom `wait`. Ljuska ovo radi u petlji — nakon svakog `wait`-a korisniku daje novu ljuskinu oznaku (*prompt*) i mogućnost da unese sljedeću naredbu.
 
   U prethodnom odjeljku, kod primjera `ret_stat.c`, već smo se susreli s makroom `WEXITSTATUS()` koji iz statusne riječi izvlači izlazni status djeteta. U `pokreni2` koristimo dva dodatna makroa iz `<sys/wait.h>` koji nam pomažu razlikovati **na koji način** je dijete završilo:
 
@@ -427,7 +427,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   WTERMSIG(status)     // broj signala koji je prekinuo dijete
   ```
 
-  Ovi makroi ispituju različite skupove bitova iste statusne riječi: `WIFEXITED` provjerava bit koji označava "uredan izlazak", `WIFSIGNALED` ispituje bit "prekinut signalom", a `WTERMSIG` izvlači broj signala iz dijela rezerviranog za signale (bitovi 0–6). Za bilo koji statusni broj točno jedan od `WIFEXITED` i `WIFSIGNALED` vratit će istinu — proces ne može istovremeno završiti i normalno i biti ubijen signalom. `pokreni2` na temelju toga ispisuje različitu poruku:
+  Ovi makroi ispituju različite skupove bitova iste statusne riječi: `WIFEXITED` provjerava bit koji označava "uredan izlazak", `WIFSIGNALED` ispituje bit "prekinut signalom", a `WTERMSIG` izvlači broj signala iz dijela rezerviranog za signale (bitovi 0–6). Za bilo koji statusni broj točno jedan od `WIFEXITED` i `WIFSIGNALED` vratit će istinu — proces ne može istovremeno završiti i normalno i biti prekinut signalom. `pokreni2` na temelju toga ispisuje različitu poruku:
 
   ```c
   if (WIFEXITED(s))
@@ -456,7 +456,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
   **Zašto se izlazni status razlikuje** među tri slučaja? U prvom slučaju `ls` je uspješno obavio svoj posao i `exit`-ao s 0 — to je UNIX konvencija "sve je prošlo dobro". U drugom slučaju `execvp` u djetetu nije uspio (naredba `asdasdasd` ne postoji u `PATH`-u), pa se dijete vratilo na idući redak koda — `perror` i zatim `return 127`. U trećem slučaju `ls` se uspješno pokrenuo, ali je pri otvaranju datoteke `sdfsdfsdf` utvrdio da ne postoji, ispisao poruku o grešci na standardni izlaz za greške i vratio 2 — što je specifična konvencija same naredbe `ls` za "ozbiljnija greška". Sva tri scenarija su uredan izlazak; razlikuje se samo vrijednost koju je dijete vratilo.
 
-- [**`ptr_err.c`**](ptr_err.c) — pratilac primjer koji namjerno proizvodi grešku radi demonstracije druge grane u `pokreni2`-u. Sav posao programa svodi se na nekoliko redaka koda:
+- [**`ptr_err.c`**](ptr_err.c) — primjer koji namjerno izaziva grešku u rukovanju memorijom. Sav posao programa svodi se na nekoliko redaka koda:
 
   ```c
   int main() {
@@ -466,14 +466,16 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   }
   ```
 
-  Pokazivač `val` postavlja se na potpuno proizvoljnu numeričku vrijednost (`99`) koja sigurno nije valjana adresa u memorijskom prostoru procesa, a zatim se kroz njega pokušava upisati. Jezgra to detektira i procesu šalje signal `SIGSEGV` (signal broj 11), kojim se proces prisilno prekida. Sam `ptr_err` direktno pokrenut iz ljuske ispiše `Segmentation fault` i završi — a ako ga pokrenemo kroz `pokreni2`, vidimo i statusnu informaciju koju je `pokreni2` izvukao iz `wait()`-a:
+  Pokazivač `val` postavlja se na potpuno proizvoljnu numeričku vrijednost (`99`) koja sigurno nije valjana adresa u memorijskom prostoru procesa, a zatim se kroz njega pokušava upisati. Jezgra to detektira i procesu šalje signal `SIGSEGV` (signal broj 11). Ako `ptr_err` pokrenemo korištenjem našeg `pokreni2`, dobit ćemo sljedeći rezultat:
 
   ```
   $ ./pokreni2 ./ptr_err
   Prekid signalom, signal: 11
   ```
 
-  Za razliku od svih prethodnih scenarija, `WIFEXITED` ovdje vraća laž — dijete nije završilo normalno — pa se izvršava `else if (WIFSIGNALED(s))` grana, a `WTERMSIG(s)` vraća `11`, što je broj signala `SIGSEGV`. Ovaj primjer ujedno odgovara na pitanje koje smo postavili kod `ret_stat`: bitovi statusne riječi koji nisu izlazni status (a koje smo tamo "preskočili" pomoću `WEXITSTATUS`) sadrže upravo informaciju o signalu, a sad smo vidjeli i kako se ona čita.
+  Za razliku od svih prethodnih primjera, `WIFEXITED` ovdje vraća laž — dijete nije završilo normalno — pa se izvršava `else if (WIFSIGNALED(s))` grana, a `WTERMSIG(s)` vraća `11`, što je broj signala `SIGSEGV`.
+
+  Ako `ptr_err` pokušate pokrenuti direktno iz ljuske, dobit ćete ispis `Segmentation fault` — ljuska na isti način kao i naš primjer sazna razlog prekida izvršavanja naredbe koju smo zadali, provjeri koji je signal uzrok prekida te, temeljem te informacije, ispisuje odgovarajuću poruku.
 
 - [**`preusmjeri.c`**](preusmjeri.c) — povezuje koncepte iz ovog poglavlja s mehanizmom preusmjeravanja ulaza/izlaza obrađenim u poglavlju o ulazno-izlaznim operacijama. Program prima dva ili više argumenata: prvi je ime datoteke u koju želimo preusmjeriti standardni izlaz, a ostatak je naredba koju želimo pokrenuti. Redoslijed koraka je:
 
