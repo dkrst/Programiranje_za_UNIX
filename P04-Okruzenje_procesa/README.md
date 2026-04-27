@@ -335,6 +335,18 @@ Posljedica je da bezuvjetan ispis statusnog broja kao cijele vrijednosti ne daje
 
   Makro `WEXITSTATUS(s)` ne radi ništa "magično" — interno samo izvuče bitove 8–15 iz statusnog broja, što je ekvivalentno izrazu `(s >> 8) & 0xFF`. Korištenje makroa, međutim, čini kod jasnijim, neovisnim o konkretnoj implementaciji statusne riječi i prenosivim na različite UNIX sustave.
 
+#### Zombi procesi
+
+Slijed događaja koji smo upravo opisali — proces završi pozivom `exit()` ili `return` iz funkcije `main`, a njegov proces roditelj njegov izlazni status preuzme pozivom `wait()` — otvara jedno suptilno pitanje: **kada točno jezgra može osloboditi zapis o procesu u tablici procesa?** Resursi koje je proces koristio (memorija, otvoreni file deskriptori, itd.) oslobađaju se odmah po prekidu izvršavanja, ali to se ne odnosi na sam zapis u tablici procesa: u njemu je pohranjen izlazni status koji jezgra još mora moći predati procesu roditelju kad on (u nekom budućem trenutku) pozove `wait()`. Ako bi taj zapis bio izbrisan u trenutku prekida izvršavanja procesa djeteta, poziv `wait()` ne bi imao odakle pročitati izlazni status.
+
+Rješenje koje UNIX koristi je sljedeće: kad dijete završi, jezgra **zadržava** njegov zapis u tablici procesa, ali u posebnom stanju u kojem proces više ne troši resurse — postoji samo zapis o tome koji PID je imao i koji je njegov izlazni status. U uredno napisanim programima, ovaj period je vrlo kratak. Problem nastaje kad roditelj iz nekog razloga ne pozove `wait()` za svoju djecu. U ovom slučaju, imamo proces koji više nije živ, ali je još uvijek tu negdje i jezgra mora čuvati odgovarajući slog u tablici procesa. Štoviše, procesa u ovom stanju ne možemo se ni prisilno riješiti, npr. slanjem signala `KILL` koji bezuvjetno ubija proces kojem je poslan — jer ionako više nije živ. U UNIX terminologiji ovakvi procesi nazivaju se (prigodno) **zombi procesima** (engl. *zombie process*).
+
+Zombi proces moguće je vidjeti naredbom `ps`: u stupcu `STAT` (status) prikazana je oznaka **`Z`**, a uz ime procesa stoji oznaka `<defunct>`. Problem nastaje ako se ovakvi procesi počnu gomilati: svaki od njih troši jedan slog u tablici procesa i koristi jedan PID — iako više nije aktivan. Kako tablica procesa ima ograničenu veličinu, kontinuirano stvaranje zombi procesa može dovesti do iscrpljenja sistemskih resursa — sustav neće moći pokrenuti nove procese sve dok netko ne "pokupi" zombije.
+
+Stoga je dobra programerska praksa voditi računa o procesima koje ste stvorili: obavezno se pobrinite da po završetku izvršavanja vašeg child procesa pozovete `wait`, makar s argumentom `NULL` ukoliko vas njegov izlazni status ne zanima — ovo je jezgri potrebno da bi znala da ne mora više čuvati izlazni status procesa koji je završio s izvršavanjem.
+
+Što se događa ako roditelj umre prije nego pozove `wait()`? Tu na scenu stupa mehanizam koji ćemo upoznati u sljedećem poglavlju, kod **osirotjelih procesa**. Jezgra preuzme nadležnost nad svim sirotanima — uključujući i zombije — i prebacuje ih procesu `init` (PID 1, ili u modernim Linux distribucijama `systemd`). `init` je dizajniran tako da neprestano poziva `wait()` na bilo koju djecu koja mu se prikače; time čisti sve preuzete zombije i pušta jezgru da oslobodi njihove zapise.
+
 ### Pokretanje novog programa
 
 Proces i program su dva povezana ali različita koncepta. **Proces** je aktivna instanca izvršavanja — entitet koji ima svoj PID, memorijski prostor i resurse. **Program** je statičan zapis: strojni kod pohranjen u izvršnoj datoteci, niz instrukcija koje proces izvršava.
