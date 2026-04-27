@@ -20,7 +20,10 @@ int main(int argc, char **argv) {
     return 127;
   } else {
     wait(&s);
-    printf("Noramaln izlaz, izlazni status: %d\n", WEXITSTATUS(s));
+    if (WIFEXITED(&s))
+      printf("Noramaln izlaz, izlazni status: %d\n", WEXITSTATUS(s));
+    else if (WIFSIGNALED(&s)
+      printf("Prekid signalom, signal: %d\n", WTERMSIG(s));
   }
     
   return 0;  
