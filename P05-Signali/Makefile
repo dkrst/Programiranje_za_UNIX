@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = potvrdi alarm_clock stoperica stoperica2
+TARGETS = potvrdi alarm_clock stoperica stoperica2 razgovor
 
 default: potvrdi
 
@@ -18,6 +18,9 @@ stoperica: stoperica.o
 
 stoperica2: stoperica2.o
 	$(CC) $(LDFLAGS) stoperica2.o -o stoperica2
+
+razgovor: razgovor.o
+	$(CC) $(LDFLAGS) razgovor.o -o razgovor
 
 clean:
 	rm -f $(TARGETS) *.o *~ a.out
