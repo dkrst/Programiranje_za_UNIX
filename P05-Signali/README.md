@@ -12,29 +12,31 @@ UNIX definira tridesetak signala, ali u praksi se najčešće susrećemo sa skup
 
 | Signal | Broj | Predefinirana akcija | Značenje |
 |---|---|---|---|
-| `SIGHUP`  |  1 | prekid procesa  | terminal je zatvoren ili je sesija prekinuta; često se koristi i kao "ponovno učitaj konfiguraciju" |
-| `SIGINT`  |  2 | prekid procesa  | korisnik je pritisnuo Ctrl+C u terminalu |
-| `SIGQUIT` |  3 | prekid + core   | korisnik je pritisnuo Ctrl+\ — kao SIGINT, ali generira i memory dump |
-| `SIGILL`  |  4 | prekid + core   | proces je pokušao izvršiti nevažeću strojnu instrukciju |
-| `SIGABRT` |  6 | prekid + core   | proces je sam sebe prekinuo pozivom `abort()` (npr. zbog `assert` greške) |
-| `SIGFPE`  |  8 | prekid + core   | aritmetička greška (dijeljenje s nulom, prelijevanje) |
-| `SIGKILL` |  9 | prekid procesa  | bezuvjetni prekid — **ne može se uhvatiti niti ignorirati** |
-| `SIGSEGV` | 11 | prekid + core   | proces je pristupio nevažećoj memorijskoj adresi (*segmentation fault*) |
-| `SIGPIPE` | 13 | prekid procesa  | proces je pisao u cijev kojoj je drugi kraj zatvoren |
-| `SIGALRM` | 14 | prekid procesa  | istekao je timer postavljen pozivom `alarm()` |
-| `SIGTERM` | 15 | prekid procesa  | uljudni zahtjev za prekid; pošiljatelj (npr. `kill <pid>`) može ga uhvatiti i obraditi |
-| `SIGUSR1` | 10 | prekid procesa  | korisnički signal br. 1 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
-| `SIGUSR2` | 12 | prekid procesa  | korisnički signal br. 2 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
-| `SIGCHLD` | 17 | ignorira se     | dijete procesa je promijenilo stanje (završilo, zaustavljeno itd.) |
-| `SIGSTOP` | 19 | zaustavi proces | bezuvjetno zaustavljanje — **ne može se uhvatiti niti ignorirati** |
-| `SIGCONT` | 18 | nastavi proces  | nastavi izvršavanje zaustavljenog procesa |
-| `SIGTSTP` | 20 | zaustavi proces | korisnik je pritisnuo Ctrl+Z u terminalu |
-| `SIGXCPU` | 24 | prekid + core   | premašen je CPU limit postavljen `setrlimit()`-om (vidi P04) |
-| `SIGXFSZ` | 25 | prekid + core   | premašen je file size limit postavljen `setrlimit()`-om |
+| `SIGHUP`  |  1 | prekid procesa            | terminal je zatvoren ili je sesija prekinuta; često se koristi i kao "ponovno učitaj konfiguraciju" |
+| `SIGINT`  |  2 | prekid procesa            | korisnik je pritisnuo Ctrl+C u terminalu |
+| `SIGQUIT` |  3 | prekid procesa + core file | korisnik je pritisnuo Ctrl+\ — kao SIGINT, ali generira i core file |
+| `SIGILL`  |  4 | prekid procesa + core file | proces je pokušao izvršiti nevažeću strojnu instrukciju |
+| `SIGABRT` |  6 | prekid procesa + core file | proces je sam sebe prekinuo pozivom `abort()` (npr. zbog `assert` greške) |
+| `SIGFPE`  |  8 | prekid procesa + core file | aritmetička greška (dijeljenje s nulom, prelijevanje) |
+| `SIGKILL` |  9 | prekid procesa            | bezuvjetni prekid — **ne može se uhvatiti niti ignorirati** |
+| `SIGSEGV` | 11 | prekid procesa + core file | proces je pristupio nevažećoj memorijskoj adresi (*segmentation fault*) |
+| `SIGPIPE` | 13 | prekid procesa            | proces je pisao u cijev kojoj je drugi kraj zatvoren |
+| `SIGALRM` | 14 | prekid procesa            | istekao je timer postavljen pozivom `alarm()` |
+| `SIGTERM` | 15 | prekid procesa            | uljudni zahtjev za prekid; pošiljatelj (npr. `kill <pid>`) može ga uhvatiti i obraditi |
+| `SIGUSR1` | 10 | prekid procesa            | korisnički signal br. 1 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
+| `SIGUSR2` | 12 | prekid procesa            | korisnički signal br. 2 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
+| `SIGCHLD` | 17 | ignorira se               | dijete procesa je promijenilo stanje (završilo, zaustavljeno itd.) |
+| `SIGSTOP` | 19 | zaustavi proces           | bezuvjetno zaustavljanje — **ne može se uhvatiti niti ignorirati** |
+| `SIGCONT` | 18 | nastavi proces            | nastavi izvršavanje zaustavljenog procesa |
+| `SIGTSTP` | 20 | zaustavi proces           | korisnik je pritisnuo Ctrl+Z u terminalu |
+| `SIGXCPU` | 24 | prekid procesa + core file | premašen je CPU limit postavljen `setrlimit()`-om (vidi P04) |
+| `SIGXFSZ` | 25 | prekid procesa + core file | premašen je file size limit postavljen `setrlimit()`-om |
 
 Brojevi signala u tablici odgovaraju Linuxu na arhitekturi x86 — na drugim sustavima i arhitekturama mogu se razlikovati. U kodu se uvijek koriste simbolička imena (`SIGINT`, `SIGTERM`...), a brojevi se navode samo radi reference (npr. uz ispis "Prekid signalom, signal: 11" iz `pokreni2`-a). Potpuni popis dostupan je u priručniku: `man 7 signal`.
 
 Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva signala koja se ne mogu uhvatiti niti ignorirati. Razlog je praktičan: bez ova dva signala sustav ne bi imao apsolutni mehanizam za bezuvjetan prekid ili zaustavljanje "neposlušnog" procesa. Svaki drugi signal proces može uhvatiti i odlučiti kako reagirati — uključujući i `SIGTERM`, što neki programi iskorištavaju za uredno spremanje stanja prije izlaska.
+
+**Što je core file?** Za neke signale predefinirana akcija nije samo prekid procesa, nego i **stvaranje *core file*-a** — datoteke koja sadrži snimku kompletnog memorijskog prostora procesa u trenutku kad je signal primljen (varijable na stogu, hrpi, registri procesora, otvoreni file deskriptori i drugi metapodatci). Datoteka se obično zove `core` ili `core.<pid>` i nastaje u trenutnom radnom direktoriju procesa. Ovo ponašanje vezano je uz signale koji uglavnom znače da smo u programu *nešto zabrljali* — `SIGSEGV` (pristup nevažećoj memoriji), `SIGFPE` (aritmetička greška), `SIGILL` (nevažeća instrukcija), `SIGABRT` (eksplicitan prekid pomoću `abort()`). Core file omogućuje *post-mortem* analizu: alatima poput `gdb` programer može učitati core file zajedno s izvršnom datotekom, vidjeti gdje je proces bio u trenutku pada, koje su vrijednosti varijabli imale, kakav je bio stack trace itd. Naravno, ako za to imamo volje i znanja — u suprotnom core file se može jednostavno obrisati.
 
 ## Sadržaj
 
@@ -293,12 +295,6 @@ int kill(pid_t pid, int sig);
 
 Ime `kill` je povijesno — prvotno je sistemski poziv služio isključivo za prekid drugog procesa pomoću `SIGKILL` ili `SIGTERM`. Vremenom se njegova uloga proširila i danas se koristi za slanje **bilo kojeg** signala, ali ime je ostalo. Istog imena je i istoimena ugrađena naredba ljuske (`kill -<sig> <pid>`, npr. `kill -USR1 12345`), kojom korisnik može poslati proizvoljni signal nekom procesu iz terminala.
 
-Većina UNIX signala ima predefinirano značenje. Međutim, kako programer može napisati vlastiti rukovatelj za većinu signala, time praktički može promijeniti njihovo predefinirano značenje — npr. iskoristiti `SIGSEGV` (kojim nas jezgra upozorava da smo s pokazivačem izašli izvan svog memorijskog prostora) za razmjenu poruka između roditelja i djeteta, kao u našem primjeru. Iako ovo nije nikakav problem implementirati, ideja je vrlo loša: što ako stvarno u programu napravimo grešku u rukovanju memorijom i jezgra nas pokuša na to upozoriti, a mi taj signal protumačimo kao poruku od drugog procesa?
-
-Ideja da signalima pridijelimo posve drugačije značenje otprilike je jednako dobra kao da se studenti koji slušaju kolegij *Programiranje za UNIX* na FESB-u dogovore da crveno svjetlo na semaforu za njih znači "kreni", a zeleno "stani": dok su sami na cesti, sustav može funkcionirati, ali ako se pojavi bilo koji drugi vozač, posljedice su potencijalno katastrofalne.
-
-Iz istog razloga treba poštivati predefinirana značenja signala, a za vlastite komunikacijske protokole između grupe procesa koristiti **slobodne signale `SIGUSR1` i `SIGUSR2`**, kao u našem primjeru. Sustav im ne pridružuje nikakvo standardno ponašanje — programer ih može slobodno koristiti za vlastite svrhe (npr. kao "ping" obavijest, signal za reload konfiguracije, ili sinkronizacijski mehanizam).
-
 - [**`razgovor.c`**](razgovor.c) — primjer u kojem dva procesa komuniciraju isključivo putem signala. Roditelj `fork`-a dijete, zatim mu u petlji svake sekunde šalje `SIGUSR1`. Dijete na svaki primljeni signal ispiše poruku i broji koliko ih je primilo. Nakon pet "dojava", roditelj djetetu pošalje `SIGTERM` da uredno završi, pa pričeka njegov završetak pozivom `wait()`.
 
   ```c
@@ -386,6 +382,14 @@ Iz istog razloga treba poštivati predefinirana značenja signala, a za vlastite
   Iz ispisa je vidljiv pravilan redoslijed događaja: roditelj svake sekunde signalizira djetetu, dijete trenutno reagira, i tako pet puta zaredom; konačno `SIGTERM` zatvara petlju u djetetu, a roditelj nakon `wait()`-a izlazi.
 
   Bitno je naglasiti da `kill(pid, sig)` samo "isporuči" signal djetetu — ne čeka da rukovatelj završi izvršavanje, a nema nikakve garancije da će signal biti obrađen prije nego roditelj nastavi sa svojim radom. Ovo je primjer **asinkronog** mehanizma: pošiljatelj i primatelj nisu uskladeni vremenski. Za pravu sinkroniziranu komunikaciju (gdje pošiljatelj čeka primateljev odgovor) postoje drugi UNIX IPC mehanizmi — cijevi, redovi poruka, dijeljena memorija — kojima ćemo se baviti u kasnijim poglavljima.
+
+  > **Napomena: koristite `SIGUSR1` i `SIGUSR2`, ne preusmjeravajte ostale signale.**
+  >
+  > Većina UNIX signala ima predefinirano značenje. Međutim, kako programer može napisati vlastiti rukovatelj za većinu signala, time praktički može promijeniti njihovo predefinirano značenje — npr. iskoristiti `SIGSEGV` (kojim nas jezgra upozorava da smo s pokazivačem izašli izvan svog memorijskog prostora) za razmjenu poruka između roditelja i djeteta, kao u našem primjeru. Iako ovo nije nikakav problem implementirati, ideja je vrlo loša: što ako stvarno u programu napravimo grešku u rukovanju memorijom i jezgra nas pokuša na to upozoriti, a mi taj signal protumačimo kao poruku od drugog procesa?
+  >
+  > Ideja da signalima pridijelimo posve drugačije značenje otprilike je jednako dobra kao da se studenti koji slušaju kolegij *Programiranje za UNIX* na FESB-u dogovore da crveno svjetlo na semaforu za njih znači "kreni", a zeleno "stani": dok su sami na cesti, sustav može funkcionirati, ali ako se pojavi bilo koji drugi vozač, posljedice su potencijalno katastrofalne.
+  >
+  > Iz istog razloga treba poštivati predefinirana značenja signala, a za vlastite komunikacijske protokole između grupe procesa koristiti slobodne signale `SIGUSR1` i `SIGUSR2`, kao u našem primjeru.
 
 ## Prevođenje
 
