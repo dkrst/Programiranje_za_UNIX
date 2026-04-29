@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = potvrdi alarm_clock stoperica stoperica2 razgovor
+TARGETS = potvrdi potvrdi2 alarm_clock stoperica stoperica2 razgovor maska maska2
 
 default: potvrdi
 
@@ -9,6 +9,9 @@ all: $(TARGETS)
 
 potvrdi: potvrdi.o
 	$(CC) $(LDFLAGS) potvrdi.o -o potvrdi
+
+potvrdi2: potvrdi2.o
+	$(CC) $(LDFLAGS) potvrdi2.o -o potvrdi2
 
 alarm_clock: alarm_clock.o
 	$(CC) $(LDFLAGS) alarm_clock.o -o alarm_clock
@@ -21,6 +24,12 @@ stoperica2: stoperica2.o
 
 razgovor: razgovor.o
 	$(CC) $(LDFLAGS) razgovor.o -o razgovor
+
+maska: maska.o
+	$(CC) $(LDFLAGS) maska.o -o maska
+
+maska2: maska2.o
+	$(CC) $(LDFLAGS) maska2.o -o maska2
 
 clean:
 	rm -f $(TARGETS) *.o *~ a.out

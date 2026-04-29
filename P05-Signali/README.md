@@ -383,13 +383,224 @@ Ime `kill` je povijesno — prvotno je sistemski poziv služio isključivo za pr
 
   Bitno je naglasiti da `kill(pid, sig)` samo "isporuči" signal djetetu — ne čeka da rukovatelj završi izvršavanje, a nema nikakve garancije da će signal biti obrađen prije nego roditelj nastavi sa svojim radom. Ovo je primjer **asinkronog** mehanizma: pošiljatelj i primatelj nisu uskladeni vremenski. Za pravu sinkroniziranu komunikaciju (gdje pošiljatelj čeka primateljev odgovor) postoje drugi UNIX IPC mehanizmi — cijevi, redovi poruka, dijeljena memorija — kojima ćemo se baviti u kasnijim poglavljima.
 
-  > **Napomena: koristite `SIGUSR1` i `SIGUSR2`, ne preusmjeravajte ostale signale.**
+  > **Značenje signala.**
   >
   > Većina UNIX signala ima predefinirano značenje. Međutim, kako programer može napisati vlastiti rukovatelj za većinu signala, time praktički može promijeniti njihovo predefinirano značenje — npr. iskoristiti `SIGSEGV` (kojim nas jezgra upozorava da smo s pokazivačem izašli izvan svog memorijskog prostora) za razmjenu poruka između roditelja i djeteta, kao u našem primjeru. Iako ovo nije nikakav problem implementirati, ideja je vrlo loša: što ako stvarno u programu napravimo grešku u rukovanju memorijom i jezgra nas pokuša na to upozoriti, a mi taj signal protumačimo kao poruku od drugog procesa?
   >
   > Ideja da signalima pridijelimo posve drugačije značenje otprilike je jednako dobra kao da se studenti koji slušaju kolegij *Programiranje za UNIX* na FESB-u dogovore da crveno svjetlo na semaforu za njih znači "kreni", a zeleno "stani": dok su sami na cesti, sustav može funkcionirati, ali ako se pojavi bilo koji drugi vozač, posljedice su potencijalno katastrofalne.
   >
   > Iz istog razloga treba poštivati predefinirana značenja signala, a za vlastite komunikacijske protokole između grupe procesa koristiti slobodne signale `SIGUSR1` i `SIGUSR2`, kao u našem primjeru.
+
+## Sistemski poziv `sigaction`
+
+U svim dosadašnjim primjerima rukovatelje smo registrirali korištenjem funkcije `signal()`. Iako je `signal()` jednostavan i intuitivan, njegova povijest puna je nedosljednosti između UNIX implementacija. U starijim System V verzijama rukovatelj se nakon prve isporuke signala automatski poništavao (resetirao na zadanu reakciju), pa je sljedeća instanca istog signala — koja stigne prije nego rukovatelj stigne ponovno registrirati samog sebe — uzrokovala prekid procesa. Na BSD sustavima rukovatelj je ostajao registriran. Drugi izvor razlika bilo je ponašanje **prekinutih sistemskih poziva**: kad signal stigne procesu koji je u sporom sistemskom pozivu (`read`, `accept`, `pause`, `wait`...), BSD je sistemski poziv automatski nastavljao, dok je System V vraćao grešku s `errno = EINTR`. Treći problem je "atomarnost" registracije — bilo je moguće da signal stigne usred zamjene rukovatelja i pozove pogrešnu funkciju.
+
+Da bi se ove razlike uklonile i ponašanje precizno definiralo, POSIX uvodi noviju funkciju `sigaction()`, koja u potpunosti zamjenjuje `signal()` i nudi dodatne mogućnosti: blokiranje drugih signala tijekom obrade rukovatelja, kontrolu nad nastavkom prekinutih sistemskih poziva, te alternativnu formu rukovatelja koja prima detaljne informacije o izvoru signala.
+
+```c
+#include <signal.h>
+
+int sigaction(int signum, const struct sigaction *act,
+              struct sigaction *oldact);
+
+struct sigaction {
+    void     (*sa_handler)(int);
+    void     (*sa_sigaction)(int, siginfo_t *, void *);
+    sigset_t   sa_mask;
+    int        sa_flags;
+    void     (*sa_restorer)(void);    /* obsolete, ne dirati */
+};
+```
+
+Argumenti `sigaction()`-a su:
+
+- **`signum`** — broj signala koji se hvata (kao i kod `signal()`-a),
+- **`act`** — pokazivač na strukturu koja opisuje novu akciju za taj signal,
+- **`oldact`** — pokazivač na strukturu u koju će se upisati **prethodna** akcija; korisno ako želimo privremeno preuzeti signal pa kasnije vratiti staro ponašanje. Ako nas prethodna akcija ne zanima, predaje se `NULL`.
+
+Najvažnija polja strukture `struct sigaction`:
+
+- **`sa_handler`** — pokazivač na funkciju koja će biti pozvana kad signal stigne, isto kao drugi argument funkcije `signal()`. Umjesto pokazivača na funkciju, polju se mogu dodijeliti i posebne vrijednosti `SIG_DFL` (vrati zadanu reakciju jezgre) ili `SIG_IGN` (ignoriraj signal).
+- **`sa_mask`** — skup signala koje treba blokirati **dok se rukovatelj izvršava**. Po POSIX defaultu, dok se izvršava rukovatelj za neki signal `S`, taj isti signal `S` automatski je blokiran — ako tijekom obrade `S`-a stigne nova instanca, ona čeka u redu (engl. *pending*) i isporučuje se tek nakon što rukovatelj završi. Polje `sa_mask` proširuje ovo blokiranje: tu možemo navesti **dodatne** signale koji će biti blokirani tijekom izvršavanja rukovatelja. Ovo je iznimno korisno kad više signala dijele isti rukovatelj ili manipuliraju istim podacima — postavljanjem cross-maske između njih sprječavamo da jedan rukovatelj prekine drugog usred kritične sekcije.
+- **`sa_flags`** — bit-maska zastavica koje fino podešavaju ponašanje. Najčešće korištene su:
+  - `SA_RESTART` — automatski nastavi prekinute sistemske pozive (BSD ponašanje); bez ove zastavice, sistemski poziv prekinut signalom vraća grešku `EINTR`.
+  - `SA_NOCLDWAIT` — kad se postavi za `SIGCHLD`, jezgra automatski uklanja zombije bez potrebe za `wait()`-om.
+  - `SA_SIGINFO` — proširuje rukovatelj dodatnim informacijama o signalu (vidi opis polja `sa_sigaction` niže).
+
+Polje `sa_sigaction` je alternativa polju `sa_handler` — koristi se uz zastavicu `SA_SIGINFO` i daje rukovatelju prošireni potpis `void f(int signum, siginfo_t *info, void *context)`. Drugi argument `info` je struktura s detaljnim podacima o signalu (PID procesa pošiljatelja, UID njegovog vlasnika, razlog isporuke...). Treći argument `context` daje pristup CPU registrima u trenutku prekida (rijetko se koristi izravno). Dva polja, `sa_handler` i `sa_sigaction`, na nekim su sustavima implementirana kao `union` — pa je dobra praksa koristiti samo jedno od njih i nikad oba istovremeno. Polje `sa_restorer` je interni Linux mehanizam i ne smije se eksplicitno postavljati. Zato je dobra praksa cijelu strukturu prije korištenja inicijalizirati `memset`-om, čime osiguravamo da neiskorištena polja imaju nulte vrijednosti.
+
+**Atomarna zamjena rukovatelja.** Bitno je razumjeti da `sigaction()` postavlja novu akciju **atomarno**: nije moguće da signal stigne usred izmjene, pronađe pola-staro-pola-novo stanje, i pozove pogrešan rukovatelj. To je važna garancija koju System V `signal()` nije pružao.
+
+Postupak za registraciju rukovatelja `sigaction()`-om uvijek slijedi isti obrazac:
+
+1. Deklarirati `struct sigaction sa`,
+2. Nulirati strukturu pomoću `memset(&sa, 0, sizeof(sa))`,
+3. Postaviti `sa.sa_handler` na pokazivač na rukovatelj,
+4. Inicijalizirati masku pomoću `sigemptyset(&sa.sa_mask)` (ili dodati signale koje treba blokirati),
+5. Postaviti `sa.sa_flags` na željenu kombinaciju zastavica (najčešće `0`),
+6. Pozvati `sigaction(signum, &sa, NULL)`.
+
+**Za sav novi kod preporučuje se `sigaction()` umjesto `signal()`.** U ostatku ovog poglavlja ipak smo se služili objema funkcijama: `signal()` u jednostavnijim primjerima gdje smo htjeli zadržati pregledan kod, a `sigaction()` ondje gdje su nam potrebne njegove dodatne mogućnosti.
+
+- [**`potvrdi2.c`**](potvrdi2.c) — funkcionalno identičan primjeru `potvrdi.c` s početka poglavlja, ali rukovatelj se registrira pomoću `sigaction()`-a:
+
+  ```c
+  #include <stdio.h>
+  #include <signal.h>
+  #include <unistd.h>
+  #include <string.h>
+
+  int brojac = 0;
+
+  void int_handler(int signum) {
+      brojac++;
+  }
+
+  int main() {
+      struct sigaction sa;
+
+      memset(&sa, 0, sizeof(sa));
+      sa.sa_handler = int_handler;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = 0;
+
+      sigaction(SIGINT, &sa, NULL);
+
+      while (brojac < 2) {
+          pause();
+          if (brojac == 1)
+              printf("Pritisnite ponovo CTRL - C ukoliko zelite izaci\n");
+      }
+
+      printf("Korisnik je potvrdio izlazak - kraj programa!\n");
+      return 0;
+  }
+  ```
+
+  Glavna petlja, rukovatelj i logika su nepromijenjeni u odnosu na `potvrdi.c` — razlika je samo u načinu registracije. Iako je ovo nešto više koda od jednostavnog `signal(SIGINT, int_handler)` poziva, zauzvrat dobivamo precizno definirano ponašanje koje vrijedi na svim POSIX sustavima.
+
+  Pokretanje i ispis su identični prethodnom primjeru:
+
+  ```
+  $ ./potvrdi2
+  ^C
+  Pritisnite ponovo CTRL - C ukoliko zelite izaci
+  ^C
+  Korisnik je potvrdio izlazak - kraj programa!
+  $
+  ```
+
+## Blokiranje i ignoriranje signala
+
+Do sada smo signale uvijek "hvatali" — registrirali rukovatelja koji bi se pozvao kad signal stigne. UNIX, međutim, nudi i druge načine da odredimo što se događa kad signal stigne procesu. Dva najvažnija su **blokiranje** i **ignoriranje**, i između njih postoji važna razlika.
+
+**Blokiranje** ne uklanja signal — samo odgađa njegovu isporuku. Svaki proces ima takozvanu **masku signala** (engl. *signal mask*): skup signala koji su trenutno blokirani. Kad signal stigne procesu, a taj signal je u njegovoj maski, jezgra ga pohrani u **red čekanja** (engl. *pending*). Tamo ostaje sve dok proces ne ukloni signal iz maske — tek tada se isporučuje, i tek tada se pokreće rukovatelj (ili zadana akcija). Blokiranje koristimo kad imamo dio koda koji ne smije biti prekinut signalom, ali ne želimo trajno izgubiti signal.
+
+**Ignoriranje** je kvalitativno drugačije: signal se isporučuje, ali se odmah odbacuje. Proces ne saznaje da je signal stigao i nikad ne reagira na njega. Za ignoriranje koristimo specijalnu vrijednost `SIG_IGN` koju postavimo kao "rukovatelj" pomoću `sigaction()`-a (ili `signal()`-a). Ignoriranje koristimo kad nas određeni signal jednostavno ne zanima.
+
+### Sistemski poziv `sigprocmask`
+
+Maska signala glavnog programa mijenja se sistemskim pozivom `sigprocmask`:
+
+```c
+#include <signal.h>
+
+int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+```
+
+Argumenti:
+
+- **`how`** — što se radi s argumentom `set`:
+  - `SIG_BLOCK` — dodaj signale iz `set` trenutnoj maski,
+  - `SIG_UNBLOCK` — ukloni signale iz `set` iz trenutne maske,
+  - `SIG_SETMASK` — postavi masku točno na `set`.
+- **`set`** — skup signala kojim mijenjamo masku; ako je `NULL`, maska se ne mijenja (poziv samo dohvaća staru u `oldset`).
+- **`oldset`** — pokazivač u koji se upisuje **prethodna** maska, korisno za kasnije vraćanje stare vrijednosti; ako nas to ne zanima, predaje se `NULL`.
+
+Argumente tipa `sigset_t` koriste i drugi pozivi koje smo već vidjeli (polje `sa_mask` u `struct sigaction`). To je apstraktni skup signala kojim ne baratamo izravno, nego pomoću pomoćnih funkcija:
+
+```c
+int sigemptyset(sigset_t *set);                    /* prazan skup */
+int sigfillset(sigset_t *set);                     /* svi signali */
+int sigaddset(sigset_t *set, int signum);          /* dodaj signal u skup */
+int sigdelset(sigset_t *set, int signum);          /* makni signal iz skupa */
+int sigismember(const sigset_t *set, int signum);  /* je li u skupu? */
+```
+
+Postoji i poziv `sigpending(sigset_t *set)` koji u `set` upisuje signale koji su upravo **u redu čekanja** — stigli su procesu, ali su blokirani pa se još nisu isporučili. Korisno kad prije skidanja maske želimo provjeriti hoće li nešto biti isporučeno.
+
+- [**`maska.c`**](maska.c) — kratak primjer blokiranja `SIGINT`-a tijekom kratke "kritične sekcije". Program registrira jednostavan rukovatelj koji ispiše poruku, blokira `SIGINT`, "radi" pet sekundi (`sleep`), pa skida masku.
+
+  ```c
+  #include <stdio.h>
+  #include <signal.h>
+  #include <unistd.h>
+  #include <string.h>
+
+  void int_handler(int signum) {
+      printf("SIGINT obraden\n");
+  }
+
+  int main() {
+      struct sigaction sa;
+      sigset_t blok, prethodna;
+
+      memset(&sa, 0, sizeof(sa));
+      sa.sa_handler = int_handler;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = 0;
+      sigaction(SIGINT, &sa, NULL);
+
+      sigemptyset(&blok);
+      sigaddset(&blok, SIGINT);
+
+      sigprocmask(SIG_BLOCK, &blok, &prethodna);
+      sleep(5);
+      sigprocmask(SIG_SETMASK, &prethodna, NULL);
+
+      return 0;
+  }
+  ```
+
+  Pokrenimo program i tijekom njegovog rada iz druge ljuske pošaljimo `SIGINT` (npr. `kill -INT <pid>`). Iako signal stiže odmah, proces neće reagirati dok ne završi `sleep` — rukovatelj se izvršava tek nakon poziva `sigprocmask(SIG_SETMASK, &prethodna, NULL)` koji vraća masku na prethodnu vrijednost (bez `SIGINT`-a). Iz ovoga je jasno da je signal sve to vrijeme čekao u redu.
+
+  Bitan detalj: koliko god `SIGINT`-a pošaljemo tijekom blokade, rukovatelj će se izvršiti **samo jednom**. Razlog je u tome što jezgra za "klasične" UNIX signale ne vodi brojač pojavljivanja, samo zastavicu "u redu čekanja je / nije". Više instanci istog signala koje stignu tijekom blokade spojaju se u jednu jedinu isporuku. (POSIX-realtime signali, brojevi 32–64, imaju pravi red s brojačem, ali to je tema za posebnu raspravu.)
+
+- [**`maska2.c`**](maska2.c) — funkcionalno drugačiji primjer, ali strukturom vrlo blizak prethodnom: umjesto da blokiramo `SIGINT`, ovdje ga **ignoriramo**. Rukovatelj nije potreban — kao "akciju" za signal postavljamo specijalnu vrijednost `SIG_IGN`:
+
+  ```c
+  #include <stdio.h>
+  #include <signal.h>
+  #include <unistd.h>
+  #include <string.h>
+
+  int main() {
+      struct sigaction sa;
+
+      memset(&sa, 0, sizeof(sa));
+      sa.sa_handler = SIG_IGN;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = 0;
+      sigaction(SIGINT, &sa, NULL);
+
+      sleep(5);
+
+      return 0;
+  }
+  ```
+
+  Pokretanje izgleda gotovo identično `maska.c`-u — pet sekundi spavanja tijekom kojih program ne reagira na Ctrl+C. Ali kvalitativna razlika dolazi do izražaja kad usporedimo izlaze: `maska.c` će na kraju spavanja ispisati `SIGINT obraden` (ako smo poslali signal tijekom spavanja), dok `maska2.c` neće ispisati ništa, čak ni kasnije — signal je tiho odbačen u trenutku isporuke.
+
+  Razlika između blokiranja i ignoriranja, sažeto:
+
+  | | **Blokiranje (`sigprocmask`)** | **Ignoriranje (`SIG_IGN`)** |
+  |---|---|---|
+  | Što se događa kada signal stigne | jezgra ga pohrani u red čekanja | jezgra ga odbaci |
+  | Kad se uvjet ukloni | signal se isporučuje, rukovatelj radi | ništa se ne događa, signal više ne postoji |
+  | Više instanci istog signala | spajaju se u jednu isporuku | sve odbačene |
+  | Tipičan use case | "ne sad, ali ne želim izgubiti signal" | "ovaj signal me zaista ne zanima" |
+
+  Razlika postaje važna kad nas zanima da na signal ipak reagiramo, samo ne odmah. Klasičan primjer: tijekom kritične transakcije s bazom podataka, ne želimo prekid Ctrl+C-om, ali nakon završene transakcije želimo provjeriti je li korisnik tražio izlaz pa se uredno zatvoriti. Tu pomaže blokiranje; ignoriranje bi sve takve zahtjeve trajno izgubilo.
 
 ## Prevođenje
 
