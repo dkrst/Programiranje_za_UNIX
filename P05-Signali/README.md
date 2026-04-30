@@ -602,6 +602,89 @@ Postoji i poziv `sigpending(sigset_t *set)` koji u `set` upisuje signale koji su
 
   Razlika postaje važna kad nas zanima da na signal ipak reagiramo, samo ne odmah. Klasičan primjer: tijekom kritične transakcije s bazom podataka, ne želimo prekid Ctrl+C-om, ali nakon završene transakcije želimo provjeriti je li korisnik tražio izlaz pa se uredno zatvoriti. Tu pomaže blokiranje; ignoriranje bi sve takve zahtjeve trajno izgubilo.
 
+## Pokupljanje djece — `SIGCHLD`
+
+U poglavlju o procesima ([P04](../P04-Okruzenje_procesa/README.md)) susreli smo se s pojmom **zombi procesa**: proces koji je završio izvršavanje, ali čiji zapis u tablici procesa jezgra još uvijek čuva, jer roditelj nije pozvao `wait()` da pokupi izlazni status. Tamo smo zaključili da je dobra programerska praksa za svako dijete obavezno pozvati `wait()`. Sada se postavlja pitanje: kako to napraviti elegantno ako roditelj u međuvremenu treba raditi nešto drugo, a ne samo blokirati u `wait()`-u?
+
+Odgovor leži u signalu `SIGCHLD`. Svaki put kad dijete promijeni stanje (završi izvršavanje, bude zaustavljeno signalom, ili bude nastavljeno), jezgra šalje roditelju signal `SIGCHLD`. Po defaultu se ovaj signal ignorira — što je razlog zašto smo dosad mogli "zaboraviti" na njega. Međutim, ako registriramo rukovatelj za `SIGCHLD`, dobivamo elegantan obrazac u kojem roditelj pokuplja djecu **asinkrono**, kad god ona završe, dok glavni program nesmetano nastavlja sa svojim radom.
+
+Ovo je jedan od najčešćih obrazaca u stvarnom UNIX programiranju — koriste ga UNIX ljuske, web serveri (npr. Apache, nginx za radne procese), baze podataka i mnogi drugi sustavi koji upravljaju većim brojem podređenih procesa.
+
+- [**`sigchld.c`**](sigchld.c) — primjer u kojem roditelj forka tri djeteta s različitim trajanjem, a sam u glavnoj petlji broji sekunde. Pokupljanje djece obavlja se u SIGCHLD rukovatelju, asinkrono u odnosu na glavnu petlju.
+
+  ```c
+  #include <stdio.h>
+  #include <signal.h>
+  #include <unistd.h>
+  #include <sys/types.h>
+  #include <sys/wait.h>
+  #include <string.h>
+
+  void chld_handler(int signum) {
+      int status;
+      pid_t pid;
+
+      pid = wait(&status);
+      printf("[parent] dijete %d pokupljeno (status %d)\n",
+             pid, WEXITSTATUS(status));
+  }
+
+  int main() {
+      struct sigaction sa;
+      int trajanje[] = {3, 1, 2};
+      int i, sek;
+
+      memset(&sa, 0, sizeof(sa));
+      sa.sa_handler = chld_handler;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = SA_RESTART;
+      sigaction(SIGCHLD, &sa, NULL);
+
+      for (i = 0; i < 3; i++) {
+          pid_t pid = fork();
+          if (pid == 0) {
+              printf("[child %d] PID %d, spavam %d s\n", i+1, getpid(), trajanje[i]);
+              sleep(trajanje[i]);
+              return i+1;
+          }
+      }
+
+      for (sek = 1; sek <= 5; sek++) {
+          sleep(1);
+          printf("[parent] sekunda %d\n", sek);
+      }
+
+      return 0;
+  }
+  ```
+
+  Roditelj registrira rukovatelj `chld_handler` za signal `SIGCHLD`, a zatim u petlji forka tri djeteta. Svako dijete spava drukčiji broj sekundi (3, 1 ili 2) i pri završetku vraća svoj redni broj kao izlazni status. Glavna petlja roditelja jednostavno broji sekunde — pet puta odspava sekundu i ispiše broj. Dok roditelj broji, djeca jedno po jedno završavaju; svaki put kad dijete završi, jezgra roditelju isporuči `SIGCHLD`, rukovatelj se izvrši i pozove `wait(&status)` da pokupi gotovo dijete.
+
+  Pokrenimo program:
+
+  ```
+  $ ./sigchld
+  [child 2] PID 40, spavam 1 s
+  [child 3] PID 41, spavam 2 s
+  [child 1] PID 39, spavam 3 s
+  [parent] sekunda 1
+  [parent] dijete 40 pokupljeno (status 2)
+  [parent] sekunda 2
+  [parent] dijete 41 pokupljeno (status 3)
+  [parent] sekunda 3
+  [parent] dijete 39 pokupljeno (status 1)
+  [parent] sekunda 4
+  [parent] sekunda 5
+  ```
+
+  Iz ispisa se vidi vremenski tijek: nakon prve sekunde završava dijete 2 (spavalo je 1 sekundu), pa rukovatelj odmah javlja da je pokupljeno. Nakon druge sekunde isto se dogodi za dijete 3, a nakon treće za dijete 1. Glavni program ovo ne primjećuje — uredno nastavlja brojati sekunde do pet.
+
+  **Zašto `SA_RESTART`?** Glavni program u svojoj petlji koristi `sleep(1)`. Kad SIGCHLD stigne tijekom `sleep`-a, jezgra prekida sistemski poziv i poziva rukovatelj. Po defaultu, kad se rukovatelj vrati, prekinuti sistemski poziv vraća grešku s `errno = EINTR`. Za `sleep` to znači: vraća se prije isteka tražene sekunde — brojač sekundi bio bi neispravan. Postavljanjem zastavice `SA_RESTART` u `sa_flags` jezgri kažemo: *"nakon obrade signala automatski nastavi prekinuti sistemski poziv"*. Tako naš `sleep` spava punu sekundu čak i ako tijekom toga stigne SIGCHLD.
+
+  **Pokupljanje više djece odjednom.** U ovom primjeru djeca završavaju jedno po jedno, s razmakom od jedne sekunde, pa svaka instanca SIGCHLD-a dovodi do pokupljanja točno jednog djeteta. Međutim, ako bi više djece završilo gotovo istovremeno, mogla bi se dogoditi situacija u kojoj je rukovatelj pozvan jednom, a u međuvremenu su dvije ili više djece spremne za pokupljanje. Razlog leži u tome što su signali "klasične" UNIX vrste — više instanci istog signala koje stignu blizu jedne drugoj spojaju se u jednu isporuku (kao što smo vidjeli kod blokiranja). U produkcijskom kodu rukovatelj zato obično poziva `waitpid(-1, &status, WNOHANG)` u petlji, sve dok funkcija ne vrati 0 ili −1, čime se garantira da su sva spremna djeca pokupljena. U ovom uvodnom primjeru nismo se bavili tom mogućnošću jer nam vremenski razmak između djece to ne nalaže.
+
+  **Glavna pouka.** Roditelj nije ni jednom eksplicitno pozvao `wait()` u svojoj glavnoj petlji — sva djeca su uredno pokupljena. Petlja roditelja bavi se isključivo svojim "korisnim" poslom (brojanjem sekundi), a sustav za pokupljanje radi neovisno, kroz signale. Time se izbjegava i potreba za stalnim provjerama "je li završilo neko dijete", i opasnost da pokupljanje propustimo (što bi dovelo do gomilanja zombija).
+
 ## Prevođenje
 
 Direktorij dolazi s priloženim [`Makefile`](Makefile)-om koji prati iste konvencije kao i Makefile datoteke u prethodnim poglavljima (varijable `CC`, `CFLAGS`, `LDFLAGS`, `TARGETS`; implicitno pravilo `.c.o`; pravila `default`, `all`, `clean`). Detaljan opis strukture i korake gradnje Makefilea vidjeti u [`../P02-Osnove_programiranja/README.md`](../P02-Osnove_programiranja/README.md).
