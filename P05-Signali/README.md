@@ -4,11 +4,13 @@ Primjeri uz poglavlje **Signali** iz knjige *Programiranje za UNIX*.
 
 U ovom poglavlju upoznat ćemo **signale** — UNIX-ov primarni mehanizam za asinkronu komunikaciju s procesom. Signal je kratka poruka koju jezgra šalje procesu kao obavijest da se dogodio neki događaj: korisnik je pritisnuo Ctrl+C, proces je pokušao pristupiti nedopuštenoj memorijskoj adresi, istekao je timer, neki drugi proces je eksplicitno zatražio prekid, i tako dalje. Iz perspektive procesa, signal može stići u **bilo kojem trenutku** između dvije strojne instrukcije — proces nema mogućnost predvidjeti kada će se to dogoditi.
 
-Proces na primljeni signal može reagirati na nekoliko načina: prepustiti zadanu reakciju jezgri (što za većinu signala znači prekid procesa), eksplicitno ignorirati signal, ili registrirati vlastitu funkciju — **rukovatelj signala** (engl. *signal handler*) — koja će se izvršiti svaki put kad takav signal stigne. U ovom poglavlju kroz nekoliko primjera ilustriramo kako se signali registriraju, kako se hvataju, kako se koriste za komunikaciju među procesima i koje je opasnosti potrebno izbjegavati pri pisanju rukovatelja.
+Proces na primljeni signal može reagirati na nekoliko načina: prepustiti zadanu reakciju jezgri (što za većinu signala znači prekid procesa), eksplicitno ignorirati signal, ili registrirati vlastitu funkciju — **rukovatelj signala** (engl. *signal handler*) — koja će se izvršiti svaki put kad takav signal stigne. U ovom poglavlju kroz nekoliko primjera ilustriramo kako registriramo rukovatelj signala, kako se signali hvataju, kako se koriste za komunikaciju među procesima i o čemu je potrebno voditi računa pri pisanju rukovatelja.
 
 ## Najčešći signali
 
-UNIX definira tridesetak signala, ali u praksi se najčešće susrećemo sa skupinom njih desetak. Tablica niže daje pregled onih s kojima ćemo raditi u ovom poglavlju i u tipičnim programima:
+Signali su, gledano iz perspektive operacijskog sustava i programa, jednostavno **mali cjelobrojni identifikatori** — svaki signal ima svoj broj. Zbog čitljivosti i prenosivosti koda, u programima nikad ne baratamo izravno tim brojevima, nego koristimo **simboličke konstante** definirane u standardnoj zaglavnoj datoteci `<signal.h>` (npr. `SIGINT`, `SIGTERM`, `SIGKILL`...).
+
+POSIX standard definira tridesetak signala, a u praksi se najčešće susrećemo sa skupinom njih desetak. Tablica niže daje pregled onih s kojima ćemo raditi u ovom poglavlju i u tipičnim programima:
 
 | Signal | Broj | Predefinirana akcija | Značenje |
 |---|---|---|---|
@@ -19,8 +21,8 @@ UNIX definira tridesetak signala, ali u praksi se najčešće susrećemo sa skup
 | `SIGABRT` |  6 | prekid procesa + core file | proces je sam sebe prekinuo pozivom `abort()` (npr. zbog `assert` greške) |
 | `SIGFPE`  |  8 | prekid procesa + core file | aritmetička greška (dijeljenje s nulom, prelijevanje) |
 | `SIGKILL` |  9 | prekid procesa            | bezuvjetni prekid — **ne može se uhvatiti niti ignorirati** |
-| `SIGSEGV` | 11 | prekid procesa + core file | proces je pristupio nevažećoj memorijskoj adresi (*segmentation fault*) |
-| `SIGPIPE` | 13 | prekid procesa            | proces je pisao u cijev kojoj je drugi kraj zatvoren |
+| `SIGSEGV` | 11 | prekid procesa + core file | proces je pokušao pristupiti memorijskoj adresi kojoj nema pravo pristupa (*segmentation fault*) |
+| `SIGPIPE` | 13 | prekid procesa            | pokušaj pisanja u cijevovod (*pipe*) ili socket čiji je drugi kraj zatvoren |
 | `SIGALRM` | 14 | prekid procesa            | istekao je timer postavljen pozivom `alarm()` |
 | `SIGTERM` | 15 | prekid procesa            | uljudni zahtjev za prekid; pošiljatelj (npr. `kill <pid>`) može ga uhvatiti i obraditi |
 | `SIGUSR1` | 10 | prekid procesa            | korisnički signal br. 1 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
@@ -28,11 +30,11 @@ UNIX definira tridesetak signala, ali u praksi se najčešće susrećemo sa skup
 | `SIGCHLD` | 17 | ignorira se               | dijete procesa je promijenilo stanje (završilo, zaustavljeno itd.) |
 | `SIGSTOP` | 19 | zaustavi proces           | bezuvjetno zaustavljanje — **ne može se uhvatiti niti ignorirati** |
 | `SIGCONT` | 18 | nastavi proces            | nastavi izvršavanje zaustavljenog procesa |
-| `SIGTSTP` | 20 | zaustavi proces           | korisnik je pritisnuo Ctrl+Z u terminalu |
-| `SIGXCPU` | 24 | prekid procesa + core file | premašen je CPU limit postavljen `setrlimit()`-om (vidi P04) |
-| `SIGXFSZ` | 25 | prekid procesa + core file | premašen je file size limit postavljen `setrlimit()`-om |
+| `SIGTSTP` | 20 | zaustavi proces           | korisnik je pritisnuo Ctrl+Z u terminalu — svojevrsna "pauza" za pokrenuti program (zaustavlja ga privremeno; nastavak slanjem `SIGCONT`) |
+| `SIGXCPU` | 24 | prekid procesa + core file | premašen je CPU limit postavljen `setrlimit()`-om (vidi [Limiti](../P04-Okruzenje_procesa/README.md#ograničavanje-resursa-setrlimit)) |
+| `SIGXFSZ` | 25 | prekid procesa + core file | premašen je file size limit postavljen `setrlimit()`-om (vidi [Limiti](../P04-Okruzenje_procesa/README.md#ograničavanje-resursa-setrlimit)) |
 
-Brojevi signala u tablici odgovaraju Linuxu na arhitekturi x86 — na drugim sustavima i arhitekturama mogu se razlikovati. U kodu se uvijek koriste simbolička imena (`SIGINT`, `SIGTERM`...), a brojevi se navode samo radi reference (npr. uz ispis "Prekid signalom, signal: 11" iz `pokreni2`-a). Potpuni popis dostupan je u priručniku: `man 7 signal`.
+Brojevi signala u tablici odgovaraju POSIX-u za osnovne signale i podudaraju se s vrijednostima na većini modernih UNIX sustava. Ipak, najsigurniji pristup je u kodu uvijek koristiti **simbolička imena** (`SIGINT`, `SIGTERM`...) umjesto numeričkih vrijednosti — time se izbjegavaju zabune i osigurava prenosivost koda na sustave gdje neki manje uobičajeni signali mogu imati drukčije brojeve. Brojeve navodimo samo radi reference (npr. uz ispis "Prekid signalom, signal: 11" iz `pokreni2`-a). Potpuni popis dostupan je u priručniku: `man 7 signal`.
 
 Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva signala koja se ne mogu uhvatiti niti ignorirati. Razlog je praktičan: bez ova dva signala sustav ne bi imao apsolutni mehanizam za bezuvjetan prekid ili zaustavljanje "neposlušnog" procesa. Svaki drugi signal proces može uhvatiti i odlučiti kako reagirati — uključujući i `SIGTERM`, što neki programi iskorištavaju za uredno spremanje stanja prije izlaska.
 
