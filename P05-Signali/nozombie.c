@@ -28,7 +28,8 @@ int main() {
   for (i = 0; i < 3; i++) {
     pid_t pid = fork();
     if (pid == 0) {
-      printf("[child %d] PID %d, spavam %d s\n", i+1, getpid(), trajanje[i]);
+      printf("[child %d] PID %d, spavam %d s\n",
+             i+1, getpid(), trajanje[i]);
       sleep(trajanje[i]);
       return i+1;
     }

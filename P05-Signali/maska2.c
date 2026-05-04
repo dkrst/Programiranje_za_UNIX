@@ -13,6 +13,7 @@ int main() {
   sigaction(SIGINT, &sa, NULL);
 
   sleep(5);
+  printf("kraj programa - SIGINT-i su tijekom rada bili ignorirani\n");
 
   return 0;
 }

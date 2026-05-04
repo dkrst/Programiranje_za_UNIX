@@ -15,16 +15,16 @@ POSIX standard definira tridesetak signala, a u praksi se najčešće susrećemo
 | Signal | Broj | Predefinirana akcija | Značenje |
 |---|---|---|---|
 | `SIGHUP`  |  1 | prekid procesa            | terminal je zatvoren ili je sesija prekinuta; često se koristi i kao "ponovno učitaj konfiguraciju" |
-| `SIGINT`  |  2 | prekid procesa            | korisnik je pritisnuo Ctrl+C u terminalu |
+| `SIGINT`  |  2 | prekid procesa            | korisnik je pritisnuo Ctrl+C u terminalu; programi ga često hvataju kako bi od korisnika zatražili potvrdu izlaska — "čisti" izlaz |
 | `SIGQUIT` |  3 | prekid procesa + core file | korisnik je pritisnuo Ctrl+\ — kao SIGINT, ali generira i core file |
 | `SIGILL`  |  4 | prekid procesa + core file | proces je pokušao izvršiti nevažeću strojnu instrukciju |
 | `SIGABRT` |  6 | prekid procesa + core file | proces je sam sebe prekinuo pozivom `abort()` (npr. zbog `assert` greške) |
 | `SIGFPE`  |  8 | prekid procesa + core file | aritmetička greška (dijeljenje s nulom, prelijevanje) |
-| `SIGKILL` |  9 | prekid procesa            | bezuvjetni prekid — **ne može se uhvatiti niti ignorirati** |
+| `SIGKILL` |  9 | prekid procesa            | bezuvjetni prekid — **ne može se uhvatiti niti ignorirati**; jezgra ga koristi kao zadnju mjeru kad se proces ogluši o `SIGTERM` |
 | `SIGSEGV` | 11 | prekid procesa + core file | proces je pokušao pristupiti memorijskoj adresi kojoj nema pravo pristupa (*segmentation fault*) |
 | `SIGPIPE` | 13 | prekid procesa            | pokušaj pisanja u cijevovod (*pipe*) ili socket čiji je drugi kraj zatvoren |
 | `SIGALRM` | 14 | prekid procesa            | istekao je timer postavljen pozivom `alarm()` |
-| `SIGTERM` | 15 | prekid procesa            | uljudni zahtjev za prekid; pošiljatelj (npr. `kill <pid>`) može ga uhvatiti i obraditi |
+| `SIGTERM` | 15 | prekid procesa            | pristojan zahtjev za prekid; programi ga često koriste za uredno spremanje stanja i "čisti" izlaz. Ako se program ogluši o `SIGTERM`, jezgra ga može bezuvjetno prekinuti signalom `SIGKILL` |
 | `SIGUSR1` | 10 | prekid procesa            | korisnički signal br. 1 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
 | `SIGUSR2` | 12 | prekid procesa            | korisnički signal br. 2 — bez unaprijed definirane semantike, slobodan za vlastite svrhe |
 | `SIGCHLD` | 17 | ignorira se               | dijete procesa je promijenilo stanje (završilo, zaustavljeno itd.) |
@@ -38,7 +38,7 @@ Brojevi signala u tablici odgovaraju POSIX-u za osnovne signale i podudaraju se 
 
 Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva signala koja se ne mogu uhvatiti niti ignorirati. Razlog je praktičan: bez ova dva signala sustav ne bi imao apsolutni mehanizam za bezuvjetan prekid ili zaustavljanje "neposlušnog" procesa. Svaki drugi signal proces može uhvatiti i odlučiti kako reagirati — uključujući i `SIGTERM`, što neki programi iskorištavaju za uredno spremanje stanja prije izlaska.
 
-**Što je core file?** Za neke signale predefinirana akcija nije samo prekid procesa, nego i **stvaranje *core file*-a** — datoteke koja sadrži snimku kompletnog memorijskog prostora procesa u trenutku kad je signal primljen (varijable na stogu, hrpi, registri procesora, otvoreni file deskriptori i drugi metapodatci). Datoteka se obično zove `core` ili `core.<pid>` i nastaje u trenutnom radnom direktoriju procesa. Ovo ponašanje vezano je uz signale koji uglavnom znače da smo u programu *nešto zabrljali* — `SIGSEGV` (pristup nevažećoj memoriji), `SIGFPE` (aritmetička greška), `SIGILL` (nevažeća instrukcija), `SIGABRT` (eksplicitan prekid pomoću `abort()`). Core file omogućuje *post-mortem* analizu: alatima poput `gdb` programer može učitati core file zajedno s izvršnom datotekom, vidjeti gdje je proces bio u trenutku pada, koje su vrijednosti varijabli imale, kakav je bio stack trace itd. Naravno, ako za to imamo volje i znanja — u suprotnom core file se može jednostavno obrisati.
+**Što je core file?** Za neke signale predefinirana akcija nije samo prekid procesa, nego i stvaranje *core file*-a — datoteke koja sadrži snimku kompletnog memorijskog prostora procesa u trenutku kad je signal primljen (varijable na stogu, hrpi, registri procesora, otvoreni file deskriptori i drugi metapodatci). Datoteka se obično zove `core` ili `core.<pid>` i nastaje u trenutnom radnom direktoriju procesa. Ovo ponašanje vezano je uz signale koji uglavnom znače da smo u programu *nešto zabrljali* — `SIGSEGV` (pristup nevažećoj memoriji), `SIGFPE` (aritmetička greška), `SIGILL` (nevažeća instrukcija), `SIGABRT` (eksplicitan prekid pomoću `abort()`). Core file omogućuje *post-mortem* analizu: alatima poput `gdb` programer može učitati core file zajedno s izvršnom datotekom, vidjeti gdje je proces bio u trenutku pada, koje su vrijednosti varijabli imale, kakav je bio stack trace itd. Naravno, ako za to imamo volje i znanja — u suprotnom core file se može jednostavno obrisati.
 
 ## Sadržaj
 
@@ -81,14 +81,14 @@ Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva si
   Na prvi pogled deklaracija djeluje zastrašujuće, ali zapravo je riječ o funkciji koja prima dva argumenta i vraća pokazivač:
 
   - **`signum`** — broj signala koji želimo hvatati (npr. `SIGINT`)
-  - **`handler`** — pokazivač na funkciju koja će biti pozvana kad signal stigne. Funkcija mora primati jedan `int` argument (broj signala) i ne smije vraćati ništa (`void`).
+  - **`handler`** — rukovatelj signala; pokazivač na funkciju koja će biti pozvana kada signal `signum` stigne. Rukovatelj signala kao argument prima jednu cjelobrojnu vrijednost (`int`) koja označava broj signala koji je pozvao rukovatelj (isti rukovatelj može se pozivati za više različitih signala). Rukovatelj signala ima povratni tip `void` — nema povratnu vrijednost.
   - **Povratna vrijednost** — pokazivač na *prethodno* registriranu funkciju, ili `SIG_ERR` u slučaju greške.
 
   Ovdje se prvi put susrećemo s **pokazivačem na funkciju** kao argumentom drugoj funkciji. Ideja je jednostavna: kako svaka funkcija, baš kao i svaka varijabla, u izvršnoj datoteci ima svoju adresu u memoriji, tako i njezino ime u kodu (bez zagrada) jednostavno označava upravo tu adresu. Drugim riječima, **ime funkcije je njezin pokazivač**. U našem programu funkcija `uhvati` definirana je tako da prima `int` i ne vraća ništa — što točno odgovara tipu argumenta `handler` — pa je dovoljno predati samo njezino ime: `signal(SIGINT, uhvati)`.
 
-  Mehanizam je sljedeći. Funkcija `signal(SIGINT, uhvati)` jezgri kaže: *"od ovog trenutka, kad god mom procesu stigne signal `SIGINT`, ne primjenjuj zadanu reakciju (prekid procesa) nego pozovi funkciju `uhvati`."* Kad korisnik pritisne Ctrl+C, jezgra **prekine** trenutno izvršavanje glavnog programa točno tamo gdje je bilo, pozove `uhvati`, a kad se ona vrati, glavni program nastavlja izvršavanje od mjesta gdje je bio prekinut. Sav posao koji rukovatelj napravi — u ovom slučaju jednostavno povećanje varijable `brojac` — vidljiv je glavnom programu kroz globalnu varijablu, što je standardni način "razgovora" između main-a i rukovatelja.
+  Mehanizam je sljedeći. Funkcija `signal(SIGINT, uhvati)` jezgri kaže: *"od ovog trenutka, kad god mom procesu stigne signal `SIGINT`, ne primjenjuj zadanu reakciju (prekid procesa) nego pozovi funkciju `uhvati`."* Kad korisnik pritisne Ctrl+C, jezgra prekine trenutno izvršavanje glavnog programa točno tamo gdje je bilo, pozove `uhvati`, a kad se ona vrati, glavni program nastavlja izvršavanje od mjesta gdje je bio prekinut. Sav posao koji rukovatelj napravi — u ovom slučaju jednostavno povećanje varijable `brojac` — vidljiv je glavnom programu kroz globalnu varijablu, što je standardni način "razgovora" između main-a i rukovatelja.
 
-  Glavni program koristi sistemski poziv `pause()`, koji uspava proces sve dok ne stigne **bilo koji** signal. Kad signal stigne i njegov rukovatelj završi izvršavanje, `pause()` se vrati i petlja nastavlja: provjeri trenutnu vrijednost `brojac`-a, ako je on `1` ispiše uputu, a u sljedećem prolazu petlje opet uđe u `pause()` čekajući novi signal. Tek kad `brojac` dosegne `2`, izlazi iz petlje i program uredno završava.
+  Glavni program koristi sistemski poziv `pause()`, koji uspava proces sve dok ne stigne bilo koji signal. Kad signal stigne i njegov rukovatelj završi izvršavanje, `pause()` se vrati i petlja nastavlja: provjeri trenutnu vrijednost `brojac`-a, ako je on `1` ispiše uputu, a u sljedećem prolazu petlje opet uđe u `pause()` čekajući novi signal. Tek kad `brojac` dosegne `2`, izlazi iz petlje i program uredno završava.
 
   Pokrenimo program i isprobajmo:
 
@@ -105,7 +105,7 @@ Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva si
 
   Funkcionalno je program gotovo trivijalan, ali pokriva nekoliko važnih koncepata vrijednih da se odmah istaknu:
 
-  - **Rukovatelj je vrlo kratak** — samo inkrementira brojač i ne pokušava ništa složenije od toga (npr. nema poziva `printf`-a). Ovo nije slučajno: rukovatelj signala se izvršava u posebnom kontekstu — može prekinuti glavni program u doslovno bilo kojem trenutku, uključujući i sredinu poziva drugih funkcija. Iz rukovatelja se zato smije pozivati samo vrlo ograničen skup funkcija (tzv. **`async-signal-safe`** funkcije). `printf` u taj skup ne spada — njegovo korištenje u rukovatelju može u rijetkim slučajevima dovesti do iznenađujućih grešaka. Detaljnije ćemo o ovome u kasnijem primjeru, ali već sad uvodimo dobru praksu: **rukovatelj postavlja zastavicu, glavni program reagira**.
+  - **Rukovatelj je vrlo kratak** — samo inkrementira brojač i ne pokušava ništa složenije od toga (npr. nema poziva `printf`-a). Ovo nije slučajno: rukovatelj signala se izvršava u posebnom kontekstu — može prekinuti glavni program u doslovno bilo kojem trenutku, uključujući i sredinu poziva drugih funkcija. Preporuka je iz rukovatelja pozivati samo tzv. **`async-signal-safe`** funkcije — funkcije za koje POSIX standard jamči da ih je sigurno pozvati iz signal handlera. U taj skup ne spada i `printf` — njegovo korištenje u rukovatelju može u rijetkim slučajevima dovesti do iznenađujućih grešaka. Detaljnije ćemo o ovome u kasnijem primjeru, ali već sad uvodimo dobru praksu: rukovatelj postavlja zastavicu, glavni program reagira.
 
   - **Komunikacija kroz globalnu varijablu** — rukovatelj i glavni program "razgovaraju" kroz `brojac`. Strogo gledano, takve dijeljene varijable trebale bi biti deklarirane s tipom `volatile sig_atomic_t` umjesto običnog `int`-a:
     - Ključna riječ `volatile` govori prevoditelju da vrijednost varijable može biti promijenjena "iza leđa" glavnog programa (od strane rukovatelja), pa optimizator ne smije njezinu vrijednost cache-irati u registru kroz iteracije petlje.
@@ -117,7 +117,7 @@ Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva si
 
 ### Vlastiti alarm — `SIGALRM` i `alarm()`
 
-- [**`alarm_clock.c`**](alarm_clock.c) — primjer u kojem proces **sam sebi** zakaže signal. U svim dosadašnjim primjerima signal je dolazio izvana — od korisnika preko Ctrl+C ili od drugog procesa preko `kill`-a. UNIX, međutim, omogućuje i da proces zatraži od jezgre da mu nakon određenog broja sekundi pošalje signal `SIGALRM`. Tu funkcionalnost pruža sistemski poziv `alarm()`:
+- [**`alarm_clock.c`**](alarm_clock.c) — primjer u kojem proces zakaže slanje signala samome sebi. Izvor signala najčešće dolazi izvan samog procesa, npr. ukoliko korisnik pritisne Ctrl+C, ili eksplicitno zatražimo slanje signala pozivom `kill` iz ljuske. UNIX, međutim, omogućuje i da proces zatraži od jezgre da mu nakon određenog broja sekundi pošalje signal `SIGALRM`. Tu funkcionalnost pruža sistemski poziv `alarm()`:
 
   ```c
   #include <unistd.h>
@@ -227,7 +227,7 @@ Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva si
 
   Imenovanjem rukovatelja prema signalu na koji odgovaraju (`alrm_handler` i `int_handler`), kod postaje samodokumentirajuć — već iz naziva je jasno koji rukovatelj reagira na koji signal, što je posebno korisno kad u programu imamo više signala koje hvatamo.
 
-- [**`stoperica2.c`**](stoperica2.c) — funkcionalno identičan prethodnom programu, ali strukturno drukčiji: koristi **jedan zajednički rukovatelj** za oba signala umjesto dva odvojena. Ovaj primjer služi da uvedemo prvi argument koji rukovatelj prima — `signum`, broj signala koji je upravo isporučen procesu.
+- [**`stoperica2.c`**](stoperica2.c) — funkcionalno identičan prethodnom programu, ali strukturno drukčiji: koristi **jedan zajednički rukovatelj** za oba signala umjesto dva odvojena. Na ovom primjeru ilustrirano je korištenje argumenta `signum` koji rukovatelj prima — broj signala koji je upravo isporučen procesu.
 
   ```c
   #include <stdio.h>
@@ -282,7 +282,7 @@ Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva si
 
   Koji je pristup bolji — razdvojeni rukovatelji kao u `stoperica.c` ili zajednički kao u `stoperica2.c`? Stvar je ukusa i konteksta. Razdvojeni rukovatelji su pregledniji kad je logika za svaki signal značajno različita i kad u svakom rukovatelju ima više od nekoliko redaka koda. Zajednički rukovatelj je prikladan kad signali dijele zajedničke resurse ili pomoćne varijable, ili kad očekujemo da će se broj obrađivanih signala s vremenom povećavati. U realnim programima često su zastupljena oba pristupa istovremeno: na primjer, jedan zajednički rukovatelj za sve signale koji označavaju zahtjev za prekidom (`SIGINT`, `SIGTERM`, `SIGHUP`) i poseban rukovatelj za vremenske signale.
 
-### Signali kao međuprocesna komunikacija
+### Korištenje signala za komunikaciju između procesa
 
 U dosadašnjim primjerima signali su dolazili iz dva izvora: izvana, od korisnika preko Ctrl+C, ili iznutra, kad ih je proces sam sebi zakazao pozivom `alarm()`. UNIX, međutim, dopušta i da jedan proces eksplicitno **pošalje signal drugom procesu** — što čini signale jednim od najjednostavnijih oblika međuprocesne komunikacije (engl. *Inter-Process Communication*, IPC). Za to služi sistemski poziv `kill`:
 
@@ -359,7 +359,11 @@ Ime `kill` je povijesno — prvotno je sistemski poziv služio isključivo za pr
   }
   ```
 
-  Struktura programa razdvaja se odmah nakon `fork()`-a u dvije grane. **Dijete** registrira dva rukovatelja: `usr1_handler` koji broji primljene `SIGUSR1` signale, i `term_handler` koji postavlja `radi = 0` čime signalizira glavnoj petlji da treba završiti. Petlja je standardna `while (radi) pause()` konstrukcija s provjerom `if (radi)` prije `printf`-a, kao u `stoperica.c`-u, da se izbjegne suvišan ispis nakon `SIGTERM`-a. **Roditelj** zna PID djeteta jer mu ga je `fork()` vratio, pa može pozivati `kill(pid, SIGUSR1)` da mu šalje signale u željenim trenucima. Po završetku radne petlje šalje `SIGTERM`, a zatim `wait(NULL)` čeka da dijete uredno završi (čime se ono prestaje voditi kao zombi proces u tablici procesa, kao što smo objasnili u prethodnom poglavlju).
+  Struktura programa razdvaja se odmah nakon `fork()`-a u dvije grane. **Dijete** registrira dva rukovatelja: `usr1_handler` koji broji primljene `SIGUSR1` signale, i `term_handler` koji postavlja `radi = 0` čime signalizira glavnoj petlji da treba završiti. Petlja je standardna `while (radi) pause()` konstrukcija s provjerom `if (radi)` prije `printf`-a, kao u `stoperica.c`-u, da se izbjegne suvišan ispis nakon `SIGTERM`-a.
+
+  Bitno je primijetiti da se rukovatelji **registriraju samo u dječjoj grani**, a ne i u roditelju. Razlog je u tome što roditelj ove signale uopće ne prima — on je **pošiljatelj**, a ne primatelj. Roditelj eksplicitno šalje `SIGUSR1` i `SIGTERM` djetetu pozivom `kill(pid, ...)`, a sam ne treba reagirati na te signale. Da smo registraciju rukovatelja stavili **prije** `fork()`-a, oba bi je procesa naslijedila — pa bi i roditelj imao registrirane rukovatelje koji se nikad ne bi izvršili, što ne bi bila greška, ali je nepotrebno. Stavljanjem registracije unutar dječje grane jasno odvajamo uloge: **dijete reagira, roditelj šalje**.
+
+  **Roditelj** zna PID djeteta jer mu ga je `fork()` vratio, pa može pozivati `kill(pid, SIGUSR1)` da mu šalje signale u željenim trenucima. Po završetku radne petlje šalje `SIGTERM`, a zatim `wait(NULL)` čeka da dijete uredno završi (čime se ono prestaje voditi kao zombi proces u tablici procesa, kao što smo objasnili u prethodnom poglavlju).
 
   Pokrenimo program:
 
@@ -418,7 +422,7 @@ Argumenti `sigaction()`-a su:
 
 - **`signum`** — broj signala koji se hvata (kao i kod `signal()`-a),
 - **`act`** — pokazivač na strukturu koja opisuje novu akciju za taj signal,
-- **`oldact`** — pokazivač na strukturu u koju će se upisati **prethodna** akcija; korisno ako želimo privremeno preuzeti signal pa kasnije vratiti staro ponašanje. Ako nas prethodna akcija ne zanima, predaje se `NULL`.
+- **`oldact`** — pokazivač na strukturu u koju će se upisati **prethodna** akcija; korisno ako želimo privremeno preuzeti signal pa kasnije vratiti staro ponašanje. Ako nas prethodna akcija ne zanima, kao treći argument možemo koristiti `NULL` pokazivač.
 
 Najvažnija polja strukture `struct sigaction`:
 
@@ -431,7 +435,7 @@ Najvažnija polja strukture `struct sigaction`:
 
 Polje `sa_sigaction` je alternativa polju `sa_handler` — koristi se uz zastavicu `SA_SIGINFO` i daje rukovatelju prošireni potpis `void f(int signum, siginfo_t *info, void *context)`. Drugi argument `info` je struktura s detaljnim podacima o signalu (PID procesa pošiljatelja, UID njegovog vlasnika, razlog isporuke...). Treći argument `context` daje pristup CPU registrima u trenutku prekida (rijetko se koristi izravno). Dva polja, `sa_handler` i `sa_sigaction`, na nekim su sustavima implementirana kao `union` — pa je dobra praksa koristiti samo jedno od njih i nikad oba istovremeno. Polje `sa_restorer` je interni Linux mehanizam i ne smije se eksplicitno postavljati. Zato je dobra praksa cijelu strukturu prije korištenja inicijalizirati `memset`-om, čime osiguravamo da neiskorištena polja imaju nulte vrijednosti.
 
-**Atomarna zamjena rukovatelja.** Bitno je razumjeti da `sigaction()` postavlja novu akciju **atomarno**: nije moguće da signal stigne usred izmjene, pronađe pola-staro-pola-novo stanje, i pozove pogrešan rukovatelj. To je važna garancija koju System V `signal()` nije pružao.
+**Atomarna zamjena rukovatelja.** Bitno je razumjeti da `sigaction()` postavlja novu akciju atomski: nije moguće da signal stigne usred izmjene, pronađe pola-staro-pola-novo stanje, i pozove pogrešan rukovatelj. To je važna garancija koju System V `signal()` nije pružao.
 
 Postupak za registraciju rukovatelja `sigaction()`-om uvijek slijedi isti obrazac:
 
@@ -496,7 +500,7 @@ Postupak za registraciju rukovatelja `sigaction()`-om uvijek slijedi isti obraza
 
 Do sada smo signale uvijek "hvatali" — registrirali rukovatelja koji bi se pozvao kad signal stigne. UNIX, međutim, nudi i druge načine da odredimo što se događa kad signal stigne procesu. Dva najvažnija su **blokiranje** i **ignoriranje**, i između njih postoji važna razlika.
 
-**Blokiranje** ne uklanja signal — samo odgađa njegovu isporuku. Svaki proces ima takozvanu **masku signala** (engl. *signal mask*): skup signala koji su trenutno blokirani. Kad signal stigne procesu, a taj signal je u njegovoj maski, jezgra ga pohrani u **red čekanja** (engl. *pending*). Tamo ostaje sve dok proces ne ukloni signal iz maske — tek tada se isporučuje, i tek tada se pokreće rukovatelj (ili zadana akcija). Blokiranje koristimo kad imamo dio koda koji ne smije biti prekinut signalom, ali ne želimo trajno izgubiti signal.
+**Blokiranje** ne uklanja signal — samo odgađa njegovu isporuku. Svaki proces ima takozvanu **masku signala** (engl. *signal mask*): skup signala koji su trenutno blokirani. Maska signala je još jedan od podataka o procesu koje jezgra čuva u tablici procesa — uz sve drugo što smo dosad spominjali (PID, PPID, tablica otvorenih datoteka, izlazni status, limiti resursa). Postupno se vidi koliko različitih informacija jezgra mora držati za svaki proces, sve uredno upakirano u jedan slog tablice procesa. Kad signal stigne procesu, a taj signal je u njegovoj maski, jezgra ga pohrani u **red čekanja** (engl. *pending*). Tamo ostaje sve dok proces ne ukloni signal iz maske — tek tada se isporučuje, i tek tada se pokreće rukovatelj (ili zadana akcija). Blokiranje koristimo kad imamo dio koda koji ne smije biti prekinut signalom, ali ne želimo trajno izgubiti signal.
 
 **Ignoriranje** je kvalitativno drugačije: signal se isporučuje, ali se odmah odbacuje. Proces ne saznaje da je signal stigao i nikad ne reagira na njega. Za ignoriranje koristimo specijalnu vrijednost `SIG_IGN` koju postavimo kao "rukovatelj" pomoću `sigaction()`-a (ili `signal()`-a). Ignoriranje koristimo kad nas određeni signal jednostavno ne zanima.
 
@@ -528,6 +532,8 @@ int sigaddset(sigset_t *set, int signum);          /* dodaj signal u skup */
 int sigdelset(sigset_t *set, int signum);          /* makni signal iz skupa */
 int sigismember(const sigset_t *set, int signum);  /* je li u skupu? */
 ```
+
+Funkcija `sigemptyset` inicijalizira `set` kao prazan skup, na koji potom novim signalima dodajemo pojedinačno pomoću `sigaddset`. Ovaj pristup je prikladan kada treba sastaviti masku s relativno malim brojem signala — npr. samo `SIGINT` u našem `maska.c` primjeru. Obrnuto, kada nam treba maska koja sadrži većinu signala, prirodnije je krenuti od potpunog skupa i ukloniti samo one koje ne želimo: `sigfillset` inicijalizira `set` kao skup koji sadrži sve signale, a `sigdelset` zatim uklanja pojedinačne signale po potrebi. Funkcija `sigismember` provjerava sadrži li `set` zadani signal — koristimo je npr. nakon poziva `sigpending` da bismo provjerili je li određeni signal u redu čekanja.
 
 Postoji i poziv `sigpending(sigset_t *set)` koji u `set` upisuje signale koji su upravo **u redu čekanja** — stigli su procesu, ali su blokirani pa se još nisu isporučili. Korisno kad prije skidanja maske želimo provjeriti hoće li nešto biti isporučeno.
 
@@ -568,6 +574,12 @@ Postoji i poziv `sigpending(sigset_t *set)` koji u `set` upisuje signale koji su
 
   Bitan detalj: koliko god `SIGINT`-a pošaljemo tijekom blokade, rukovatelj će se izvršiti **samo jednom**. Razlog je u tome što jezgra za "klasične" UNIX signale ne vodi brojač pojavljivanja, samo zastavicu "u redu čekanja je / nije". Više instanci istog signala koje stignu tijekom blokade spojaju se u jednu jedinu isporuku. (POSIX-realtime signali, brojevi 32–64, imaju pravi red s brojačem, ali to je tema za posebnu raspravu.)
 
+  **Pažljivi čitatelj će uočiti suptilan problem** s gornjim kodom. Redoslijed operacija je: prvo se pozivom `sigaction()` registrira rukovatelj, a tek zatim pozivom `sigprocmask()` blokira `SIGINT`. Što se događa ako `SIGINT` stigne u kratkom vremenskom prozoru između ova dva poziva? Signal će se isporučiti — rukovatelj će raditi svoj posao prije nego što program uopće uđe u "kritičnu sekciju". U našem benignom primjeru posljedica je samo blago netočan tajming, ali u stvarnom programu u kojem kritična sekcija mijenja zajedničke podatke, ovakav race condition može dovesti do korupcije podataka i neočekivanog ponašanja programa.
+
+  Možda biste pomislili da problem rješavamo postavljanjem `SIGINT`-a u polje `sa.sa_mask` strukture `struct sigaction`. Međutim, **`sa_mask` blokira signale samo dok se rukovatelj izvršava** — kad se rukovatelj vrati, blokada nestaje, pa to ne pomaže za zaštitu naše kritične sekcije.
+
+  Ostavljamo ovu situaciju kao **vježbu za čitatelja**: pokušajte preraditi `maska.c` tako da garantirano nijedan `SIGINT` ne može biti isporučen prije nego što program uđe u kritičnu sekciju, čak ni ako signal stigne u "neugodnom" trenutku. (Savjet: razmislite o redoslijedu poziva `sigaction()` i `sigprocmask()`.)
+
 - [**`maska2.c`**](maska2.c) — funkcionalno drugačiji primjer, ali strukturom vrlo blizak prethodnom: umjesto da blokiramo `SIGINT`, ovdje ga **ignoriramo**. Rukovatelj nije potreban — kao "akciju" za signal postavljamo specijalnu vrijednost `SIG_IGN`:
 
   ```c
@@ -586,12 +598,13 @@ Postoji i poziv `sigpending(sigset_t *set)` koji u `set` upisuje signale koji su
       sigaction(SIGINT, &sa, NULL);
 
       sleep(5);
+      printf("kraj programa - SIGINT-i su tijekom rada bili ignorirani\n");
 
       return 0;
   }
   ```
 
-  Pokretanje izgleda gotovo identično `maska.c`-u — pet sekundi spavanja tijekom kojih program ne reagira na Ctrl+C. Ali kvalitativna razlika dolazi do izražaja kad usporedimo izlaze: `maska.c` će na kraju spavanja ispisati `SIGINT obraden` (ako smo poslali signal tijekom spavanja), dok `maska2.c` neće ispisati ništa, čak ni kasnije — signal je tiho odbačen u trenutku isporuke.
+  Pokretanje izgleda slično `maska.c`-u — pet sekundi spavanja tijekom kojih program ne reagira na Ctrl+C, a na kraju ispiše završnu poruku koja nam jasno pokazuje da je program došao do kraja, tj. da `SIGINT` nije prekinuo izvršavanje. Kvalitativna razlika u odnosu na `maska.c` dolazi do izražaja kad usporedimo izlaze: `maska.c` će prije završne poruke iz `main`-a ispisati `SIGINT obraden` (ako smo poslali signal tijekom spavanja), dok `maska2.c` to neće ispisati nikad — signal je tiho odbačen u trenutku isporuke.
 
   Razlika između blokiranja i ignoriranja, sažeto:
 
@@ -608,11 +621,11 @@ Postoji i poziv `sigpending(sigset_t *set)` koji u `set` upisuje signale koji su
 
 U poglavlju o procesima ([P04](../P04-Okruzenje_procesa/README.md)) susreli smo se s pojmom **zombi procesa**: proces koji je završio izvršavanje, ali čiji zapis u tablici procesa jezgra još uvijek čuva, jer roditelj nije pozvao `wait()` da pokupi izlazni status. Tamo smo zaključili da je dobra programerska praksa za svako dijete obavezno pozvati `wait()`. Sada se postavlja pitanje: kako to napraviti elegantno ako roditelj u međuvremenu treba raditi nešto drugo, a ne samo blokirati u `wait()`-u?
 
-Odgovor leži u signalu `SIGCHLD`. Svaki put kad dijete promijeni stanje (završi izvršavanje, bude zaustavljeno signalom, ili bude nastavljeno), jezgra šalje roditelju signal `SIGCHLD`. Po defaultu se ovaj signal ignorira — što je razlog zašto smo dosad mogli "zaboraviti" na njega. Međutim, ako registriramo rukovatelj za `SIGCHLD`, dobivamo elegantan obrazac u kojem roditelj pokuplja djecu **asinkrono**, kad god ona završe, dok glavni program nesmetano nastavlja sa svojim radom.
+Odgovor leži u signalu `SIGCHLD`. Svaki put kad proces dijete promijeni stanje (završi izvršavanje, bude zaustavljeno signalom, ili bude nastavljeno), jezgra šalje roditelju signal `SIGCHLD`. Po defaultu se ovaj signal ignorira — što je razlog zašto smo dosad mogli "zaboraviti" na njega. Međutim, ako registriramo rukovatelj za `SIGCHLD`, dobivamo elegantan obrazac u kojem roditelj pokuplja djecu **asinkrono**, kad god ona završe, dok glavni program nesmetano nastavlja sa svojim radom.
 
 Ovo je jedan od najčešćih obrazaca u stvarnom UNIX programiranju — koriste ga UNIX ljuske, web serveri (npr. Apache, nginx za radne procese), baze podataka i mnogi drugi sustavi koji upravljaju većim brojem podređenih procesa.
 
-- [**`sigchld.c`**](sigchld.c) — primjer u kojem roditelj forka tri djeteta s različitim trajanjem, a sam u glavnoj petlji broji sekunde. Pokupljanje djece obavlja se u SIGCHLD rukovatelju, asinkrono u odnosu na glavnu petlju.
+- [**`nozombie.c`**](nozombie.c) — primjer u kojem roditelj forka tri djeteta s različitim trajanjem, a sam u glavnoj petlji broji sekunde. Pokupljanje djece obavlja se u SIGCHLD rukovatelju, asinkrono u odnosu na glavnu petlju.
 
   ```c
   #include <stdio.h>
@@ -645,7 +658,8 @@ Ovo je jedan od najčešćih obrazaca u stvarnom UNIX programiranju — koriste 
       for (i = 0; i < 3; i++) {
           pid_t pid = fork();
           if (pid == 0) {
-              printf("[child %d] PID %d, spavam %d s\n", i+1, getpid(), trajanje[i]);
+              printf("[child %d] PID %d, spavam %d s\n",
+                     i+1, getpid(), trajanje[i]);
               sleep(trajanje[i]);
               return i+1;
           }
@@ -660,12 +674,12 @@ Ovo je jedan od najčešćih obrazaca u stvarnom UNIX programiranju — koriste 
   }
   ```
 
-  Roditelj registrira rukovatelj `chld_handler` za signal `SIGCHLD`, a zatim u petlji forka tri djeteta. Svako dijete spava drukčiji broj sekundi (3, 1 ili 2) i pri završetku vraća svoj redni broj kao izlazni status. Glavna petlja roditelja jednostavno broji sekunde — pet puta odspava sekundu i ispiše broj. Dok roditelj broji, djeca jedno po jedno završavaju; svaki put kad dijete završi, jezgra roditelju isporuči `SIGCHLD`, rukovatelj se izvrši i pozove `wait(&status)` da pokupi gotovo dijete.
+  Roditelj registrira rukovatelj `chld_handler` za signal `SIGCHLD`, a zatim u petlji forka tri djeteta. Svako dijete spava drukčiji broj sekundi (3, 1 ili 2) i pri završetku vraća svoj redni broj kao izlazni status. Glavna petlja roditelja jednostavno broji sekunde — pet puta odspava sekundu i ispiše broj. Dok roditelj broji, djeca jedno po jedno završavaju; svaki put kad proces dijete završi, jezgra roditelju isporuči `SIGCHLD`, rukovatelj se izvrši i pozove `wait(&status)` da pokupi gotovo dijete.
 
   Pokrenimo program:
 
   ```
-  $ ./sigchld
+  $ ./nozombie
   [child 2] PID 40, spavam 1 s
   [child 3] PID 41, spavam 2 s
   [child 1] PID 39, spavam 3 s
@@ -682,6 +696,8 @@ Ovo je jedan od najčešćih obrazaca u stvarnom UNIX programiranju — koriste 
   Iz ispisa se vidi vremenski tijek: nakon prve sekunde završava dijete 2 (spavalo je 1 sekundu), pa rukovatelj odmah javlja da je pokupljeno. Nakon druge sekunde isto se dogodi za dijete 3, a nakon treće za dijete 1. Glavni program ovo ne primjećuje — uredno nastavlja brojati sekunde do pet.
 
   **Zašto `SA_RESTART`?** Glavni program u svojoj petlji koristi `sleep(1)`. Kad SIGCHLD stigne tijekom `sleep`-a, jezgra prekida sistemski poziv i poziva rukovatelj. Po defaultu, kad se rukovatelj vrati, prekinuti sistemski poziv vraća grešku s `errno = EINTR`. Za `sleep` to znači: vraća se prije isteka tražene sekunde — brojač sekundi bio bi neispravan. Postavljanjem zastavice `SA_RESTART` u `sa_flags` jezgri kažemo: *"nakon obrade signala automatski nastavi prekinuti sistemski poziv"*. Tako naš `sleep` spava punu sekundu čak i ako tijekom toga stigne SIGCHLD.
+
+  **Napomena o `printf`-u u rukovatelju.** Pažljivi čitatelj zapazit će da naš `chld_handler` poziva `printf` — što je u suprotnosti s preporukom koju smo uveli na samom početku poglavlja: u rukovatelju treba pozivati samo `async-signal-safe` funkcije, a `printf` to nije. U ovom primjeru smo se ipak odlučili za `printf` radi jasnoće — svrha je pokazati u kojem se trenutku rukovatelj zaista izvrši i koje dijete pokuplja, što ispis čini ključnim za razumijevanje primjera. U produkcijskom kodu ovo nije prihvatljivo: rukovatelj bi tipično samo postavio zastavicu ili upisao podatke u red iz kojeg ih glavni program kasnije izvuče i ispiše. Imajte to na umu kad ovaj uzorak budete prilagođavali za vlastite programe.
 
   **Pokupljanje više djece odjednom.** U ovom primjeru djeca završavaju jedno po jedno, s razmakom od jedne sekunde, pa svaka instanca SIGCHLD-a dovodi do pokupljanja točno jednog djeteta. Međutim, ako bi više djece završilo gotovo istovremeno, mogla bi se dogoditi situacija u kojoj je rukovatelj pozvan jednom, a u međuvremenu su dvije ili više djece spremne za pokupljanje. Razlog leži u tome što su signali "klasične" UNIX vrste — više instanci istog signala koje stignu blizu jedne drugoj spojaju se u jednu isporuku (kao što smo vidjeli kod blokiranja). U produkcijskom kodu rukovatelj zato obično poziva `waitpid(-1, &status, WNOHANG)` u petlji, sve dok funkcija ne vrati 0 ili −1, čime se garantira da su sva spremna djeca pokupljena. U ovom uvodnom primjeru nismo se bavili tom mogućnošću jer nam vremenski razmak između djece to ne nalaže.
 
