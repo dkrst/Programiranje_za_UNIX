@@ -29,7 +29,7 @@ Uvodno poglavlje koje upoznaje čitatelja s arhitekturom UNIX operacijskog susta
 
 ### [`P02-Osnove_programiranja/`](P02-Osnove_programiranja/)
 
-Minimalni praktični uvod u proces prevođenja i povezivanja C programa. Demonstrira osnovnu strukturu C programa, uporabu zaglavlja i razlaganje koda na više prevodbenih jedinica. Detaljno se obrađuje korištenje alata `make` — od ručnog prevođenja preko jednostavnih pravila do potpunog Makefilea s varijablama, implicitnim pravilima i konvencionalnim pseudo-pravilima `default`, `all` i `clean`.
+Uvod u proces prevođenja i povezivanja C programa s primjerima. Demonstrira osnovnu strukturu C programa, uporabu zaglavlja i razlaganje koda na više prevodbenih jedinica. Detaljno se obrađuje korištenje alata `make` — od ručnog prevođenja preko jednostavnih pravila do potpunog Makefilea s varijablama, implicitnim pravilima i konvencionalnim pseudo-pravilima `default`, `all` i `clean`.
 
 ### [`P03-Ulazno_izlazne_operacije/`](P03-Ulazno_izlazne_operacije/)
 
