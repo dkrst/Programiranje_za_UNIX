@@ -583,11 +583,11 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
   $ ./f_cat datoteka1.txt datoteka2.txt
   ```
 
-  Sa više argumenata, program ispisuje navedene datoteke jednu za drugom — u ovom slučaju najprije sadržaj `datoteka1.txt`, a odmah za njim sadržaj `datoteka2.txt` (naravno, pod uvjetom da obje datoteke postoje u radnom direktoriju). Time se reproducira ponašanje UNIX naredbe `cat` po kojoj je program i nazvan: spaja (engl. *concatenate*) sadržaje više datoteka u jedinstveni izlazni tok.
+  Sa više argumenata, program ispisuje navedene datoteke jednu za drugom — u ovom slučaju najprije sadržaj `datoteka1.txt`, a odmah za njim sadržaj `datoteka2.txt` (naravno, pod uvjetom da obje datoteke postoje u radnom direktoriju). Time se reproducira ponašanje UNIX naredbe `cat` po kojoj je program i nazvan: spaja (engl. *concatenate*) sadržaje više datoteka u jedinstveni izlazni tok. Ako neka od navedenih datoteka ne postoji, program će za nju ispisati poruku o grešci pozivom `perror()`, ali **neće prekinuti izvođenje** — sve ostale datoteke koje postoje uredno će biti ispisane.
 
 ### Dijeljenje datoteka i preusmjeravanje (`dup`, `dup2`)
 
-Da bismo razumjeli kako UNIX upravlja otvorenim datotekama — i kako više procesa ili više deskriptora unutar istog procesa može pristupati istoj datoteci — potrebno je upoznati interne strukture jezgre. Razumijevanje ovih koncepata bit će nam korisno i u kasnijim poglavljima jer se na te iste strukture stalno vraćamo kad govorimo o procesima i nasljeđivanju resursa.
+Da bismo razumjeli kako UNIX upravlja otvorenim datotekama i kako više procesa ili više deskriptora unutar istog procesa može pristupati istoj datoteci, potrebno je upoznati interne strukture jezgre. Razumijevanje ovih koncepata bit će nam korisno i u kasnijim poglavljima jer se na te iste strukture stalno vraćamo kad govorimo o procesima i nasljeđivanju resursa.
 
 Jezgra održava tri strukture u memoriji koje surađuju pri rukovanju otvorenim datotekama:
 
