@@ -1,7 +1,5 @@
 # Okruženje procesa
 
-Primjeri uz poglavlje **Okruženje procesa** iz knjige *Programiranje za UNIX*.
-
 U ovom poglavlju dani su primjeri koji demonstriraju upravljanje procesima na UNIX-u: dohvaćanje argumenata naredbenog retka i okruženja UNIX procesa, stvaranje procesa, pokretanje programa i upravljanje limitima. Svaki od ovih mehanizama vezan je uz jedan ili više sistemskih poziva — `fork()`, `exec` obitelj, `wait()`, `dup2()`, `setrlimit()` — koji zajedno tvore jezgru UNIX-ove filozofije upravljanja procesima. Primjeri su poredani tako da se teme grade postupno — od najjednostavnijih (ispis primljenih argumenata) prema složenijima (kombinacija `fork`, `exec`, `dup2` i `wait` u jednom programu).
 
 ### Argumenti naredbenog retka
@@ -49,6 +47,19 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
 
 - [**`argumenti.c`**](argumenti.c) — najjednostavniji mogući primjer rada s argumentima naredbenog retka. Program u petlji prolazi kroz polje `argv[0], ..., argv[argc-1]` i ispisuje indeks i vrijednost svakog argumenta. Koristi se za vizualnu provjeru kako ljuska prenosi naredbeni redak programu — posebno korisno za razumijevanje razdvajanja riječi po razmacima, ponašanja navodnika, ili kako `argv[0]` uvijek nosi ime kojim je program pokrenut.
 
+  ```c
+  #include <stdio.h>
+
+  int main(int argc, char *argv[]) {
+      int k;
+
+      for (k = 0; k < argc; k++)
+          printf("%d:\t %s\n", k, argv[k]);
+
+      return 0;
+  }
+  ```
+
   ```
   $ ./argumenti jedan dva tri
   0:	 ./argumenti
@@ -58,6 +69,28 @@ Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja t
   ```
 
 - [**`zbroji.c`**](zbroji.c) — program koji dva argumenta naredbenog retka tumači kao cijele brojeve i ispisuje njihov zbroj. Uvodi praksu **provjere broja argumenata** na početku programa (`argc < 3` → ispis upute za korištenje i izlaz) te funkciju `atoi()` iz standardne C biblioteke za konverziju stringa u `int`. Uobičajeni UNIX obrazac: poruka o korištenju uvijek koristi `argv[0]` kako bi točno odražavala naziv pod kojim je program pozvan.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  int main(int argc, char *argv[]) {
+      int a, b, zbroj;
+
+      if (argc < 3) {
+          printf("koristenje: %s <1.broj> <2.broj>\n", argv[0]);
+          exit(0);
+      }
+
+      a = atoi(argv[1]);
+      b = atoi(argv[2]);
+      zbroj = a + b;
+
+      printf("%d + %d = %d\n", a, b, zbroj);
+
+      exit(0);
+  }
+  ```
 
   ```
   $ ./zbroji
@@ -113,6 +146,28 @@ int   putenv(char *string)
 Funkcija `getenv` vraća pokazivač na string s vrijednošću tražene varijable, ili `NULL` ako varijabla nije postavljena. Funkcije `setenv`, `unsetenv` i `putenv` koriste se za izmjenu okruženja samog procesa — promjene se **ne** propagiraju natrag u roditeljski proces (ljusku), nego ostaju lokalne tekućem procesu i njegovim potomcima.
 
 - [**`readenv.c`**](readenv.c) — čita vrijednost jedne varijable okruženja čije se ime zadaje kao argument naredbenog retka, pozivom `getenv()` iz standardne C biblioteke. `getenv()` vraća pokazivač na string s vrijednošću varijable, ili `NULL` ako varijabla nije postavljena. Program razlikuje ta dva slučaja i prikazuje odgovarajuću poruku. Ilustrira temeljni način na koji program pristupa okolini koju je naslijedio od ljuske — varijable poput `HOME`, `PATH`, `USER` ili vlastite varijable postavljene naredbom `export`.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+
+  int main(int argc, char *argv[]) {
+      char *vrijednost;
+
+      if (argc < 2) {
+          printf("koristenje: %s <ime varijable>\n", argv[0]);
+          return 0;
+      }
+
+      vrijednost = getenv(argv[1]);
+      if (!vrijednost)
+          printf("%s: environment varijabla ne postoji\n", argv[1]);
+      else
+          printf("%s = %s\n", argv[1], vrijednost);
+
+      return 0;
+  }
+  ```
 
   ```
   $ ./readenv HOME
@@ -224,6 +279,20 @@ pid_t getppid(void);
 
 - [**`nproc.c`**](nproc.c) — ilustrira upravo opisano svojstvo `fork()`-a: novi proces dobiva vlastitu kopiju memorijskog prostora roditelja, uključujući sve varijable na stogu i hrpi, te nastavlja izvršavanje točno tamo gdje se roditelj nalazio u trenutku poziva. Program u petlji poziva `fork()` tri puta. Nakon završetka petlje program ispisuje svoj jedinstveni process ID (PID) i proces ID procesa roditelja koristeći funkcije `getpid()` i `getppid()`. Ova informacija ispisuje se **8 puta** — što znači da izvršavanje petlje rezultira s ukupno 8 procesa, iako bi na prvu mogli pomisliti da je logičan broj procesa nakon izvršavanja petlje 4 (jedan izvorni i tri kopije, stvorene u tri iteracije petlje).
 
+  ```c
+  #include <stdio.h>
+  #include <unistd.h>
+
+  int main() {
+      int k;
+      for (k = 0; k < 3; k++)
+          fork();
+      printf("PID: %d\t PPID: %d\n", getpid(), getppid());
+
+      return 0;
+  }
+  ```
+
   Ovo je posljedica upravo gore opisanog načina funkcioniranja sistemskog poziva `fork()` — kopiranjem memorijske slike procesa kopira se i varijabla `k`, ali i brojač instrukcija (PC) koji pokazuje na sljedeću instrukciju koja se treba izvršiti. U svakoj iteraciji petlje iz jednog procesa nastaju dva potpuno identična procesa, koja se od te točke izvršavaju nezavisno — oba procesa nalaze se usred petlje i nastavljaju dalje kroz istu petlju. Razvoj kroz iteracije, uz broj procesa i vrijednost varijable `k` koja nakon `fork`-a postoji nezavisno u svakome:
 
   ```
@@ -272,6 +341,29 @@ pid_t getppid(void);
   Formula za broj procesa nakon `n` uzastopnih `fork()` poziva je **2ⁿ** — svaki `fork()` udvostručuje broj aktivnih procesa. U ovom primjeru u petlju ulazi 1 proces, a iz nje izlazi 8. Iz ispisanih PPID-ova moguće je rekonstruirati cijelo stablo — svaki proces zna tko mu je neposredni roditelj.
 
 - [**`novi.c`**](novi.c) — korištenje povratne vrijednosti `fork()`-a za razlikovanje uloge roditelja i djeteta. Iako su oba procesa identične kopije jedan drugog, njih dva trebaju se u nastavku ponašati različito: roditelj obično nastavlja svoj prethodni posao, a dijete izvršava neki novi zadatak. Jedini mehanizam po kojem dva procesa mogu razaznati tko je tko jest upravo povratna vrijednost `fork()`-a — roditelj dobiva PID djeteta, a dijete dobiva 0. Program to iskorištava za granjanje logike — istim `printf`-om ispisuje različit tekst ovisno o tome tko ga izvršava:
+
+  ```c
+  #include <stdio.h>
+  #include <unistd.h>
+
+  int main() {
+      int pid;
+
+      pid = fork();
+      if (pid < 0) {
+          perror("fork");
+          return 1;
+      } else if (pid == 0) {
+          printf("CHILD  (%d)\t PID: %d\t PPID: %d\n",
+                 pid, getpid(), getppid());
+      } else {
+          printf("PARENT (%d)\t PID: %d\t PPID: %d\n",
+                 pid, getpid(), getppid());
+      }
+
+      return 0;
+  }
+  ```
 
   ```
   $ ./novi
@@ -500,7 +592,44 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
   Ako `ptr_err` pokušate pokrenuti direktno iz ljuske, dobit ćete ispis `Segmentation fault` — ljuska na isti način kao i naš primjer sazna razlog prekida izvršavanja naredbe koju smo zadali, provjeri koji je signal uzrok prekida te, temeljem te informacije, ispisuje odgovarajuću poruku.
 
-- [**`preusmjeri.c`**](preusmjeri.c) — povezuje koncepte iz ovog poglavlja s mehanizmom preusmjeravanja ulaza/izlaza obrađenim u poglavlju o ulazno-izlaznim operacijama. Program prima dva ili više argumenata: prvi je ime datoteke u koju želimo preusmjeriti standardni izlaz, a ostatak je naredba koju želimo pokrenuti. Redoslijed koraka je:
+- [**`preusmjeri.c`**](preusmjeri.c) — povezuje koncepte iz ovog poglavlja s mehanizmom preusmjeravanja ulaza/izlaza obrađenim u poglavlju o ulazno-izlaznim operacijama. Program prima dva ili više argumenata: prvi je ime datoteke u koju želimo preusmjeriti standardni izlaz, a ostatak je naredba koju želimo pokrenuti.
+
+  ```c
+  #include <stdio.h>
+  #include <unistd.h>
+  #include <sys/types.h>
+  #include <fcntl.h>
+
+  int main(int argc, char **argv) {
+      int fd;
+
+      if (argc < 3) {
+          printf("koristenje: %s <datoteka> <naredba> [arg1] [arg2] ...\n",
+                 argv[0]);
+          return 0;
+      }
+
+      fd = creat(argv[1], (mode_t)0644);
+      if (fd < 0) {
+          perror("creat");
+          return 1;
+      }
+
+      if (dup2(fd, STDOUT_FILENO) < 0) {
+          perror("dup2");
+          return 1;
+      }
+      if (fd != STDOUT_FILENO)
+          close(fd);
+
+      execvp(argv[2], &argv[2]);
+      perror("execvp");
+
+      return 1;
+  }
+  ```
+
+  Redoslijed koraka je:
 
   1. Pozivom `creat()` otvori se izlazna datoteka s pravima `0644`.
   2. Pozivom `dup2(fd, STDOUT_FILENO)` file deskriptor datoteke se duplicira na deskriptor 1 — upravo onaj koji proces koristi za standardni izlaz. Od tog trenutka svaki `write` ili `printf` kojemu je odredište `STDOUT_FILENO` efektivno piše u otvorenu datoteku.
@@ -523,7 +652,41 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
 - [**`limitraj.c`**](limitraj.c) i [**`potrosac.c`**](potrosac.c) — ilustriraju sistemski poziv `setrlimit()`, kojim proces može postaviti ograničenje na različite resurse koje mu sustav dopušta koristiti. `limitraj` postavlja `RLIMIT_CPU` na 3 sekunde (i tvrdo i meko ograničenje), što znači da sljedeći proces smije potrošiti najviše 3 sekunde procesorskog vremena; nakon toga jezgra mu šalje signal koji ga prekida. Nakon postavljanja limita, `limitraj` pozivom `execvp()` pokreće naredbu zadanu argumentima. Kako se limiti resursa — kao i file deskriptori — **nasljeđuju kroz `exec()`**, pokrenuta naredba nasljeđuje i ograničenje. Ovo je osnovna ideja iza mehanizma ugrađene naredbe `ulimit` u ljusci, kao i alata poput `timeout` i različitih "sandbox" okruženja.
 
-  Program `potrosac.c` je pratilac koji služi samo za demonstraciju djelovanja `limitraj`-a — sastoji se od jedne jedine beskonačne petlje `while(1);`, bez ijednog sistemskog poziva ili I/O operacije. Kad se pokrene samostalno, trošio bi procesor neograničeno dugo. Pokrenut kroz `limitraj`, nasljeđuje njegov CPU limit:
+  ```c
+  /* limitraj.c */
+  #include <stdio.h>
+  #include <unistd.h>
+  #include <sys/resource.h>
+
+  int main(int argc, char **argv) {
+      struct rlimit l;
+      if (argc < 2) {
+          printf("koristenje: %s <naredba> [arg1] [arg2] ...\n", argv[0]);
+          return 0;
+      }
+
+      l.rlim_cur = 3;
+      l.rlim_max = 3;
+      setrlimit(RLIMIT_CPU, &l);
+
+      execvp(argv[1], &argv[1]);
+      perror("execvp");
+
+      return 1;
+  }
+  ```
+
+  Program `potrosac.c` je pratilac koji služi samo za demonstraciju djelovanja `limitraj`-a — sastoji se od jedne jedine beskonačne petlje `while(1);`, bez ijednog sistemskog poziva ili I/O operacije.
+
+  ```c
+  /* potrosac.c */
+  int main() {
+      while (1);
+      return 0;
+  }
+  ```
+
+  Kad se `potrosac` pokrene samostalno, trošio bi procesor neograničeno dugo. Pokrenut kroz `limitraj`, nasljeđuje njegov CPU limit:
 
   ```
   $ ./limitraj ./potrosac
@@ -546,6 +709,43 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 ### Osirotjeli procesi
 
 - [**`noparent.c`**](noparent.c) — detaljniji primjer `fork()` mehanizma koji prikazuje što se dogodi kada **roditelj završi prije djeteta**. Program stvara stablo od tri procesa — `PARENT 1`, `CHILD 1` i `CHILD 2` — pri čemu `CHILD 2` (unuk po odnosu prema `PARENT 1`) namjerno spava duže od svog direktnog roditelja (`CHILD 1`). Zbog toga `CHILD 1` završi dok njegovo dijete još radi, a time `CHILD 2` postaje **osirotjeli proces** (*orphan*). U takvoj situaciji jezgra automatski preuzima ulogu novog roditelja — tradicionalno je to proces `init` s PID-om 1.
+
+  ```c
+  #include <unistd.h>
+  #include <stdio.h>
+  #include <sys/wait.h>
+  #include <stdlib.h>
+
+  int main() {
+      int pid;
+
+      pid = fork();
+      if (pid == 0) {                  /* CHILD 1 */
+          pid = fork();
+          if (pid == 0) {              /* CHILD 2 */
+              printf("CHILD 2:\t PID: %d\t PPID: %d\n",
+                     getpid(), getppid());
+              sleep(3);
+              printf("CHILD 2:\t PID: %d\t PPID: %d\n",
+                     getpid(), getppid());
+          } else {                     /* CHILD 1 - PARENT 2 */
+              sleep(1);
+              printf("CHILD 1:\t PID: %d\t PPID: %d\n",
+                     getpid(), getppid());
+              exit(0);
+          }
+      } else {                         /* PARENT 1 */
+          pid = wait(NULL);
+          printf("PARENT 1:\t PID: %d\t izlazi: %d\n",
+                 getpid(), pid);
+          printf("PARENT 1:\t PID: %d\t PPID: %d\n",
+                 getpid(), getppid());
+          sleep(5);
+      }
+
+      return 0;
+  }
+  ```
 
   Očekivani ispis s konkretnim PID-ovima (skraćeno; `SH` je PID ljuske iz koje je program pokrenut, npr. 14567; `PARENT 1` dobiva PID 25016, `CHILD 1` 25017, `CHILD 2` 25018):
 
