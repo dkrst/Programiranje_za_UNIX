@@ -17,9 +17,7 @@ Prilikom pozivanja bilo koje naredbe u UNIX ljusci, ljuska analizira niz znakova
 
 Argumenti naredbenog retka nalaze se na samom vrhu adresnog prostora procesa, kako je prikazano na slici:
 
-<p align="center">
-  <img src="slike/memorijska_slika.png" alt="Memorijska slika UNIX procesa" width="400">
-</p>
+![Memorijska slika UNIX procesa](slike/memorijska_slika.png)
 
 Najjednostavniji način pristupa je iteriranje kroz polje pokazivača `argv`, od prvog elementa (indeks 0) koji pokazuje na samu naredbu, do posljednjeg s indeksom `argc-1`.
 
@@ -41,9 +39,7 @@ argv[4] = NULL
 
 Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja temeljem razmaka (*space*) — praznog prostora između njih. Pri tom je svejedno koristimo li jedan ili više razmaka (više puta pritisnuta tipka *space* prilikom unosa). Dodatno, pored pokazivača `argv[0]` do `argv[argc-1]`, uvijek postoji i posljednji pokazivač u nizu s indeksom `argc`, koji pokazuje na vrijednost `NULL`, tj. `(void*)0`. Organizacija polja `argv` u memoriji shematski je prikazana na sljedećoj slici:
 
-<p align="center">
-  <img src="slike/args.png" alt="Organizacija argumenata naredbenog retka u memoriji procesa" width="450">
-</p>
+![Organizacija argumenata naredbenog retka u memoriji procesa](slike/args.png)
 
 - [**`argumenti.c`**](argumenti.c) — najjednostavniji mogući primjer rada s argumentima naredbenog retka. Program u petlji prolazi kroz polje `argv[0], ..., argv[argc-1]` i ispisuje indeks i vrijednost svakog argumenta. Koristi se za vizualnu provjeru kako ljuska prenosi naredbeni redak programu — posebno korisno za razumijevanje razdvajanja riječi po razmacima, ponašanja navodnika, ili kako `argv[0]` uvijek nosi ime kojim je program pokrenut.
 
@@ -137,13 +133,59 @@ Naredba `env` (bez argumenata) ispisuje sve varijable okruženja trenutne sesije
 Iz programa pisanih u **C**-u, varijablama okruženja pristupa se kroz funkcije iz standardne C biblioteke deklarirane u `<stdlib.h>`:
 
 ```c
-char *getenv(const char *name)
-int   setenv(const char *name, const char *value, int overwrite)
-int   unsetenv(const char *name)
-int   putenv(char *string)
+#include <stdlib.h>
+
+char *getenv(const char *name);
+int   setenv(const char *name, const char *value, int overwrite);
+int   unsetenv(const char *name);
+int   putenv(char *string);
 ```
 
-Funkcija `getenv` vraća pokazivač na string s vrijednošću tražene varijable, ili `NULL` ako varijabla nije postavljena. Funkcije `setenv`, `unsetenv` i `putenv` koriste se za izmjenu okruženja samog procesa — promjene se **ne** propagiraju natrag u roditeljski proces (ljusku), nego ostaju lokalne tekućem procesu i njegovim potomcima.
+#### Funkcija `getenv()`
+
+Dohvaća vrijednost varijable okruženja prema njezinom imenu.
+
+**Povratna vrijednost:** pokazivač na string s vrijednošću tražene varijable, ili `NULL` ako varijabla nije postavljena.
+
+**Argumenti:**
+
+- **`name`** — ime varijable okruženja čija se vrijednost dohvaća.
+
+Vraćeni string ne smije se modificirati — pripada okruženju procesa kojim upravlja jezgra. Ako želimo zadržati vrijednost duže vremena, najsigurnije ju je odmah kopirati u vlastiti međuspremnik (npr. pozivom `strdup()` ili `strncpy()`).
+
+#### Funkcija `setenv()`
+
+Postavlja vrijednost varijable okruženja, eventualno prepisujući postojeću.
+
+**Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške (pri čemu se postavlja `errno`).
+
+**Argumenti:**
+
+- **`name`** — ime varijable koja se postavlja.
+- **`value`** — nova vrijednost varijable.
+- **`overwrite`** — ponašanje kad varijabla već postoji: ako je `0`, postojeća vrijednost se zadržava; inače se prepisuje.
+
+#### Funkcija `unsetenv()`
+
+Briše varijablu iz okruženja.
+
+**Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
+
+**Argumenti:**
+
+- **`name`** — ime varijable koju brišemo. Ako varijabla ne postoji, poziv se smatra uspješnim (vraća `0`).
+
+#### Funkcija `putenv()`
+
+Postavlja varijablu zadanu u obliku `"ime=vrijednost"`.
+
+**Povratna vrijednost:** `0` u slučaju uspjeha, ne-nula vrijednost u slučaju greške.
+
+**Argumenti:**
+
+- **`string`** — pokazivač na niz oblika `"ime=vrijednost"`. Bitno je naglasiti da `putenv()` **ne kopira** zadani string nego pohranjuje sam pokazivač u tablicu okruženja. Stoga string mora biti trajno dostupan — najčešće se koriste statički ili dinamički alocirani nizovi, a **nikad lokalne varijable** funkcije koja poziva `putenv()`. Zbog ovog ponašanja, `setenv()` je u modernom kodu preferiran jer kopira vrijednost u svoje vlasništvo.
+
+Funkcije `setenv`, `unsetenv` i `putenv` koriste se za izmjenu okruženja samog procesa — promjene se **ne** propagiraju natrag u roditeljski proces (ljusku), nego ostaju lokalne tekućem procesu i njegovim potomcima.
 
 - [**`readenv.c`**](readenv.c) — čita vrijednost jedne varijable okruženja čije se ime zadaje kao argument naredbenog retka, pozivom `getenv()` iz standardne C biblioteke. `getenv()` vraća pokazivač na string s vrijednošću varijable, ili `NULL` ako varijabla nije postavljena. Program razlikuje ta dva slučaja i prikazuje odgovarajuću poruku. Ilustrira temeljni način na koji program pristupa okolini koju je naslijedio od ljuske — varijable poput `HOME`, `PATH`, `USER` ili vlastite varijable postavljene naredbom `export`.
 
@@ -186,7 +228,7 @@ int main(int argc, char *argv[], char *envp[]) {
 }
 ```
 
-Treći argument `envp` je polje pokazivača na stringove oblika `"IME=vrijednost"`, završeno `NULL`-om — i sadrži kompletno okruženje koje je proces naslijedio pri pokretanju.
+Treći argument `envp` je polje pokazivača na stringove oblika `"IME=vrijednost"`, završeno `NULL` pokazivačem — `(void *)0` — i sadrži kompletno okruženje koje je proces naslijedio pri pokretanju.
 
 Treba imati na umu da **`envp` nije dio ISO C standarda** — ISO/IEC 9899:2018 u Annexu J.5.1 (*Common extensions*) spominje ovaj treći argument samo kao uobičajenu implementacijsku ekstenziju, što znači da je implementacije smiju ali nisu dužne podržavati. Ni POSIX.1-2017 ne propisuje `envp` kao standardni oblik — naprotiv, izričito preporučuje korištenje varijable `environ` (opisane u nastavku). U praksi je ipak treći argument `main`-a podržan na praktički svim modernim UNIX i Linux distribucijama, kao i u Microsoft C kompajleru.
 
@@ -207,9 +249,7 @@ Pokazivač `environ` pokazuje na isti niz pokazivača kao i `envp` u trenutku po
 
 Organizacija varijabli okruženja u memoriji procesa shematski je prikazana na sljedećoj slici. Bez obzira pristupa li se okruženju kroz `environ` ili kroz `envp`, sama struktura u memoriji uvijek je ista — niz pokazivača na stringove oblika `"IME=vrijednost"` završen `NULL`-om. Razlikuje se samo ime varijable kroz koju mu pristupamo.
 
-<p align="center">
-  <img src="slike/environ.png" alt="Organizacija varijabli okruženja u memoriji procesa" width="450">
-</p>
+![Organizacija varijabli okruženja u memoriji procesa](slike/environ.png)
 
 Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje je POSIX.1-2017. Zanimljivo, to je jedini objekt u POSIX-u kojeg ne deklarira nijedna sistemska zaglavna datoteka, pa korisnik mora sam navesti deklaraciju `extern char **environ;` u svom programu (kao u primjeru iznad). ISO C, ponovo, ovu varijablu uopće ne spominje.
 
