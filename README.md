@@ -1,8 +1,8 @@
 # Programiranje za UNIX
 
-Primjeri koda uz knjigu **Programiranje za UNIX** (Damir Krstinić, Maja Braović, siječanj 2025.), pisanu za kolegij istog imena na Fakultetu elektrotehnike, strojarstva i brodogradnje u Splitu (FESB).
+Skripta s primjerima koda iz kolegija **Programiranje za UNIX** (Damir Krstinić, Maja Braović, travanj 2026.), Sveučilište u Splitu, Fakultet elektrotehnike, strojarstva i brodogradnje (FESB).
 
-Ovaj repozitorij sadrži izvorne datoteke svih primjera iz knjige, organizirane po poglavljima. Svaki primjer ilustrira specifičnu funkcionalnost UNIX sustava (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja.
+Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa i signala. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja.
 
 ## Preduvjeti
 
@@ -11,9 +11,9 @@ Ovaj repozitorij sadrži izvorne datoteke svih primjera iz knjige, organizirane 
 - `make`
 - `bash` (za primjere shell skripti u P01)
 
-## Struktura repozitorija
+## Struktura
 
-Direktoriji odgovaraju poglavljima knjige:
+Svaki direktorij odgovara jednom poglavlju skripte:
 
 | Direktorij | Poglavlje |
 |---|---|
