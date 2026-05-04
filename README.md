@@ -2,46 +2,50 @@
 
 Primjeri koda uz knjigu **Programiranje za UNIX** (Damir Krstinić, Maja Braović, siječanj 2025.), pisanu za kolegij istog imena na Fakultetu elektrotehnike, strojarstva i brodogradnje u Splitu (FESB).
 
-Ovaj repozitorij sadrži izvorni kod svih primjera iz knjige, organiziran po poglavljima. Svaki primjer ilustrira specifičnu funkcionalnost UNIX sustava (ljuska, sistemski pozivi, rad s procesima, datotečni sustav) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu.
+Ovaj repozitorij sadrži izvorne datoteke svih primjera iz knjige, organizirane po poglavljima. Svaki primjer ilustrira specifičnu funkcionalnost UNIX sustava (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja.
 
 ## Preduvjeti
 
 - POSIX-kompatibilan sustav (Linux, macOS, WSL na Windowsu, BSD varijante)
 - `gcc` (ili drugi C prevodilac koji razumije GNU sintaksu Makefilea)
 - `make`
+- `bash` (za primjere shell skripti u P01)
 
 ## Struktura repozitorija
 
 Direktoriji odgovaraju poglavljima knjige:
 
-| Direktorij | Poglavlje knjige |
+| Direktorij | Poglavlje |
 |---|---|
-| `osnove_programiranja/` | Osnove programiranja u C-u |
-| `fileio/` | Ulazno/izlazne operacije |
+| [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/) | Osnove UNIX-a |
+| [`P02-Osnove_programiranja/`](P02-Osnove_programiranja/) | Osnove programiranja u C-u |
+| [`P03-Ulazno_izlazne_operacije/`](P03-Ulazno_izlazne_operacije/) | Ulazno/izlazne operacije |
+| [`P04-Okruzenje_procesa/`](P04-Okruzenje_procesa/) | Okruženje procesa |
+| [`P05-Signali/`](P05-Signali/) | Signali |
 
-### `osnove_programiranja/`
+### [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/)
 
-Uvodni primjeri koji ilustriraju osnovnu strukturu C programa, uporabu zaglavlja i rastav koda na više prevodbenih jedinica.
+Uvodno poglavlje koje upoznaje čitatelja s arhitekturom UNIX operacijskog sustava, organizacijom datotečnog sustava, pravima pristupa, naredbenom ljuskom, preusmjeravanjem ulaza i izlaza, ulančavanjem naredbi te osnovama pisanja shell skripti. Sadrži četiri **bash skripte** koje ilustriraju ključne koncepte: `pozdrav.sh`, `brojac.sh`, `backup.sh`, `trazi.sh`.
 
-- **`pozdrav.c`** — najjednostavniji program koji ispisuje poruku na standardni izlaz.
-- **`pozdrav_fn.c`** + **`funkcije.c`** + **`funkcije.h`** — ista funkcionalnost, ali s pozivom funkcije definirane u zasebnoj prevodbenoj jedinici; demonstrira uporabu zaglavlja i povezivanje više objektnih datoteka.
+### [`P02-Osnove_programiranja/`](P02-Osnove_programiranja/)
 
-### `fileio/`
+Minimalni praktični uvod u proces prevođenja i povezivanja C programa. Demonstrira osnovnu strukturu C programa, uporabu zaglavlja i razlaganje koda na više prevodbenih jedinica. Detaljno se obrađuje korištenje alata `make` — od ručnog prevođenja preko jednostavnih pravila do potpunog Makefilea s varijablama, implicitnim pravilima i konvencionalnim pseudo-pravilima `default`, `all` i `clean`.
 
-Primjeri koji ilustriraju UNIX sistemske pozive za rad s datotekama (`open`, `creat`, `close`, `read`, `write`, `lseek`, `umask`) i temeljni UNIX koncept da se sve — datoteke, uređaji, terminali, cijevi — vide kroz isto sučelje file deskriptora.
+### [`P03-Ulazno_izlazne_operacije/`](P03-Ulazno_izlazne_operacije/)
 
-- **`read_file.c`** — otvara `moja_datoteka.txt` pozivom `open()` i ispisuje njen sadržaj na standardni izlaz čitajući znak po znak.
-- **`io_copy.c`** — kopira standardni ulaz na standardni izlaz koristeći međuspremnik konstantne veličine; pogodan za uporabu u cjevovodima (npr. `./io_copy < ulaz.txt > izlaz.txt`).
-- **`f_cat.c`** — pojednostavljena implementacija naredbe `cat`: ispisuje sadržaj svih datoteka navedenih u argumentima, a u odsutnosti argumenata prepisuje standardni ulaz na izlaz.
-- **`f_write.c`** — čita sa standardnog ulaza i upisuje u novostvorenu datoteku, čije se ime zadaje kao argument naredbenog retka.
-- **`f_strip.c`** — demonstrira `lseek()` s `SEEK_SET`: upisuje prvi niz znakova, apsolutno pozicionira offset na 15. bajt i upisivanjem drugog niza prepisuje dio postojećeg sadržaja.
-- **`f_hole.c`** — demonstrira `lseek()` s `SEEK_CUR`: pomicanjem offseta iza kraja datoteke nastaje "rupa" koja se pri čitanju popunjava nulama.
-- **`perm_mask.c`** — ilustrira kako maska kreiranja datoteke (`umask`) utječe na prava pristupa pri pozivu `creat()`.
-- **`moja_datoteka.txt`** — primjer ulazne datoteke za `read_file.c`.
+Primjeri koji ilustriraju UNIX sistemske pozive za rad s datotekama (`open`, `creat`, `close`, `read`, `write`, `lseek`, `umask`, `dup`, `dup2`) i temeljni UNIX koncept *"sve je datoteka"* — datoteke, uređaji, terminali, cijevi i mrežni socketi koriste se kroz isto sučelje file deskriptora. Obrađuje se i dijeljenje datoteka među procesima i unutar istog procesa, s mehanizmom preusmjeravanja standardnih tokova.
+
+### [`P04-Okruzenje_procesa/`](P04-Okruzenje_procesa/)
+
+Primjeri koji obrađuju životni ciklus UNIX procesa: argumente naredbenog retka, varijable okruženja, stvaranje novih procesa pozivom `fork()`, pokretanje programa funkcijama iz `exec` obitelji, čekanje završetka djece pomoću `wait()`, ograničavanje resursa kroz `setrlimit()`, te problematiku zombi i osirotjelih procesa.
+
+### [`P05-Signali/`](P05-Signali/)
+
+Primjeri koji obrađuju signale — UNIX-ov primarni mehanizam za asinkronu komunikaciju s procesom. Pokrivaju hvatanje signala (`signal`, `sigaction`), korištenje `SIGALRM` za vlastite alarme, signalnu komunikaciju između procesa, blokiranje i ignoriranje signala, te pokupljanje djece preko `SIGCHLD` rukovatelja.
 
 ## Prevođenje i pokretanje
 
-Svaki direktorij sadrži vlastiti `Makefile`. Pozicionirajte se u željeni direktorij i pokrenite:
+Svaki direktorij od P02 nadalje sadrži vlastiti `Makefile` s istim konvencijama (varijable `CC`, `CFLAGS`, `LDFLAGS`, `TARGETS`; implicitno pravilo `.c.o`; pseudo-pravila `default`, `all`, `clean`). Pozicionirajte se u željeni direktorij i pokrenite:
 
 ```sh
 make all       # prevede sve primjere iz direktorija
@@ -54,18 +58,13 @@ Za prevođenje pojedinačnog primjera dovoljno je:
 make <ime_primjera>
 ```
 
-npr. `make f_strip`.
+Konkretne upute za pokretanje pojedinačnih primjera (uključujući očekivane argumente i izlaz) nalaze se u README datoteci svakog poglavlja.
 
-Pokretanje iz istog direktorija (neki primjeri očekuju ulaznu datoteku u radnom direktoriju):
+P01 ne sadrži C kod nego shell skripte; one se pokreću izravno nakon dodjeljivanja prava izvršavanja:
 
 ```sh
-./read_file                         # čita moja_datoteka.txt
-./io_copy < ulaz.txt > izlaz.txt    # preusmjeravanje
-ls | ./io_copy                      # kao filter u cjevovodu
-./f_cat datoteka1.txt datoteka2.txt
-./f_strip                           # stvara file.strip
-./f_hole                            # stvara file.hole
-./perm_mask                         # stvara datoteka1 i datoteka2
+chmod +x *.sh
+./pozdrav.sh
 ```
 
 ## Licenca
