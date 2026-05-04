@@ -171,7 +171,7 @@ Pisanje počinje na trenutnom file offsetu, a nakon uspješnog upisa offset se p
 
 ### Otvaranje, čitanje i pisanje
 
-- [**`read_file.c`**](read_file.c) — otvara datoteku `moja_datoteka.txt` sistemskim pozivom `open()` u načinu samo za čitanje (`O_RDONLY`) i ispisuje njen sadržaj na standardni izlaz, čitajući znak po znak pozivima `read()` te ih prosljeđujući pozivima `write()`. Demonstrira osnovni slijed rada s datotekom (`open` → `read`/`write` → `close`) i rukovanje greškama preko povratnih vrijednosti sistemskih poziva.
+- [**`read_file.c`**](read_file.c) — otvara datoteku `moja_datoteka.txt` i ispisuje njen sadržaj na standardni izlaz.
 
   ```c
   #include <sys/types.h>
@@ -202,11 +202,13 @@ Pisanje počinje na trenutnom file offsetu, a nakon uspješnog upisa offset se p
   }
   ```
 
+  Datoteka se otvara sistemskim pozivom `open()` u načinu samo za čitanje (`O_RDONLY`), čita se znak po znak pozivima `read()`, a svaki znak se prosljeđuje na standardni izlaz pozivom `write()`. Program demonstrira osnovni slijed rada s datotekom (`open` → `read`/`write` → `close`) i rukovanje greškama preko povratnih vrijednosti sistemskih poziva.
+
   ```sh
   ./read_file
   ```
 
-- [**`io_copy.c`**](io_copy.c) — kopira standardni ulaz na standardni izlaz, čitajući u međuspremnik konstantne veličine (`BUFFSIZE`). Za razliku od `read_file.c` koji čita znak po znak, ovdje se u jednom pozivu `read()` pokušava pročitati cijeli blok bajtova, čime se višestruko smanjuje broj sistemskih poziva potrebnih za istu količinu prenesenih podataka. Primjer ujedno ilustrira koncept "sve je datoteka": pri pokretanju bez preusmjeravanja, standardni ulaz vezan je na tipkovnicu, a standardni izlaz na terminal — isti `read()` i `write()` koji bi radili s običnim datotekama na disku ovdje rade s terminalom. Svaki redak koji korisnik utipka program odmah ispiše natrag, a petlja se prekida pritiskom `Ctrl+D` (oznaka kraja ulaza, EOF):
+- [**`io_copy.c`**](io_copy.c) — kopira standardni ulaz na standardni izlaz, čitajući u međuspremnik konstantne veličine (`BUFFSIZE`).
 
   ```c
   #include <sys/types.h>
@@ -234,6 +236,8 @@ Pisanje počinje na trenutnom file offsetu, a nakon uspješnog upisa offset se p
       return 0;
   }
   ```
+
+  Za razliku od `read_file.c` koji čita znak po znak, ovdje se u jednom pozivu `read()` pokušava pročitati cijeli blok bajtova, čime se višestruko smanjuje broj sistemskih poziva potrebnih za istu količinu prenesenih podataka. Primjer ujedno ilustrira koncept "sve je datoteka": pri pokretanju bez preusmjeravanja, standardni ulaz vezan je na tipkovnicu, a standardni izlaz na terminal — isti `read()` i `write()` koji bi radili s običnim datotekama na disku ovdje rade s terminalom. Svaki redak koji korisnik utipka program odmah ispiše natrag, a petlja se prekida pritiskom `Ctrl+D` (oznaka kraja ulaza, EOF):
 
   ```
   $ ./io_copy
@@ -281,7 +285,7 @@ off_t lseek(int filedes, off_t offset, int whence);
 
 `lseek()` se zove "seek" jer pomiče glavu za čitanje na proizvoljnu poziciju u datoteci — ali to "pomicanje" je samo logičko, na razini jezgrinog file offseta. Stvarni pristup disku događa se tek pri sljedećem `read()`-u ili `write()`-u.
 
-- [**`f_strip.c`**](f_strip.c) — demonstrira `lseek()` s `SEEK_SET` (apsolutno pozicioniranje od početka datoteke). Program otvara datoteku za pisanje, upisuje prvi niz znakova, `lseek`-om postavlja offset na 15. bajt i upisivanjem drugog niza **prepisuje** dio postojećeg sadržaja. Rezultat pokazuje da se pozicioniranje unutar otvorene datoteke može slobodno kombinirati s čitanjem i pisanjem — offset koji jezgra pamti nije povezan s fizičkim rasporedom blokova na disku.
+- [**`f_strip.c`**](f_strip.c) — demonstrira `lseek()` s `SEEK_SET` (apsolutno pozicioniranje od početka datoteke).
 
   ```c
   #include <stdio.h>
@@ -323,6 +327,8 @@ off_t lseek(int filedes, off_t offset, int whence);
   }
   ```
 
+  Program otvara datoteku za pisanje, upisuje prvi niz znakova, `lseek`-om postavlja offset na 15. bajt i upisivanjem drugog niza **prepisuje** dio postojećeg sadržaja. Rezultat pokazuje da se pozicioniranje unutar otvorene datoteke može slobodno kombinirati s čitanjem i pisanjem — offset koji jezgra pamti nije povezan s fizičkim rasporedom blokova na disku.
+
   Rezultat se može provjeriti UNIX naredbom `cat`, koja ispisuje sadržaj jedne ili više datoteka na standardni izlaz:
 
   ```
@@ -333,7 +339,7 @@ off_t lseek(int filedes, off_t offset, int whence);
 
   Prvih 15 bajtova (`Prvi redak teks`) ostalo je netaknuto iz prvog upisa, a od 15. bajta nadalje vidljiv je sadržaj drugog niza koji je `lseek` + `write` upisao preko ostatka prethodnog teksta.
 
-- [**`f_hole.c`**](f_hole.c) — demonstrira `lseek()` s `SEEK_CUR` (relativno pomicanje od trenutne pozicije). Nakon upisa prvog niza, offset se pomiče 15 bajtova naprijed — **iza** trenutnog kraja datoteke — i tek se tada upisuje drugi niz. Petnaest bajtova između prve i druge linije ostaje kao **rupa**, područje koje pri čitanju iščitava kao bajtovi s vrijednošću 0 (null terminator), iako `write()` ondje ništa nije upisao.
+- [**`f_hole.c`**](f_hole.c) — demonstrira `lseek()` s `SEEK_CUR` (relativno pomicanje od trenutne pozicije).
 
   ```c
   #include <stdio.h>
@@ -374,6 +380,8 @@ off_t lseek(int filedes, off_t offset, int whence);
       exit(0);
   }
   ```
+
+  Nakon upisa prvog niza, offset se pomiče 15 bajtova naprijed — **iza** trenutnog kraja datoteke — i tek se tada upisuje drugi niz. Petnaest bajtova između prve i druge linije ostaje kao **rupa**, područje koje pri čitanju iščitava kao bajtovi s vrijednošću 0 (null terminator), iako `write()` ondje ništa nije upisao.
 
   ```
   $ ./f_hole
@@ -416,7 +424,7 @@ mode_t umask(mode_t cmask);
 
 Algoritam je jednostavan: za svako kreiranje datoteke, jezgra uzima `mode` koji je program tražio i **iz njega ukloni** sve bitove koji su postavljeni u maski. Tako je rezultantni način pristupa `mode & ~cmask`. Maska se nasljeđuje od roditelja procesa; tipična vrijednost u shellu je `0022` (oduzima pravo pisanja grupi i ostalima).
 
-- [**`perm_mask.c`**](perm_mask.c) — ilustrira djelovanje maske kreiranja datoteke (`umask`) na prava pristupa pri pozivu `creat()`. Program dva puta stvara datoteku s istim zatraženim pravima (`rw-rw-r--`), jednom s maskom postavljenom na 0 (nikakva prava se ne oduzimaju), a jednom s maskom koja eksplicitno isključuje pisanje za grupu i čitanje/pisanje za ostale. Usporedbom stvarno dobivenih prava vidi se učinak maske:
+- [**`perm_mask.c`**](perm_mask.c) — ilustrira djelovanje maske kreiranja datoteke (`umask`) na prava pristupa pri pozivu `creat()`.
 
   ```c
   #include <sys/types.h>
@@ -440,6 +448,8 @@ Algoritam je jednostavan: za svako kreiranje datoteke, jezgra uzima `mode` koji 
   }
   ```
 
+  Program dva puta stvara datoteku s istim zatraženim pravima (`rw-rw-r--`), jednom s maskom postavljenom na 0 (nikakva prava se ne oduzimaju), a jednom s maskom koja eksplicitno isključuje pisanje za grupu i čitanje/pisanje za ostale. Usporedbom stvarno dobivenih prava vidi se učinak maske:
+
   ```
   $ ./perm_mask
   $ ls -al datoteka1 datoteka2
@@ -451,7 +461,7 @@ Algoritam je jednostavan: za svako kreiranje datoteke, jezgra uzima `mode` koji 
 
 ### Argumenti naredbenog retka
 
-Naredbe i programi na UNIX sustavu često prihvaćaju **argumente naredbenog retka** — niz tekstualnih riječi koje korisnik upisuje uz ime programa kako bi izmijenio njegovo ponašanje, ili da bi mu predao ulaz (npr. ime datoteke nad kojom program radi). Primjer iz svakodnevnog rada s ljuskom je `cp izvor.txt cilj.txt`, gdje `cp` prima dva argumenta. Da bi C program mogao iščitati te argumente, `main` se deklarira u proširenom obliku:
+Naredbe i programi na UNIX sustavu često prihvaćaju **argumente naredbenog retka** — niz tokena koje korisnik upisuje uz ime programa kako bi izmijenio njegovo ponašanje, ili da bi mu predao ulaz (npr. ime datoteke nad kojom program radi). Primjer iz svakodnevnog rada s ljuskom je `cp izvor.txt cilj.txt`, gdje `cp` prima dva argumenta. Da bi C program mogao iščitati te argumente, `main` se deklarira u proširenom obliku:
 
 ```c
 int main(int argc, char *argv[])
@@ -459,7 +469,7 @@ int main(int argc, char *argv[])
 
 Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu je svaki argument zaseban niz. Bitno je naglasiti da `argc` uključuje i samu naredbu, ne samo argumente koje korisnik dodaje uz nju. Po konvenciji, `argv[0]` je ime kojim je program pokrenut (uključujući i putanju ako je upisana), a stvarni argumenti slijede od `argv[1]` nadalje. Tako pri pozivu `./f_write izlaz.txt`, vrijednosti će biti `argc = 2`, `argv[0] = "./f_write"`, `argv[1] = "izlaz.txt"` — `argc` je 2 jer broji i samo ime programa i jedan argument koji mu je dan. Programi obično odmah na početku provjeravaju je li `argc` u očekivanom rasponu i ako nije, ispišu uputu o korištenju te uredno završe.
 
-- [**`f_write.c`**](f_write.c) — čita sa standardnog ulaza i upisuje u novokreiranu datoteku čije se ime zadaje kao argument naredbenog retka. Odmah na početku programa provjerava se `argc != 2` — očekuje se točno jedan argument (ime izlazne datoteke) uz ime programa. Ako korisnik program pozove bez argumenta ili s previše njih, program ispisom poruke:
+- [**`f_write.c`**](f_write.c) — čita sa standardnog ulaza i upisuje u novokreiranu datoteku čije se ime zadaje kao argument naredbenog retka.
 
   ```c
   #include <stdio.h>
@@ -496,11 +506,7 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
   }
   ```
 
-  ```c
-  printf("koristenje: %s <ime_datoteke>\n", argv[0]);
-  ```
-
-  javlja upute o korištenju i završava. Konverzija `%s` zamjenjuje se upravo vrijednošću `argv[0]` — imenom kojim je program pokrenut — pa poruka korisniku uvijek automatski odražava točan naziv pod kojim je program bio zvan, neovisno o tome je li preimenovan ili pozvan preko simboličke veze. Ovakva provjera ulaznih argumenata uobičajen je uzorak u svim UNIX programima.
+  Odmah na početku programa provjerava se `argc != 2` — očekuje se točno jedan argument (ime izlazne datoteke) uz ime programa. Ako korisnik program pozove bez argumenta ili s previše njih, program javlja uputu o korištenju i završava. Konverzija `%s` zamjenjuje se upravo vrijednošću `argv[0]` — imenom kojim je program pokrenut — pa poruka korisniku uvijek automatski odražava točan naziv pod kojim je program bio zvan, neovisno o tome je li preimenovan ili pozvan preko simboličke veze. Ovakva provjera ulaznih argumenata uobičajen je uzorak u svim UNIX programima.
 
   Program se poziva s imenom izlazne datoteke kao jedinim argumentom; nakon toga sve što korisnik utipka do oznake kraja ulaza (`Ctrl+D`) zapisuje se u tu datoteku:
 
@@ -514,7 +520,7 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
   Drugi red teksta
   ```
 
-- [**`f_cat.c`**](f_cat.c) — pojednostavljena implementacija UNIX naredbe `cat`. Osnovna petlja čitanja i pisanja enkapsulirana je u pomoćnoj funkciji `rw(fdin, fdout)` koja čita s jednog deskriptora i piše na drugi. Ponašanje programa ovisi o argumentima naredbenog retka:
+- [**`f_cat.c`**](f_cat.c) — pojednostavljena implementacija UNIX naredbe `cat`.
 
   ```c
   #include <stdio.h>
@@ -551,6 +557,8 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
       return 0;
   }
   ```
+
+  Osnovna petlja čitanja i pisanja enkapsulirana je u pomoćnoj funkciji `rw(fdin, fdout)` koja čita s jednog deskriptora i piše na drugi. Ponašanje programa ovisi o argumentima naredbenog retka:
 
   - **Bez argumenata** program poziva `rw(STDIN_FILENO, STDOUT_FILENO)` i tako praktički radi istu stvar kao `io_copy`: čita sa standardnog ulaza i ispisuje na standardni izlaz.
   - **S jednim ili više argumenata** program redom otvara svaku navedenu datoteku pozivom `open()` i njezin sadržaj prosljeđuje na standardni izlaz pozivom iste funkcije `rw()`, ali sad s file deskriptorom otvorene datoteke umjesto standardnog ulaza.
@@ -622,7 +630,7 @@ int dup2(int filedes, int filedes2);
 
 Na prvi pogled nije jasno čemu unutar istog procesa služe dva deskriptora koja pokazuju na isti zapis u tablici datoteka. Praktična primjena je upravo **preusmjeravanje standardnog ulaza i izlaza** — mehanizam kojim ljuska ostvaruje preusmjeravanje pomoću operatora `<` i `>`.
 
-- [**`dup_redirect.c`**](dup_redirect.c) — preusmjerava standardni izlaz na datoteku korištenjem `close()` + `dup()`. Otvorimo datoteku, zatvorimo deskriptor 1 (standardni izlaz, čime taj broj postane slobodan), pa pozovemo `dup(fd)`. Budući da `dup()` vraća **najniži slobodni** deskriptor, dobit ćemo upravo 1 — od ovog trenutka standardni izlaz pokazuje na našu datoteku, pa svaki `printf` u nastavku završava u datoteci, ne u terminalu.
+- [**`dup_redirect.c`**](dup_redirect.c) — preusmjerava standardni izlaz na datoteku korištenjem `close()` + `dup()`.
 
   ```c
   #include <stdio.h>
@@ -650,6 +658,8 @@ Na prvi pogled nije jasno čemu unutar istog procesa služe dva deskriptora koja
   }
   ```
 
+  Otvorimo datoteku, zatvorimo deskriptor 1 (standardni izlaz, čime taj broj postane slobodan), pa pozovemo `dup(fd)`. Budući da `dup()` vraća **najniži slobodni** deskriptor, dobit ćemo upravo 1 — od ovog trenutka standardni izlaz pokazuje na našu datoteku, pa svaki `printf` u nastavku završava u datoteci, ne u terminalu.
+
   ```
   $ ./dup_redirect
   $ cat izlaz.txt
@@ -660,9 +670,7 @@ Na prvi pogled nije jasno čemu unutar istog procesa služe dva deskriptora koja
 
   Iako program radi, sadrži suptilan problem: pozivi `close(1)` i `dup(fd)` su **dvije odvojene operacije**. U višenitnom programu druga nit bi između njih mogla pozvati `open()` ili `creat()` i preuzeti upravo oslobođeni deskriptor 1 za sebe. Race condition kakav smo opisali ranije, ali na razini niti unutar istog procesa.
 
-- [**`dup2_redirect.c`**](dup2_redirect.c) — isti zadatak, samo s `dup2()`. Ovo je preferirana varijanta jer:
-  - **atomski** zatvara odredišni deskriptor (`STDOUT_FILENO`) i postavlja novi na njegovo mjesto u jednoj nedjeljivoj operaciji,
-  - eksplicitno zadajemo odredišni deskriptor pa se ne oslanjamo na pretpostavku da je 1 najniži slobodni.
+- [**`dup2_redirect.c`**](dup2_redirect.c) — isti zadatak, samo s `dup2()`.
 
   ```c
   #include <stdio.h>
@@ -686,6 +694,10 @@ Na prvi pogled nije jasno čemu unutar istog procesa služe dva deskriptora koja
       return 0;
   }
   ```
+
+  Ovo je preferirana varijanta jer:
+  - **atomski** zatvara odredišni deskriptor (`STDOUT_FILENO`) i postavlja novi na njegovo mjesto u jednoj nedjeljivoj operaciji,
+  - eksplicitno zadajemo odredišni deskriptor pa se ne oslanjamo na pretpostavku da je 1 najniži slobodni.
 
   ```
   $ ./dup2_redirect
