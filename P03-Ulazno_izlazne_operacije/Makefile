@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = read_file io_copy f_strip f_hole perm_mask f_write f_cat 
+TARGETS = read_file io_copy f_strip f_hole perm_mask f_write f_cat dup_redirect dup2_redirect
 
 default: perm_mask
 
@@ -28,8 +28,14 @@ f_write: f_write.o
 f_cat: f_cat.o
 	$(CC) $(LDFLAGS) f_cat.o -o f_cat
 
+dup_redirect: dup_redirect.o
+	$(CC) $(LDFLAGS) dup_redirect.o -o dup_redirect
+
+dup2_redirect: dup2_redirect.o
+	$(CC) $(LDFLAGS) dup2_redirect.o -o dup2_redirect
+
 clean:
-	rm -f $(TARGETS) *.o *~ a.out file.strip file.hole datoteka1 datoteka2
+	rm -f $(TARGETS) *.o *~ a.out file.strip file.hole datoteka1 datoteka2 izlaz.txt
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
