@@ -521,10 +521,21 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 - [**`myls.c`**](myls.c) — prvi primjer funkcija iz `exec` obitelji: poziv `execlp()` zamjenjuje trenutni programski kod procesa kodom nekog drugog programa — u ovom slučaju UNIX naredbe `ls`. Za razliku od `fork()`, koji stvara novi proces, `exec()` **ne stvara novi proces** — PID ostaje isti, promijeni se samo programski kod koji se izvršava.
 
   ```c
-  execlp("ls", "ls", "-al", NULL);
+  #include <stdio.h>
+  #include <unistd.h>
+
+  int main(int argc, char **argv) {
+      if (argc < 2)
+          execlp("ls", "ls", "-al", NULL);
+      else
+          execlp("ls", "ls", "-al", argv[1], NULL);
+
+      perror("execlp");
+      return 1;
+  }
   ```
 
-  Primijetite da su **prva dva argumenta poziva `execlp` identična**: prvi (`"ls"`) je ime izvršne datoteke koju treba naći i pokrenuti, a drugi (`"ls"`) je ono što će nova naredba dobiti kao svoj `argv[0]`. Podsjetimo se da po konvenciji svaka naredba u svom `argv[0]` očekuje vlastito ime (upravo iz tog razloga poruke o korištenju koriste `argv[0]`). Teoretski je moguće proslijediti i različito ime — tako bi program vidio da je pokrenut pod drugim imenom — ali u normalnoj uporabi oba se argumenta podudaraju.
+  Bez argumenata, program pokreće `ls -al` nad trenutnim direktorijem; s jednim argumentom, pokreće `ls -al <argument>` kako bi nam ispisao sadržaj zadanog direktorija. Primijetite da su **prva dva argumenta poziva `execlp` identična**: prvi (`"ls"`) je ime izvršne datoteke koju treba naći i pokrenuti, a drugi (`"ls"`) je ono što će nova naredba dobiti kao svoj `argv[0]`. Podsjetimo se da po konvenciji svaka naredba u svom `argv[0]` očekuje vlastito ime (upravo iz tog razloga poruke o korištenju koriste `argv[0]`). Teoretski je moguće proslijediti i različito ime — tako bi program vidio da je pokrenut pod drugim imenom — ali u normalnoj uporabi oba se argumenta podudaraju.
 
   Ako `execlp()` uspije, poziv se nikad ne vraća — zato će se `perror("execlp")` izvršiti samo u slučaju greške (npr. naredba `ls` nije pronađena u `PATH`-u). Stoga nije potrebno provjeravati povratnu vrijednost funkcije `execlp`. Za razliku od poziva `fork()`, koji se poziva jednom a vraća dva puta, `execlp` (kao i ostale funkcije iz obitelji `exec`) ne vraća se nikad — osim u slučaju greške.
 
