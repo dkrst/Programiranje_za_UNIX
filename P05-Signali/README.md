@@ -1,7 +1,5 @@
 # Signali
 
-Primjeri uz poglavlje **Signali** iz knjige *Programiranje za UNIX*.
-
 U ovom poglavlju upoznat ćemo **signale** — UNIX-ov primarni mehanizam za asinkronu komunikaciju s procesom. Signal je kratka poruka koju jezgra šalje procesu kao obavijest da se dogodio neki događaj: korisnik je pritisnuo Ctrl+C, proces je pokušao pristupiti nedopuštenoj memorijskoj adresi, istekao je timer, neki drugi proces je eksplicitno zatražio prekid, i tako dalje. Iz perspektive procesa, signal može stići u **bilo kojem trenutku** između dvije strojne instrukcije — proces nema mogućnost predvidjeti kada će se to dogoditi.
 
 Proces na primljeni signal može reagirati na nekoliko načina: prepustiti zadanu reakciju jezgri (što za većinu signala znači prekid procesa), eksplicitno ignorirati signal, ili registrirati vlastitu funkciju — **rukovatelj signala** (engl. *signal handler*) — koja će se izvršiti svaki put kad takav signal stigne. U ovom poglavlju kroz nekoliko primjera ilustriramo kako registriramo rukovatelj signala, kako se signali hvataju, kako se koriste za komunikaciju među procesima i o čemu je potrebno voditi računa pri pisanju rukovatelja.
@@ -39,8 +37,6 @@ Brojevi signala u tablici odgovaraju POSIX-u za osnovne signale i podudaraju se 
 Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva signala koja se ne mogu uhvatiti niti ignorirati. Razlog je praktičan: bez ova dva signala sustav ne bi imao apsolutni mehanizam za bezuvjetan prekid ili zaustavljanje "neposlušnog" procesa. Svaki drugi signal proces može uhvatiti i odlučiti kako reagirati — uključujući i `SIGTERM`, što neki programi iskorištavaju za uredno spremanje stanja prije izlaska.
 
 **Što je core file?** Za neke signale predefinirana akcija nije samo prekid procesa, nego i stvaranje *core file*-a — datoteke koja sadrži snimku kompletnog memorijskog prostora procesa u trenutku kad je signal primljen (varijable na stogu, hrpi, registri procesora, otvoreni file deskriptori i drugi metapodatci). Datoteka se obično zove `core` ili `core.<pid>` i nastaje u trenutnom radnom direktoriju procesa. Ovo ponašanje vezano je uz signale koji uglavnom znače da smo u programu *nešto zabrljali* — `SIGSEGV` (pristup nevažećoj memoriji), `SIGFPE` (aritmetička greška), `SIGILL` (nevažeća instrukcija), `SIGABRT` (eksplicitan prekid pomoću `abort()`). Core file omogućuje *post-mortem* analizu: alatima poput `gdb` programer može učitati core file zajedno s izvršnom datotekom, vidjeti gdje je proces bio u trenutku pada, koje su vrijednosti varijabli imale, kakav je bio stack trace itd. Naravno, ako za to imamo volje i znanja — u suprotnom core file se može jednostavno obrisati.
-
-## Sadržaj
 
 ### Hvatanje signala
 
