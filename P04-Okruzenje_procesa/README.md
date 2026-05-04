@@ -288,7 +288,7 @@ U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba meh
   int main(int argc, char *argv[])
   ```
 
-  Funkcija `main` koristi standardni dvoargumentni oblik, a okruženju se pristupa preko globalne varijable. Ispis je identičan onom iz `listenv1`. Ovaj oblik je preporučen za stvarne programe iz razloga navedenih u prethodnom odjeljku.
+  Funkcija `main` koristi standardni oblik s dva argumenta, a okruženju se pristupa preko globalne varijable. Ispis je identičan onom iz `listenv1`. Ovaj oblik je preporučen za stvarne programe iz razloga navedenih u prethodnom odjeljku.
 
   U `listenv2.c` smo se uz to malo poigrali s pokazivačkom aritmetikom — umjesto da koristimo brojač i indeksiramo polje kao u `listenv1.c` (`envp[k]`), ovdje izravno pomičemo sam pokazivač `environ` izrazom `*environ++` u svakoj iteraciji petlje. Funkcionalno je rezultat potpuno isti — petlja redom prolazi kroz sve elemente niza dok ne naiđe na završni `NULL` — samo što sada uloga "indeksa" više nije zasebna varijabla `k`, nego sam pokazivač koji se pomiče po nizu.
 
@@ -488,7 +488,7 @@ Zombi proces moguće je vidjeti naredbom `ps`: u stupcu `STAT` (status) prikazan
 
 Stoga je dobra programerska praksa voditi računa o procesima koje ste stvorili: obavezno se pobrinite da po završetku izvršavanja vašeg child procesa pozovete `wait`, makar s argumentom `NULL` ukoliko vas njegov izlazni status ne zanima — ovo je jezgri potrebno da bi znala da ne mora više čuvati izlazni status procesa koji je završio s izvršavanjem.
 
-Što se događa ako roditelj umre prije nego pozove `wait()`? Tu na scenu stupa mehanizam koji ćemo upoznati u sljedećem poglavlju, kod **osirotjelih procesa**. Jezgra preuzme nadležnost nad svim sirotanima — uključujući i zombije — i prebacuje ih procesu `init` (PID 1, ili u modernim Linux distribucijama `systemd`). `init` je dizajniran tako da neprestano poziva `wait()` na bilo koju djecu koja mu se prikače; time čisti sve preuzete zombije i pušta jezgru da oslobodi njihove zapise.
+Što se događa ako roditelj završi s izvršavanjem prije nego pozove `wait()`, ili jednostavno prekine izvršavanje dok je child još uvijek aktivan? Tu na scenu stupa mehanizam koji ćemo upoznati u sljedećem poglavlju, kod **osirotjelih procesa** (engl. *orphan processes*). Jezgra preuzima ulogu roditelja svim procesima čiji proces roditelj je završio izvršavanje — uključujući i zombije — i prebacuje ih procesu `init` (PID 1, ili u modernim Linux distribucijama `systemd`). `init` putem signala dobiva obavijest kada bilo koji od njegovih child procesa završi s izvršavanjem, uključujući i "usvojene" procese koji su ostali bez svojih roditelja. Svaki put kada primi takav signal, `init` poziva `wait()` te "čisti" iz tablice procesa sve zombije i pušta jezgru da oslobodi njihove zapise.
 
 ### Pokretanje novog programa
 
@@ -538,13 +538,26 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   ...
   ```
 
-- [**`pokreni.c`**](pokreni.c) — uopćena verzija prethodnog primjera: program prima proizvoljnu naredbu s argumentima kao svoje argumente naredbenog retka i pokreće je pozivom `execvp()`. Kako funkcija `main` već dobiva argumente u obliku polja pokazivača (`argv`), upravo takav oblik očekuje i `execvp` — dovoljno je proslijediti pokazivač na `argv[1]`:
+- [**`pokreni.c`**](pokreni.c) — uopćena verzija prethodnog primjera: program prima proizvoljnu naredbu s argumentima kao svoje argumente naredbenog retka i pokreće je pozivom `execvp()`.
 
   ```c
-  execvp(argv[1], &argv[1]);
+  #include <stdio.h>
+  #include <unistd.h>
+
+  int main(int argc, char **argv) {
+      if (argc < 2) {
+          printf("koristenje: %s <naredba> [arg1] [arg2] ...\n", argv[0]);
+          return 0;
+      }
+
+      execvp(argv[1], &argv[1]);
+      perror("execvp");
+
+      return 1;
+  }
   ```
 
-  Izraz `&argv[1]` je pokazivačka aritmetika — `argv` je polje pokazivača na stringove, a `&argv[1]` daje adresu **drugog elementa** tog polja, tj. pokazivač na pod-polje koje počinje od `argv[1]` i ide dalje. Funkcija `execvp` će to pod-polje tretirati kao svoje vlastito `argv`: `argv[1]` iz perspektive `pokreni`-ja postaje `argv[0]` nove naredbe (njezino ime), `argv[2]` postaje `argv[1]`, i tako redom. Ovako jednostavnim obrascem dobivamo zametak vlastite ljuske — program koji može pokrenuti bilo koju drugu UNIX naredbu.
+  Kako funkcija `main` već dobiva argumente u obliku polja pokazivača (`argv`), upravo takav oblik očekuje i `execvp` — dovoljno je proslijediti pokazivač na `argv[1]`. Izraz `&argv[1]` je pokazivačka aritmetika — `argv` je polje pokazivača na stringove, a `&argv[1]` daje adresu **drugog elementa** tog polja, tj. pokazivač na pod-polje koje počinje od `argv[1]` i ide dalje. Funkcija `execvp` će to pod-polje tretirati kao svoje vlastito `argv`: `argv[1]` iz perspektive `pokreni`-ja postaje `argv[0]` nove naredbe (njezino ime), `argv[2]` postaje `argv[1]`, i tako redom. Ovako jednostavnim obrascem dobivamo zametak vlastite ljuske — program koji može pokrenuti bilo koju drugu UNIX naredbu.
 
   Preporuka je pokušati razne kombinacije i promotriti ponašanje:
 
@@ -572,7 +585,43 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
 
   Jedan isti proces redom mijenja svoj sadržaj tri puta: prvi `pokreni` kod je zamijenjen drugim pozivom `pokreni`, taj pozivom trećeg `pokreni`-a, i on na kraju pozivom `ls -al`. PID ostaje isti kroz sve četiri metamorfoze, a ono što korisnik vidi kao rezultat — ispis sadržaja direktorija — potpuno je isto kao da smo `ls -al` pozvali direktno. Ova rekurzija ilustrira što `exec` zapravo jest: ne pokretanje novog procesa, nego **zamjena tijela postojećeg procesa drugim kodom**.
 
-- [**`pokreni2.c`**](pokreni2.c) — pokretanje programa u novom procesu: **kombinacija `fork()` i `exec()`**. U prethodnom primjeru `pokreni` je nakon `execvp()` prestao postojati kao `pokreni` — njegov je kod zamijenjen kodom pokrenute naredbe, pa nakon završetka naredbe nema ničeg na što bi se vratilo. U praksi često želimo zadržati roditelja živim kako bi nastavio izvršavati svoju primarnu zadaću, ili čak pokrenuo novu naredbu nakon što se program pokrenut s `exec` u child procesu završi. Ovaj obrazac slijedi UNIX ljuska svaki put kada korisnik utipka naredbu: ljuska pozivom `fork` stvori novi proces (kopiju same sebe), potom u tom novom procesu pozivom `exec` pokrene traženu naredbu, a u roditeljskom procesu čeka njen završetak pozivom `wait`. Ljuska ovo radi u petlji — nakon svakog `wait`-a korisniku daje novu ljuskinu oznaku (*prompt*) i mogućnost da unese sljedeću naredbu.
+- [**`pokreni2.c`**](pokreni2.c) — pokretanje programa u novom procesu: **kombinacija `fork()` i `exec()`**.
+
+  ```c
+  #include <stdio.h>
+  #include <unistd.h>
+  #include <sys/wait.h>
+
+  int main(int argc, char **argv) {
+      int pid, s;
+
+      if (argc < 2) {
+          printf("koristenje: %s <naredba> [arg1] [arg2] ...\n", argv[0]);
+          return 0;
+      }
+
+      pid = fork();
+      if (pid < 0) {
+          perror("fork");
+          return 1;
+      } else if (pid == 0) {                 /* dijete */
+          execvp(argv[1], &argv[1]);
+          perror("execvp");
+          return 127;
+      } else {                                /* roditelj */
+          wait(&s);
+          if (WIFEXITED(s))
+              printf("Normalan izlaz, izlazni status: %d\n",
+                     WEXITSTATUS(s));
+          else if (WIFSIGNALED(s))
+              printf("Prekid signalom, signal: %d\n", WTERMSIG(s));
+      }
+
+      return 0;
+  }
+  ```
+
+  U prethodnom primjeru `pokreni` je nakon `execvp()` prestao postojati kao `pokreni` — njegov je kod zamijenjen kodom pokrenute naredbe, pa nakon završetka naredbe nema ničeg na što bi se vratilo. U praksi često želimo zadržati roditelja živim kako bi nastavio izvršavati svoju primarnu zadaću, ili čak pokrenuo novu naredbu nakon što se program pokrenut s `exec` u child procesu završi. Ovaj obrazac slijedi UNIX ljuska svaki put kada korisnik utipka naredbu: ljuska pozivom `fork` stvori novi proces (kopiju same sebe), potom u tom novom procesu pozivom `exec` pokrene traženu naredbu, a u roditeljskom procesu čeka njen završetak pozivom `wait`. Ljuska ovo radi u petlji — nakon svakog `wait`-a korisniku daje novu ljuskinu oznaku (*prompt*) i mogućnost da unese sljedeću naredbu.
 
   U prethodnom odjeljku, kod primjera `ret_stat.c`, već smo se susreli s makroom `WEXITSTATUS()` koji iz statusne riječi izvlači izlazni status djeteta. U `pokreni2` koristimo dva dodatna makroa iz `<sys/wait.h>` koji nam pomažu razlikovati **na koji način** je dijete završilo:
 
@@ -746,7 +795,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   sys     0m0.001s
   ```
 
-### Osirotjeli procesi
+### Osirotjeli procesi (engl. *orphan processes*)
 
 - [**`noparent.c`**](noparent.c) — detaljniji primjer `fork()` mehanizma koji prikazuje što se dogodi kada **roditelj završi prije djeteta**. Program stvara stablo od tri procesa — `PARENT 1`, `CHILD 1` i `CHILD 2` — pri čemu `CHILD 2` (unuk po odnosu prema `PARENT 1`) namjerno spava duže od svog direktnog roditelja (`CHILD 1`). Zbog toga `CHILD 1` završi dok njegovo dijete još radi, a time `CHILD 2` postaje **osirotjeli proces** (*orphan*). U takvoj situaciji jezgra automatski preuzima ulogu novog roditelja — tradicionalno je to proces `init` s PID-om 1.
 
