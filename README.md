@@ -20,8 +20,9 @@ Svaki direktorij odgovara jednom poglavlju skripte:
 | [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/) | Osnove UNIX-a |
 | [`P02-Osnove_programiranja/`](P02-Osnove_programiranja/) | Osnove programiranja u C-u |
 | [`P03-Ulazno_izlazne_operacije/`](P03-Ulazno_izlazne_operacije/) | Ulazno/izlazne operacije |
-| [`P04-Okruzenje_procesa/`](P04-Okruzenje_procesa/) | Okruženje procesa |
-| [`P05-Signali/`](P05-Signali/) | Signali |
+| [`P04-Upravljanje_datotekama/`](P04-Upravljanje_datotekama/) | Upravljanje datotekama |
+| [`P05-Okruzenje_procesa/`](P05-Okruzenje_procesa/) | Okruženje procesa |
+| [`P06-Signali/`](P06-Signali/) | Signali |
 
 ### [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/)
 
@@ -35,11 +36,15 @@ Uvod u proces prevođenja i povezivanja C programa s primjerima. Demonstrira osn
 
 Primjeri koji ilustriraju UNIX sistemske pozive za rad s datotekama (`open`, `creat`, `close`, `read`, `write`, `lseek`, `umask`, `dup`, `dup2`) i temeljni UNIX koncept *"sve je datoteka"* — datoteke, uređaji, terminali, cijevi i mrežni socketi koriste se kroz isto sučelje file deskriptora. Obrađuje se i dijeljenje datoteka među procesima i unutar istog procesa, s mehanizmom preusmjeravanja standardnih tokova.
 
-### [`P04-Okruzenje_procesa/`](P04-Okruzenje_procesa/)
+### [`P04-Upravljanje_datotekama/`](P04-Upravljanje_datotekama/)
+
+Upravljanje datotekama na razini datotečnog sustava: rad s metapodacima, prava pristupa, vlasništvo, vremenski žigovi, simboličke i tvrde veze, te navigacija direktorijima.
+
+### [`P05-Okruzenje_procesa/`](P05-Okruzenje_procesa/)
 
 Primjeri koji obrađuju životni ciklus UNIX procesa: argumente naredbenog retka, varijable okruženja, stvaranje novih procesa pozivom `fork()`, pokretanje programa funkcijama iz `exec` obitelji, čekanje završetka djece pomoću `wait()`, ograničavanje resursa kroz `setrlimit()`, te problematiku zombi i osirotjelih procesa.
 
-### [`P05-Signali/`](P05-Signali/)
+### [`P06-Signali/`](P06-Signali/)
 
 Primjeri koji obrađuju signale — UNIX-ov primarni mehanizam za asinkronu komunikaciju s procesom. Pokrivaju hvatanje signala (`signal`, `sigaction`), korištenje `SIGALRM` za vlastite alarme, signalnu komunikaciju između procesa, blokiranje i ignoriranje signala, te pokupljanje djece preko `SIGCHLD` rukovatelja.
 
