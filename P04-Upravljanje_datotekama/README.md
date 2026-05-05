@@ -592,13 +592,15 @@ Obje funkcije imaju izravne ekvivalente u ljusci: `link()` odgovara naredbi `ln`
 
   $ ./makelink orig.txt link1.txt
   Stvoren hard link 'link1.txt' -> 'orig.txt'.
-  $ ln orig.txt link2.txt              # ekvivalent ./makelink orig.txt link2.txt
+  $ ln orig.txt link2.txt
 
   $ ls -li orig.txt link1.txt link2.txt
   1002 -rw-r--r-- 3 dkrst users 17 May  5 15:00 link1.txt
   1002 -rw-r--r-- 3 dkrst users 17 May  5 15:00 link2.txt
   1002 -rw-r--r-- 3 dkrst users 17 May  5 15:00 orig.txt
   ```
+
+  Drugi link je stvoren naredbom `ln` u ljusci — ekvivalentno pozivu `./makelink orig.txt link2.txt`.
 
   Sva tri imena imaju **isti i-node 1002** (prvi stupac, koji se ispisuje opcijom `-i`) i **brojač linkova jednak 3** (četvrti stupac). Sad obrišimo izvorno ime:
 
@@ -631,7 +633,9 @@ Obje funkcije imaju izravne ekvivalente u ljusci: `link()` odgovara naredbi `ln`
 
 ### Simbolički linkovi
 
-**Simbolički link** je datoteka koja **sadrži tekst** — putanju do druge datoteke. Kad jezgra naiđe na simbolički link u nekoj operaciji nad datotekom, čita njegov sadržaj i operaciju izvršava nad datotekom čije je ime pročitano. Simbolički linkovi pružaju funkcionalnost sličnu čvrstim linkovima, ali rade na potpuno drugačiji način, što ima nekoliko važnih posljedica:
+**Simbolički link** je datoteka koja sadrži tekst — putanju do druge datoteke. Ono što razlikuje simbolički link od bilo koje druge tekstualne datoteke jest njegov **tip**, zapisan u atributima datoteke (točnije, u `st_mode` polju i-noda). Po tom tipu jezgra zna da sadržaj ne treba čitati kao obične podatke — nego da tekst u datoteci treba interpretirati kao putanju do druge datoteke i operaciju nastaviti nad njom. Tako pri svakom otvaranju, čitanju ili pisanju kroz simbolički link, jezgra čita njegov sadržaj i operaciju izvršava nad datotekom čije je ime ondje pročitano.
+
+Simbolički linkovi pružaju funkcionalnost sličnu čvrstim linkovima, ali rade na potpuno drugačiji način, što ima nekoliko važnih posljedica:
 
 - **Simbolički linkovi mogu prelaziti granice datotečnih sustava.** Sadržaj je samo tekst (putanja), tako da nema problema kao kod čvrstih linkova.
 - **Mogu pokazivati na nepostojeće datoteke** — u trenutku stvaranja jezgra ne provjerava da li ciljna datoteka postoji. Ako ciljna datoteka nikad nije stvorena, ili je obrisana, link postaje "razbijen" (engl. *dangling*).
@@ -650,7 +654,7 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
 
 **`readlink()`** čita sadržaj simboličkog linka — odnosno **tekst (putanju) zapisan u datoteci tipa simbolički link** — i smješta ga u zadani međuspremnik. Vraća broj stvarno pročitanih bajtova, ili `-1` u slučaju greške. Bitna posebnost: `readlink` **ne dodaje null-terminator** na kraj — pozivatelj ga mora dodati ručno.
 
-- [**`makesymlink.c`**](makesymlink.c) — stvara simbolički link i odmah ga čita pozivom `readlink` da pokaže njegov sadržaj.
+- [**`makesymlink.c`**](makesymlink.c) — stvara simbolički link na zadanoj putanji koji "pokazuje" na zadanu metu.
 
   ```c
   #include <stdio.h>
@@ -658,9 +662,6 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   #include <unistd.h>
 
   int main(int argc, char *argv[]) {
-      char buf[256];
-      ssize_t n;
-
       if (argc != 3) {
           printf("koristenje: %s <postojeca_datoteka> <novi_link>\n", argv[0]);
           return 1;
@@ -672,16 +673,6 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
       }
 
       printf("Stvoren simbolicki link '%s' -> '%s'.\n", argv[2], argv[1]);
-
-      /* readlink ne dodaje null terminator, pa ga moramo sami dodati */
-      n = readlink(argv[2], buf, sizeof(buf) - 1);
-      if (n < 0) {
-          perror("readlink");
-          return 1;
-      }
-      buf[n] = '\0';
-
-      printf("Sadrzaj linka (procitan readlink-om): \"%s\"\n", buf);
       return 0;
   }
   ```
@@ -692,7 +683,6 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   $ echo "ovo je sadrzaj" > orig.txt
   $ ./makesymlink orig.txt sym.txt
   Stvoren simbolicki link 'sym.txt' -> 'orig.txt'.
-  Sadrzaj linka (procitan readlink-om): "orig.txt"
 
   $ ls -li orig.txt sym.txt
   1003 -rw-r--r-- 1 dkrst users 15 May  5 15:00 orig.txt
@@ -717,8 +707,65 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   Ekvivalent u ljusci je opet naredba `ln`, ovaj put s opcijom `-s`:
 
   ```
-  $ ln -s orig.txt sym.txt              # simbolicki link
+  $ ln -s orig.txt sym.txt
   ```
+
+- [**`readsymlink.c`**](readsymlink.c) — čita sadržaj simboličkog linka, odnosno doslovni tekst (putanju) koji je u njemu zapisan, pomoću funkcije `readlink`.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+
+  int main(int argc, char *argv[]) {
+      char buf[256];
+      ssize_t n;
+
+      if (argc != 2) {
+          printf("koristenje: %s <simbolicki_link>\n", argv[0]);
+          return 1;
+      }
+
+      /* readlink ne dodaje null terminator, pa ga moramo sami dodati */
+      n = readlink(argv[1], buf, sizeof(buf) - 1);
+      if (n < 0) {
+          perror("readlink");
+          return 1;
+      }
+      buf[n] = '\0';
+
+      printf("Sadrzaj linka '%s': \"%s\"\n", argv[1], buf);
+      return 0;
+  }
+  ```
+
+  Da bismo program isprobali, stvorimo dvije datoteke od kojih prva ima nešto složeniju putanju, pa stvorimo simbolički link na svaku od njih — jedan pozivom `makesymlink`-a, a drugi izravno iz ljuske naredbom `ln -s`:
+
+  ```
+  $ mkdir -p dokumenti
+  $ echo "ovo je sadrzaj" > dokumenti/orig.txt
+
+  $ ./makesymlink dokumenti/orig.txt sym1
+  Stvoren simbolicki link 'sym1' -> 'dokumenti/orig.txt'.
+
+  $ ln -s ./dokumenti/orig.txt sym2
+
+  $ ls -l sym1 sym2
+  lrwxrwxrwx 1 dkrst users 19 May  5 17:23 sym1 -> dokumenti/orig.txt
+  lrwxrwxrwx 1 dkrst users 21 May  5 17:23 sym2 -> ./dokumenti/orig.txt
+  ```
+
+  Sad pročitajmo sadržaj oba linka pozivom `readsymlink`:
+
+  ```
+  $ ./readsymlink sym1
+  Sadrzaj linka 'sym1': "dokumenti/orig.txt"
+
+  $ ./readsymlink sym2
+  Sadrzaj linka 'sym2': "./dokumenti/orig.txt"
+  ```
+
+  Vidimo da nam program ispisuje upravo onaj tekst koji smo proslijedili kao putanju pri stvaranju linka — nezavisno o tome koristi li se `symlink()` u C-u ili `ln -s` u ljusci. Različita formulacija putanje (`dokumenti/orig.txt` vs `./dokumenti/orig.txt`) doslovno se čuva u sadržaju linka — jezgra niti normalizira putanju niti razrješava simboličke linkove pri stvaranju. Razrješenje se događa tek pri svakom pristupu kroz link.
 
 ## Vremena pristupa
 

@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = fileinfo fileinfo2 provjeri prava makelink makesymlink dotakni mojls
+TARGETS = fileinfo fileinfo2 provjeri prava makelink makesymlink readsymlink dotakni mojls
 
 default: fileinfo
 
@@ -24,6 +24,9 @@ makelink: makelink.o
 
 makesymlink: makesymlink.o
 	$(CC) $(LDFLAGS) makesymlink.o -o makesymlink
+
+readsymlink: readsymlink.o
+	$(CC) $(LDFLAGS) readsymlink.o -o readsymlink
 
 dotakni: dotakni.o
 	$(CC) $(LDFLAGS) dotakni.o -o dotakni
