@@ -702,13 +702,15 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   cat: sym.txt: No such file or directory
   ```
 
-  Link je sam ostao netaknut — ali ciljna datoteka više ne postoji, pa je link sad razbijen. Boja imena u modernim shellovima ovo obično signalizira (npr. crveni naziv).
+  Link je sam ostao netaknut — ali ciljna datoteka više ne postoji, pa je link sad razbijen. Moderne UNIX ljuske razbijene (*dangling*) simboličke linkove često prikazuju drugom bojom kako bi odmah bilo vidljivo da putanja u linku pokazuje na nepostojeću datoteku.
 
   Ekvivalent u ljusci je opet naredba `ln`, ovaj put s opcijom `-s`:
 
   ```
   $ ln -s orig.txt sym.txt
   ```
+
+  Naredba `ln` ima i niz drugih opcija — ovdje smo upoznali samo dvije najčešće (osnovni oblik za hard linkove i `-s` za simboličke). Za potpunu uputu i popis svih opcija, kao i kod svih ostalih UNIX naredbi, čitatelj se upućuje na priručnik koji se otvara naredbom `man ln`.
 
 - [**`readsymlink.c`**](readsymlink.c) — čita sadržaj simboličkog linka, odnosno doslovni tekst (putanju) koji je u njemu zapisan, pomoću funkcije `readlink`.
 
@@ -739,7 +741,7 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   }
   ```
 
-  Da bismo program isprobali, stvorimo dvije datoteke od kojih prva ima nešto složeniju putanju, pa stvorimo simbolički link na svaku od njih — jedan pozivom `makesymlink`-a, a drugi izravno iz ljuske naredbom `ln -s`:
+  Da bismo program isprobali, stvorimo jednu datoteku u poddirektoriju (kako bi imala nešto složeniju putanju), pa na nju usmjerimo dva simbolička linka pisana s različito formuliranom putanjom — jednog napravimo pozivom `makesymlink`-a, a drugog izravno iz ljuske naredbom `ln -s`:
 
   ```
   $ mkdir -p dokumenti
@@ -755,6 +757,8 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   lrwxrwxrwx 1 dkrst users 21 May  5 17:23 sym2 -> ./dokumenti/orig.txt
   ```
 
+  Već iz `ls -l` ispisa vidimo da oba linka pokazuju na istu datoteku, ali se njihove veličine razlikuju — `sym1` zauzima 19 bajtova (duljina niza `"dokumenti/orig.txt"`), a `sym2` 21 bajt (duljina niza `"./dokumenti/orig.txt"` — dva bajta više za uvodno `./`). Time je vidljivo da svaki link doslovno čuva onaj tekst kojim je stvoren.
+
   Sad pročitajmo sadržaj oba linka pozivom `readsymlink`:
 
   ```
@@ -765,11 +769,11 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsize);
   Sadrzaj linka 'sym2': "./dokumenti/orig.txt"
   ```
 
-  Vidimo da nam program ispisuje upravo onaj tekst koji smo proslijedili kao putanju pri stvaranju linka — nezavisno o tome koristi li se `symlink()` u C-u ili `ln -s` u ljusci. Različita formulacija putanje (`dokumenti/orig.txt` vs `./dokumenti/orig.txt`) doslovno se čuva u sadržaju linka — jezgra niti normalizira putanju niti razrješava simboličke linkove pri stvaranju. Razrješenje se događa tek pri svakom pristupu kroz link.
+  Vidimo da nam program ispisuje upravo onaj tekst koji smo proslijedili kao putanju pri stvaranju linka — nezavisno o tome koristi li se `symlink()` u C-u ili `ln -s` u ljusci. Različita formulacija putanje (`dokumenti/orig.txt` vs `./dokumenti/orig.txt`) doslovno se čuva u sadržaju linka — jezgra niti normalizira putanju niti provjerava simboličke linkove pri stvaranju. Provjera se događa tek pri svakom pristupu kroz link.
 
 ## Vremena pristupa
 
-Već smo upoznali tri vremenska polja u `struct stat`: `st_atime`, `st_mtime`, `st_ctime`. Jezgra ih ažurira automatski — pri svakom čitanju, pisanju ili promjeni atributa datoteke. Ipak, ponekad želimo eksplicitno postaviti `atime` i `mtime` na neku zadanu vrijednost — najčešće da bismo "potvrdili" da je datoteka svježa, ili da Build sustavi (`make`) misle da je novija od neke druge.
+Već smo upoznali tri vremenska polja u `struct stat`: `st_atime`, `st_mtime`, `st_ctime`. Jezgra ih ažurira automatski — pri svakom čitanju, pisanju ili promjeni atributa datoteke. Ipak, ponekad želimo eksplicitno postaviti `atime` i `mtime` za određenu datoteku na neku zadanu vrijednost — najčešće da bismo "potvrdili" da je datoteka svježa, ili da Build sustavi (`make`) misle da je novija od neke druge.
 
 ```c
 #include <sys/types.h>
@@ -788,7 +792,9 @@ struct utimbuf {
 **Argumenti:**
 
 - **`pathname`** — datoteka kojoj mijenjamo vremena.
-- **`times`** — pokazivač na strukturu s novim vremenima. Ako je `NULL`, oba vremena postavljaju se na **trenutno** vrijeme (specijalan slučaj koji ekvivalentan je naredbi `touch`).
+- **`times`** — pokazivač na strukturu s novim vremenima. Ako je `NULL`, oba vremena postavljaju se na **trenutno** vrijeme (što je zapravo ekvivalent pozivu naredbe `touch` bez argumenata koji zadaju vrijeme).
+
+Pogledajmo kako se ova funkcija koristi u praksi:
 
 - [**`dotakni.c`**](dotakni.c) — pojednostavljena inačica naredbe `touch`: ako datoteka ne postoji, stvara je praznu; potom postavlja njena vremena na trenutno vrijeme.
 
@@ -850,11 +856,21 @@ struct utimbuf {
   $ touch nova.txt                  # ekvivalent gornjeg poziva
   ```
 
+  Naredba `touch` u praksi je nešto bogatija od našeg programa. Po zadanom postavlja **oba vremena** (`atime` i `mtime`) na trenutni trenutak, ali nudi i niz opcija za finiju kontrolu:
+
+  - **`-a`** mijenja samo `atime`, dok `mtime` ostaje netaknut,
+  - **`-m`** mijenja samo `mtime`, dok `atime` ostaje netaknut,
+  - **`-d`** ili **`-t`** omogućuju zadavanje **proizvoljnog** datuma i vremena umjesto trenutnog (npr. `touch -d "2024-01-15 10:30:00" dat.txt`),
+  - **`-r`** preslikava vremena s neke druge datoteke kao referentne (`touch -r referenca.txt cilj.txt`),
+  - **`-c`** sprečava stvaranje datoteke ako ne postoji.
+
+  Funkcija `utime` u svojoj punoj verziji već ima podršku za sve ovo: drugi argument može biti pokazivač na `struct utimbuf` s eksplicitno zadanim vrijednostima `atime` i `mtime` (umjesto `NULL` koji znači "trenutno vrijeme"). Vrijednosti tipa `time_t` mogu se dobiti iz čovjeku čitljivog datuma pomoću funkcija `mktime()` ili `strptime()`. Naš `dotakni.c` dakle pokriva samo najjednostavniji slučaj; proširenje s navedenim opcijama može biti korisna **vježba za čitatelja** ako želi bolje razumjeti rad s vremenom u UNIX sustavima.
+
   Tipična uporaba `touch` (i `dotakni`) — "natjerati" `make` da iznova prevede neki fajl, čak i ako mu sadržaj nije promijenjen, samo postavljanjem `mtime` na sadašnji trenutak.
 
 ## Rad s direktorijima
 
-### Stvaranje, brisanje i navigacija
+U posljednjem dijelu poglavlja dat ćemo pregled funkcija koje u našim programima možemo koristiti za upravljanje datotečnim stablom — stvaranje i brisanje direktorija, kretanje kroz njih, te čitanje njihova sadržaja. Završit ćemo i s odgovarajućim primjerom korištenja kojim ćemo ilustrirati kako radi još jedna od standardnih UNIX naredbi koju iznimno često koristimo u svakodnevnom radu.
 
 ```c
 #include <unistd.h>
@@ -868,17 +884,54 @@ int chdir(const char *pathname);
 int fchdir(int fd);
 ```
 
-**`mkdir()`** stvara novi prazan direktorij. U njemu jezgra automatski stvara dva posebna unosa: `.` (pokazivač na sam taj direktorij) i `..` (pokazivač na nadređeni direktorij).
+#### Funkcija `mkdir()`
 
-**`rmdir()`** briše direktorij — ali samo ako je **prazan** (sadrži samo `.` i `..`). Za rekurzivno brisanje neprazna direktorija treba sami obići sadržaj i obrisati ga prije nego što pozovemo `rmdir`.
+Stvara novi prazan direktorij. U njemu jezgra automatski stvara dva posebna unosa: `.` (pokazivač na sam taj direktorij) i `..` (pokazivač na nadređeni direktorij).
 
-**`getcwd()`** vraća putanju do trenutnog radnog direktorija (CWD) procesa, upisujući je u međuspremnik `buf` veličine `size`. Vraća pokazivač na `buf` u slučaju uspjeha, `NULL` u slučaju greške (npr. ako je međuspremnik premali). Bitno je razumjeti da je radni direktorij **svojstvo procesa**, ne korisnika; svaki proces ima svoj vlastiti CWD koji je naslijedio od svog roditelja.
+**Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
 
-**`chdir()`** mijenja radni direktorij procesa na `pathname`; **`fchdir()`** isto, ali se direktorij identificira otvorenim file deskriptorom. Bitan suptilan detalj: `chdir` u programu mijenja radni direktorij **samo tom procesu** — ne i ljusci koja ga je pokrenula. Zato u ljusci ne postoji "vanjska" naredba `cd`: bila bi beskorisna jer bi mijenjala CWD svog vlastitog procesa, a ne ljuske. `cd` je ugrađena (*built-in*) naredba ljuske koja mijenja njen vlastiti CWD pozivom `chdir()` "iznutra".
+**Argumenti:**
+
+- **`pathname`** — putanja na kojoj se stvara novi direktorij.
+- **`mode`** — prava pristupa za novi direktorij (npr. `0755`); konačna prava dobiju se kombinacijom s maskom procesa (`umask`).
+
+#### Funkcija `rmdir()`
+
+Briše direktorij — ali samo ako je **prazan** (sadrži samo `.` i `..`). Ukoliko želimo obrisati direktorij u kojem se nalaze druge datoteke i direktoriji, potrebno je ući u njega i rekurzivno obrisati cijeli njegov sadržaj, datoteku po datoteku (sistemskim pozivom `unlink`) te tek nakon toga obrisati i sam direktorij.
+
+**Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
+
+**Argumenti:**
+
+- **`pathname`** — putanja do direktorija koji se briše.
+
+#### Funkcija `getcwd()`
+
+Vraća putanju do trenutnog radnog direktorija procesa (CWD - *Current Working Directory*). Bitno je razumjeti da je radni direktorij **svojstvo procesa**, ne korisnika; svaki proces ima svoj vlastiti CWD koji je naslijedio od svog roditelja u trenutku stvaranja (sistemskim pozivom `fork()`).
+
+**Povratna vrijednost:** pokazivač na `buf` u slučaju uspjeha, `NULL` u slučaju greške (npr. ako je međuspremnik premali da primi punu putanju).
+
+**Argumenti:**
+
+- **`buf`** — međuspremnik u koji se upisuje putanja do trenutnog direktorija (kao null-terminirani string).
+- **`size`** — veličina međuspremnika `buf` u bajtovima.
+
+#### Funkcije `chdir()` i `fchdir()`
+
+Mijenjaju radni direktorij procesa. `chdir` direktorij identificira putanjom, dok `fchdir` koristi otvoreni file deskriptor.
+
+Bitan suptilan detalj: `chdir` u programu mijenja radni direktorij **samo tom procesu** — ne i ljusci koja ga je pokrenula. Zato naredba `cd` **nije implementirana kao "vanjska" naredba**, tj. ne postoji izvršna datoteka koja se poziva kad napišemo `cd` (za razliku od drugih naredbi, kao npr. `ls`, `touch` i brojnih drugih koje smo koristili). Ovako implementirana naredba bila bi beskorisna: pokretanje izvršne datoteke uvijek slijedi isti obrazac — `fork()` (stvaranje novog procesa) i `exec()` (pokretanje naredbe u novostvorenom procesu). Pozivanje funkcije `chdir()` u novostvorenom procesu zapravo bi promijenilo trenutni radni direktorij (CWD) samo tog procesa, ne i ljuske koja je naredbu pozvala. Stoga je naredba `cd` realizirana kao ugrađena (*built-in*) naredba ljuske — ne izvršava se u novom procesu, nego mijenja CWD same ljuske u kojoj je pozvana, pozivom `chdir()` "iznutra".
+
+**Povratna vrijednost (obje funkcije):** `0` u slučaju uspjeha, `-1` u slučaju greške.
+
+**Argumenti:**
+
+- **`pathname`** — putanja do direktorija (`chdir`).
+- **`fd`** — otvoreni file deskriptor (`fchdir`).
 
 ### Čitanje sadržaja direktorija
 
-Direktoriji su zapravo posebne datoteke koje sadrže popis imena i pripadnih i-node brojeva. Jezgra dopušta samo sebi da piše u njih — korisnički procesi smiju ih čitati, ali ne i izravno mijenjati. Čitanje se obavlja kroz skup funkcija iz `<dirent.h>`:
+Direktoriji su zapravo posebne datoteke koje sadrže popis imena i pripadnih i-node brojeva. Jezgra dopušta samo sebi da piše u njih — korisnički procesi smiju ih čitati, ali ne i izravno mijenjati. Najčešći oblik rada s direktorijem — sekvencijalno čitanje svih zapisa u njemu — obavlja se trojkom funkcija iz `<dirent.h>`:
 
 ```c
 #include <dirent.h>
@@ -886,24 +939,25 @@ Direktoriji su zapravo posebne datoteke koje sadrže popis imena i pripadnih i-n
 DIR           *opendir(const char *pathname);
 struct dirent *readdir(DIR *dp);
 int            closedir(DIR *dp);
-void           rewinddir(DIR *dp);
-long           telldir(DIR *dp);
-void           seekdir(DIR *dp, long loc);
 ```
 
-**`opendir()`** otvara direktorij za čitanje i vraća pokazivač na **`DIR`** strukturu — neprozirni (*opaque*) tip koji stoji nasuprot file deskriptora i kojeg standard ne specificira detaljno; programer ga koristi samo kao apsolutnu referencu kroz ostale funkcije obitelji. Vraća `NULL` u slučaju greške.
+#### Funkcija `opendir()`
 
-**`readdir()`** vraća **pokazivač na sljedeći zapis** u direktoriju ili `NULL` po kraju (ili pri grešci). Bitno je da memoriju u koju pokazuje vraćeni pokazivač održava sama biblioteka; pozivatelj nikad ne smije pozvati `free()` na rezultatu. Sljedeći poziv `readdir`-a obično prepiše tu memoriju, pa ako trebamo zadržati vrijednost — treba je kopirati.
+Otvara direktorij za čitanje i vraća pokazivač na `DIR` strukturu — **neprozirni** (*opaque*) tip, što znači da programer ne zna i ne treba znati kako struktura iznutra izgleda; samo je prosljeđuje ostalim funkcijama obitelji kao apstraktnu referencu, dok upravljanje sadržajem strukture u potpunosti preuzima biblioteka.
 
-**`closedir()`** zatvara direktorij i oslobađa pripadne resurse.
+**Povratna vrijednost:** pokazivač na `DIR` strukturu u slučaju uspjeha, `NULL` u slučaju greške.
 
-**`rewinddir()`** vraća čitanje na početak direktorija (sljedeći `readdir` opet vraća prvi zapis).
+**Argumenti:**
 
-**`telldir()`** vraća trenutnu poziciju u direktoriju kao neprozirnu vrijednost; **`seekdir()`** postavlja čitanje natrag na poziciju ranije zapamćenu `telldir`-om. (Ove dvije funkcije rijetko se koriste u praksi.)
+- **`pathname`** — putanja do direktorija koji se otvara.
 
-**Veza s standardnom C bibliotekom:** uočite da je kombinacija `opendir → readdir → closedir` za direktorije analogna kombinaciji `fopen → fread → fclose` za regularne datoteke. U oba slučaja imamo "stream" apstrakciju — neprozirni objekt (`DIR *` odnosno `FILE *`) koji čuva interne podatke o napretku čitanja, plus funkcije za otvaranje, sekvencijalno čitanje i zatvaranje.
+#### Funkcija `readdir()`
 
-#### Struktura `struct dirent`
+Vraća zapis koji se nalazi na **trenutnoj poziciji** u direktoriju, a zatim tu poziciju pomiče na sljedeći zapis. Pozivom `opendir()` pozicija se postavlja na **prvi zapis** u direktoriju, pa prvi poziv `readdir`-a vraća upravo njega. Svaki sljedeći poziv vraća sljedeći zapis i pomiče poziciju za jedno mjesto naprijed; kad više nema zapisa, `readdir` vraća `NULL`. Time u jednoj `while` petlji možemo prirodno pročitati cijeli direktorij od početka do kraja.
+
+Mehanizam je analogan onomu što smo već vidjeli kod običnih datoteka: tamo `read()` čita podatke od trenutnog **offseta** u datoteci i pomiče ga za broj pročitanih bajtova; ovdje `readdir()` čita zapis s trenutne pozicije u direktoriju i pomiče tu poziciju na sljedeći zapis. Razlika je u tome što kod regularnih datoteka offsetom programer može slobodno upravljati funkcijom `lseek()`, dok je kod direktorija interna pozicija dio neprozirne `DIR` strukture i nije izravno dostupna programeru — on je može samo vratiti na početak pozivom `rewinddir()`, ili koristiti `telldir()` i `seekdir()` o kojima ćemo govoriti malo kasnije.
+
+**Povratna vrijednost:** pokazivač na `struct dirent` strukturu sa zapisom, ili `NULL` na kraju direktorija ili u slučaju greške.
 
 POSIX standard zahtijeva da `struct dirent` sadrži samo **dva polja**:
 
@@ -918,25 +972,84 @@ Polje `d_name` ima **neodređenu veličinu** — POSIX kaže samo "polje znakova
 
 - **`sizeof(d_name)` ne radi pouzdano** — neke implementacije deklariraju polje kao `char d_name[1]`, druge kao `char d_name[256]`. Za pravu duljinu uvijek koristimo `strlen(d_name)`.
 - **`sizeof(struct dirent)` ne predstavlja nužno stvarnu veličinu zapisa** — iz istog razloga kao gore.
-- **Polje `d_type`** (tip datoteke kao bajt — regularna/direktorij/link/...) postoji na Linuxu i nije POSIX. Za prenosiv kod treba pozvati `lstat` na ime datoteke i čitati `st_mode`.
+- **Polje `d_type`** (regularna/direktorij/link/...) postoji na Linuxu, ali nije dio POSIX standarda. Ukoliko želimo pisati prenosivi kod, sigurnije je koristiti `lstat` sa imenom datoteke (koje možemo dobiti iz `d_name` polja) i nakon toga iz `st_mode` saznati tip datoteke.
 
-- [**`mojls.c`**](mojls.c) — pojednostavljena inačica naredbe `ls`. Bez argumenta lista trenutni direktorij; s argumentom lista zadani.
+Vraćeni pokazivač pokazuje na strukturu koju je sama biblioteka prethodno alocirala u svojoj internoj memoriji (najčešće u statičkom međuspremniku); pozivatelj ju nije ni alocirao, pa ju ni ne smije osloboditi pozivom `free()`. Sljedeći poziv `readdir`-a nad istim direktorijem prepiše taj međuspremnik novim zapisom — povratni pokazivač iz prethodnog poziva nakon toga još uvijek vrijedi, ali sadržaj na koji pokazuje više nije isti. Ako iz nekog razloga trebamo zadržati podatke iz zapisa duže (npr. spremiti listu svih imena u direktoriju), moramo ih kopirati u vlastitu memoriju.
+
+**Argumenti:**
+
+- **`dp`** — pokazivač na otvorenu `DIR` strukturu, dobiven prethodnim pozivom `opendir`.
+
+#### Funkcija `closedir()`
+
+Zatvara direktorij i oslobađa pripadne resurse.
+
+**Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
+
+**Argumenti:**
+
+- **`dp`** — pokazivač na otvorenu `DIR` strukturu.
+
+**Veza sa standardnom C bibliotekom:** uočite da je kombinacija `opendir → readdir → closedir` za direktorije analogna kombinaciji `fopen → fread → fclose` za regularne datoteke. U oba slučaja imamo "stream" apstrakciju — neprozirni objekt (`DIR *` odnosno `FILE *`) koji čuva interne podatke o napretku čitanja, plus funkcije za otvaranje, sekvencijalno čitanje i zatvaranje.
+
+#### Pozicioniranje unutar direktorija
+
+Pored osnovne trojke koju smo upravo opisali, `<dirent.h>` nudi i tri dodatne funkcije za izravno upravljanje internom pozicijom u direktoriju:
+
+```c
+#include <dirent.h>
+
+void rewinddir(DIR *dp);
+long telldir(DIR *dp);
+void seekdir(DIR *dp, long loc);
+```
+
+#### Funkcija `rewinddir()`
+
+Vraća čitanje na početak direktorija — sljedeći poziv `readdir`-a opet će vratiti prvi zapis.
+
+**Povratna vrijednost:** nema (funkcija je tipa `void`).
+
+**Argumenti:**
+
+- **`dp`** — pokazivač na otvorenu `DIR` strukturu.
+
+#### Funkcije `telldir()` i `seekdir()`
+
+`telldir` vraća trenutnu poziciju u direktoriju kao neprozirnu vrijednost; `seekdir` postavlja čitanje natrag na poziciju ranije zapamćenu `telldir`-om. Ove dvije funkcije rijetko se koriste u praksi.
+
+**Povratna vrijednost:**
+
+- **`telldir`** — trenutna pozicija (kao `long` vrijednost), ili `-1` u slučaju greške.
+- **`seekdir`** — nema povratne vrijednosti (`void`).
+
+**Argumenti:**
+
+- **`dp`** — pokazivač na otvorenu `DIR` strukturu.
+- **`loc`** (samo `seekdir`) — pozicija ranije dobivena pozivom `telldir`.
+
+Sada kad smo upoznali sve funkcije za rad s direktorijima, iskoristit ćemo ih u jednom konkretnom primjeru — implementaciji **pojednostavljene inačice standardne UNIX naredbe `ls`**, koja kao i izvorna naredba ispisuje sadržaj zadanog direktorija.
+
+- [**`mojls.c`**](mojls.c) — pojednostavljena inačica naredbe `ls`. Bez argumenta lista trenutni direktorij; s argumentom lista zadani. Za svaki zapis ispisuje veličinu datoteke u bajtovima, te ime.
 
   ```c
   #include <stdio.h>
   #include <stdlib.h>
   #include <string.h>
+  #include <sys/stat.h>
   #include <dirent.h>
 
   int main(int argc, char *argv[]) {
       DIR *dp;
       struct dirent *entry;
-      const char *path;
+      struct stat st;
+      char path[1024];
+      const char *dir;
 
       /* bez argumenta, listamo trenutni direktorij */
-      path = (argc < 2) ? "." : argv[1];
+      dir = (argc < 2) ? "." : argv[1];
 
-      dp = opendir(path);
+      dp = opendir(dir);
       if (dp == NULL) {
           perror("opendir");
           return 1;
@@ -949,7 +1062,15 @@ Polje `d_name` ima **neodređenu veličinu** — POSIX kaže samo "polje znakova
           if (entry->d_name[0] == '.')
               continue;
 
-          printf("%s\n", entry->d_name);
+          /* sastavi punu putanju "dir/ime" za poziv lstat-u */
+          snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+
+          if (lstat(path, &st) < 0) {
+              perror(path);
+              continue;
+          }
+
+          printf("%10ld  %s\n", (long)st.st_size, entry->d_name);
       }
 
       closedir(dp);
@@ -957,28 +1078,51 @@ Polje `d_name` ima **neodređenu veličinu** — POSIX kaže samo "polje znakova
   }
   ```
 
-  Glavna petlja je tipična UNIX-ova "while-readdir" konstrukcija — funkcija u istom pozivu javlja i podatke (kroz povratnu vrijednost) i kraj pretrage (vraćanjem `NULL`-a). Ovaj sažeti idiom karakterističan je za UNIX-ove `read*` pozive opće namjene.
+  Glavna petlja je tipična UNIX-ova "while-readdir" konstrukcija — funkcija u istom pozivu javlja i podatke (kroz povratnu vrijednost) i kraj pretrage (vraćanjem `NULL`-a). Ovakvu petlju, koja prolazi kroz niz podataka ili poziva zaključenih `NULL` pokazivačem, često ćete sresti u programima.
+
+  Bitno: `entry->d_name` sadrži samo **ime zapisa unutar otvorenog direktorija**, ne njegovu punu putanju. `lstat()` međutim treba putanju — pa prije svakog poziva `snprintf`-om sastavljamo string oblika `"<dir>/<ime>"`. Bez ovog koraka `lstat` bi tražio `entry->d_name` u trenutnom radnom direktoriju procesa, što bi naravno bilo pogrešno čim listamo neki drugi direktorij osim `"."`. Format `"%10ld"` u `printf`-u poravnava broj u stupac širine 10 znakova radi urednijeg ispisa.
 
   Pokretanje:
 
   ```
   $ ./mojls
-  fileinfo.c
-  fileinfo2.c
-  Makefile
-  mojls.c
-  prava.c
-  README.md
-  ...
+         564  prava.c
+         373  makesymlink.c
+         595  provjeri.c
+         807  Makefile
+         484  readsymlink.c
+        1302  fileinfo2.c
+         942  mojls.c
+       58904  README.md
+         677  dotakni.c
+        1300  fileinfo.c
+         361  makelink.c
 
   $ ./mojls /etc
-  passwd
-  group
-  hostname
-  ...
+        4096  cron.d
+        4096  default
+        4096  X11
+        1111  passwd
+         597  group
+         609  shadow
+         219  hosts
+          11  hostname
+       12813  services
+         582  profile
+         656  fstab
+         122  resolv.conf
+        ...
   ```
 
-  **Vježba za čitatelja:** trenutna verzija `mojls`-a ispisuje samo imena datoteka. Pravi `ls -l` daje znatno više informacija — tip datoteke, prava pristupa, vlasnika, veličinu, vrijeme zadnje izmjene. Pokušajte doraditi `mojls` tako da za svaki ulazni zapis pozove `lstat()` na ime datoteke, pa iz dobivenog `struct stat`-a ispiše atribute. Korisne funkcije: `getpwuid()` (UID → ime korisnika), `getgrgid()` (GID → ime grupe), `ctime()` (vrijeme → string).
+  Direktorij `/etc` u praksi sadrži znatno više datoteka i poddirektorija nego što je prikazano (na tipičnom sustavu desetke i stotine zapisa); ostatak ispisa koji ovdje nije prikazan iz prostornih razloga označen je s `...` na dnu.
+
+  Direktoriji (`cron.d`, `default`, `X11`) uobičajeno imaju veličinu 4096 bajtova, što je tipična veličina bloka datotečnog sustava na Linuxu — jedan blok dovoljan je za pohranjivanje popisa imena i pripadnih i-node brojeva uobičajenog direktorija. Bitno je razumjeti da ova vrijednost **ne predstavlja zbroj veličina datoteka unutar direktorija**, kao što čitatelj možda intuitivno očekuje, nego veličinu prostora koji direktorij sam zauzima na disku radi vlastite organizacije. Većina direktorija stoga u `lstat()` ispisu pokazuje istih 4096 B bez obzira što se u njima nalazi (vrijednost može biti i veća kod direktorija s vrlo mnogo unosa, kad jedan blok više nije dovoljan). Za regularne datoteke (`passwd`, `services`, ...) `st_size` pokazuje stvarnu veličinu sadržaja u bajtovima.
+
+  **Vježba za čitatelja:** ispisivanje pravog `ls -l` sadrži znatno više informacija — tip datoteke, prava pristupa, vlasnika i grupu, vrijeme zadnje izmjene. Sve te informacije su nam već dostupne u `struct stat` strukturi koju smo popunili pozivom `lstat()`. Pokušajte doraditi `mojls` tako da reproducira potpun `ls -l` ispis. Korisne funkcije iz standardne C biblioteke: `getpwuid()` (pretvara UID u ime korisnika, definirana u `<pwd.h>`), `getgrgid()` (pretvara GID u ime grupe, definirana u `<grp.h>`), te `ctime()` ili `strftime()` za pretvorbu `time_t` vrijednosti u tekstualni datum.
+
+## Što smo zapravo radili
+
+Vrijedi se na kraju ovog poglavlja na trenutak osvrnuti na ono što smo zapravo radili kroz dane primjere. Mali UNIX programi poput `dotakni`, `mojls`, `prava`, `makelink`, `makesymlink`, `readsymlink` — kao i `f_cat`, `f_strip` ili `f_write` iz prethodnog poglavlja — nisu tek umjetni vježbeni primjeri. Svaki od njih implementira temeljnu funkcionalnost neke od standardnih UNIX naredbi: `touch`, `ls`, `chmod`, `ln`, `ln -s`, `readlink`, `cat`. Time ilustriramo i jednu od najvažnijih osobina UNIX-a: skupina alata koje koristimo svaki dan zapravo je **tanki sloj iznad sistemskih poziva**. Kad ih sami napišemo u nekoliko desetaka linija C koda, vidimo iz prve ruke da iza naredbi koje na prvi pogled izgledaju "magično" stoje sasvim razumljivi pozivi `stat`, `chmod`, `link`, `symlink`, `utime` — a temeljne UNIX rutine i sistemski pozivi koji ih implementiraju isti su već gotovo pola stoljeća, što pokazuje koliko je dobro osmišljen UNIX sustav.
 
 ## Prevođenje
 
