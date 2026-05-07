@@ -1,12 +1,14 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = cijev prebroji fifoposalji fifoprimi shm_pisi shm_citaj mq_posalji mq_primi msg_demo
+TARGETS = cijev prebroji fifoposalji fifoprimi shm_pisi shm_citaj shm_brojac shm_brojac_sem mq_posalji mq_primi msg_demo
 
 # POSIX shm trebaju -lrt na nekim sustavima (Linux pre-glibc-2.34)
 LIBS_RT = -lrt
 # POSIX message queue trebaju -lrt
 LIBS_MQ = -lrt
+# POSIX semafori trebaju -lpthread
+LIBS_PTHREAD = -lpthread
 
 default: cijev
 
@@ -29,6 +31,12 @@ shm_pisi: shm_pisi.o
 
 shm_citaj: shm_citaj.o
 	$(CC) $(LDFLAGS) shm_citaj.o -o shm_citaj $(LIBS_RT)
+
+shm_brojac: shm_brojac.o
+	$(CC) $(LDFLAGS) shm_brojac.o -o shm_brojac $(LIBS_RT)
+
+shm_brojac_sem: shm_brojac_sem.o
+	$(CC) $(LDFLAGS) shm_brojac_sem.o -o shm_brojac_sem $(LIBS_RT) $(LIBS_PTHREAD)
 
 mq_posalji: mq_posalji.o
 	$(CC) $(LDFLAGS) mq_posalji.o -o mq_posalji $(LIBS_MQ)
