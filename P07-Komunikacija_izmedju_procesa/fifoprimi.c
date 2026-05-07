@@ -18,7 +18,7 @@ int main(void) {
     return 1;
   }
 
-  printf("Otvaram FIFO za citanje (cekam pisaca)...\n");
+  printf("Otvaram FIFO za citanje (cekam pisca)...\n");
   fd = open(FIFO_PATH, O_RDONLY);
   if (fd < 0) {
     perror("open");
