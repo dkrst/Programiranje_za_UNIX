@@ -398,14 +398,20 @@ $ rm /tmp/moj_fifo
 
 ## Dijeljena memorija
 
-Cjevovodi i FIFO-i prirodni su za **slijedne** tokove podataka — bajt po bajt, jedna strana piše, druga čita. Kad procesi trebaju zajedno raditi nad istim podacima — npr. pet procesa istovremeno ažurira jedan brojač, ili dva procesa dijele veliku tablicu — cjevovod nije idealan jer svaka razmjena uključuje **kopiranje** kroz jezgru. **Dijeljena memorija** je drugačiji pristup: dva ili više procesa dobiju "prozor" u istu fizičku memorijsku regiju, pa pristupaju podacima izravno bez kopiranja, jednako brzo kao da je riječ o lokalnoj varijabli.
+Cjevovodi i FIFO-i prirodni su za slijedne tokove podataka — bajt po bajt, jedna strana piše, druga čita. Kad procesi trebaju zajedno raditi nad istim podacima — npr. pet procesa istovremeno ažurira jedan brojač, ili dva procesa dijele veliku tablicu — cjevovod nije idealan način razmjene podataka. Osim što svaka razmjena mora proći kroz međuspremnik u jezgri (uz odgovarajuće sistemske pozive `read` i `write`), svaki proces mora dodatno držati i vlastitu kopiju podataka u svojoj lokalnoj memoriji. Sjetimo se: procesi međusobno ne vide međusobne adresne prostore, pa kad proces A želi obavijestiti proces B o promjeni vrijednosti, A mora poslati svoje lokalne promjene kroz cjevovod, a B ih mora procesirati i ugraditi u svoju lokalnu kopiju podataka. Ovaj postupak, osim što uključuje parsiranje i analizu promjena u odnosu na lokalnu kopiju, zahtijeva i višestruke kopije podataka u memoriji. Za pet procesa koja koordiniraju nad istim brojačem, to bi značilo pet kopija u memoriji + neprestano usklađivanje porukama — neefikasno i sklono greškama.
+
+Dijeljena memorija je drugačiji pristup: dva ili više procesa pristupaju istim podacima u memoriji, izravno i bez kopiranja, putem pokazivača koji predstavlja "prozor" na istu fizičku memorijsku regiju.
 
 Pristupi dijeljenoj memoriji u UNIX-u dolaze u dvije inačice:
 
-- **POSIX dijeljena memorija** — moderna, čistija, preporučena za nove programe. Identifikatori su putanje (počinju s `/`), pa imaju i vlasništvo i prava pristupa kao i obične datoteke.
-- **System V dijeljena memorija** — starija, ali još uvijek raširena. Identifikatori su cjelobrojni "ključevi". Obrađujemo je kratko na kraju poglavlja.
+- **POSIX dijeljena memorija** — modernija implementacija, preporučena za nove programe. Identifikatori su putanje (počinju s `/`), pa imaju i vlasništvo i prava pristupa kao i obične datoteke.
+- **System V dijeljena memorija** — stariji standard, ali još uvijek u širokoj upotrebi, osobito kod starijih programa. Identifikatori su cjelobrojni "ključevi".
 
-POSIX dijeljena memorija u biti se sastoji od dva koraka: stvori se "objekt dijeljene memorije" (zapravo specijalna datoteka u memorijskom datotečnom sustavu, obično `/dev/shm`), i potom se taj objekt **mapira** u adresni prostor procesa pomoću `mmap()`. Tako svaki proces dobiva pokazivač kojim može čitati i pisati u dijeljeni dio.
+U osnovi je riječ o istoj stvari — oba pristupa omogućuju da više procesa pristupi istoj memorijskoj regiji izravno, bez kopiranja kroz jezgru. Razlikuju se uglavnom u API-ju i načinu imenovanja: koje funkcije pozivamo, kako objekte identificiramo i kako njima upravljamo. Konceptualno, ono što naučite za jednu implementaciju lako se prenosi na drugu.
+
+POSIX dijeljena memorija u biti se sastoji od dva koraka: stvori se "objekt dijeljene memorije" (zapravo specijalna datoteka u memorijskom datotečnom sustavu, obično `/dev/shm`), i potom se taj objekt mapira u adresni prostor procesa pomoću `mmap()`. Tako svaki proces dobiva pokazivač kojim može čitati i pisati u dijeljeni dio.
+
+Funkcije za rad s POSIX dijeljenom memorijom su:
 
 ```c
 #include <sys/mman.h>
@@ -414,8 +420,11 @@ POSIX dijeljena memorija u biti se sastoji od dva koraka: stvori se "objekt dije
 
 int   shm_open(const char *name, int oflag, mode_t mode);
 int   shm_unlink(const char *name);
-void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+
+void *mmap(void *addr, size_t length, int prot,
+           int flags, int fd, off_t offset);
 int   munmap(void *addr, size_t length);
+
 int   ftruncate(int fd, off_t length);
 ```
 
@@ -433,13 +442,13 @@ Stvara novi (ili otvara postojeći) objekt dijeljene memorije. Ponaša se kao `o
 
 #### Funkcija `ftruncate()`
 
-Postavlja veličinu datoteke (ili shm objekta) na zadanu vrijednost. Novostvoren shm objekt ima veličinu 0, pa ga prije mapiranja moramo "razvući" na željenu veličinu pomoću `ftruncate`.
+Postavlja veličinu datoteke (ili shm objekta) na zadanu vrijednost. Novostvoren shm objekt ima veličinu 0, pa ga prije mapiranja moramo "razvući" na željenu veličinu pomoću `ftruncate`. Ovaj korak konceptualno je sličan onome što radimo i kod dinamičke alokacije memorije: kad u **C** programu koristimo `malloc(n)`, jezgra (preko bibliotečne funkcije) rezervira `n` bajtova za naš proces i vraća pokazivač na taj prostor — bez te rezervacije nemamo gdje pisati. Slično, `shm_open` nam vraća rukovatelj (deskriptor datoteke) na novi objekt dijeljene memorije, ali sam objekt još uvijek nema rezervirano nikakvog stvarnog prostora. Tek `ftruncate(fd, n)` rezervira `n` bajtova za taj objekt, a nakon toga možemo pozvati `mmap` da nam jezgra preslika tih `n` bajtova u adresni prostor procesa i vrati pokazivač kojim do njih dolazimo.
 
 **Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
 
 #### Funkcija `mmap()`
 
-Mapira datoteku (ili shm objekt) u adresni prostor procesa. Vraćeni pokazivač pokazuje na memorijski blok koji je *zapravo* sadržaj te datoteke — pisanje u njega odmah se reflektira na "datoteku" (a kod shm to je dijeljena memorija).
+Mapira datoteku (ili shm objekt) u adresni prostor procesa. Vraćeni pokazivač pokazuje na memorijski blok koji je *zapravo* sadržaj te datoteke — pisanje u njega odmah se reflektira na "datoteku" (a kod shm to je dijeljena memorija). Funkcija ne razlikuje shm objekt od bilo koje druge datoteke u datotečnom sustavu — `mmap` jednako tako može mapirati i regularnu datoteku na disku, čime sadržaj te datoteke postaje izravno dostupan kroz pokazivač. Toj primjeni `mmap`-a vraćamo se u zasebnoj sekciji kasnije u poglavlju.
 
 **Povratna vrijednost:** pokazivač na mapirani blok, ili `MAP_FAILED` (vrijednost `(void *)-1`) u slučaju greške.
 
@@ -449,12 +458,12 @@ Mapira datoteku (ili shm objekt) u adresni prostor procesa. Vraćeni pokazivač 
 - **`length`** — broj bajtova koji se mapira.
 - **`prot`** — kombinacija dozvoljenih operacija: `PROT_READ`, `PROT_WRITE`, `PROT_EXEC`, `PROT_NONE`.
 - **`flags`** — najvažnija je `MAP_SHARED` (promjene su vidljive drugim procesima i, ako je riječ o regularnoj datoteci, zapisuju se na disk) ili `MAP_PRIVATE` (proces dobiva privatnu kopiju, drugi je ne vide).
-- **`fd`** — deskriptor datoteke (ili shm objekta) koja se mapira; za "anonimne" mape postavlja se `-1` uz zastavicu `MAP_ANONYMOUS`.
-- **`offset`** — pomak unutar datoteke od kojeg počinje mapiranje (mora biti višekratnik veličine stranice).
+- **`fd`** — deskriptor datoteke (ili shm objekta) koja se mapira; za **anonimne mape** (mape koje nisu povezane ni s jednom datotekom — koriste se kao "čista" memorijska regija, npr. za dijeljenje memorije između roditelja i djeteta nakon `fork`-a) postavlja se `-1` uz zastavicu `MAP_ANONYMOUS`.
+- **`offset`** — pomak unutar datoteke od kojeg počinje mapiranje. Ne moramo dakle mapirati cijelu datoteku ni nužno od početka — kombinacijom `offset` i `length` mapiramo proizvoljan dio (raspon od `length` bajtova počevši od `offset`-a). To je posebno korisno za velike datoteke (npr. baze podataka od više GB) iz kojih nas zanima samo neki dio. Vrijednost `offset`-a mora biti višekratnik veličine stranice virtualne memorije (tipično 4 KB; točnu vrijednost za sustav daje `sysconf(_SC_PAGE_SIZE)`), jer cijela infrastruktura virtualne memorije radi u jedinicama stranica.
 
 #### Funkcija `munmap()`
 
-Razmapirava ranije mapirani blok. Pokazivač na blok više ne vrijedi.
+Oslobađa dodijeljeni raspon memorije i prekida vezu s datotekom ili anonimnim blokom. Pokazivač na blok više ne vrijedi.
 
 **Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
 
@@ -464,11 +473,173 @@ Briše imenovani shm objekt iz sustava (slično `unlink`-u za datoteke). Ako je 
 
 **Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
 
-### Primjer: dijeljena memorija bez sinkronizacije
+### Primjer: dijeljenje memorije između nezavisnih procesa
 
-Pokazat ćemo dva procesa koji dijele jedan cjelobrojni brojač i svaki ga povećava milijun puta. Očekivani rezultat na kraju je 2 × 1 000 000 = 2 000 000. Pokazat će se da to **nije uvijek slučaj** — radi se o klasičnom problemu *race condition*-a.
+Pokazat ćemo dva mala programa — jedan koji upisuje tekst u dijeljenu memoriju, i drugi koji ga iz nje čita — slično paru `fifoposalji`/`fifoprimi`. Ključna razlika prema FIFO-u: **podaci ostaju u memoriji i nakon što program završi**, sve dok ih netko ne ukloni pozivom `shm_unlink` ili dok se sustav ne ponovno pokrene. Tako bilo koji proces u međuvremenu može pročitati ono što je tamo upisano.
 
-- [**`shm_demo.c`**](shm_demo.c) — dijeljeni brojač **bez** sinkronizacije.
+- [**`shm_pisi.c`**](shm_pisi.c) — stvara (ili otvara) shm objekt `/moja_memorija`, mapira ga, i upisuje tekst zadan kao argument naredbenog retka.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <string.h>
+  #include <unistd.h>
+  #include <fcntl.h>
+  #include <sys/mman.h>
+  #include <sys/stat.h>
+
+  #define SHM_NAME "/moja_memorija"
+  #define VELICINA 256
+
+  int main(int argc, char *argv[]) {
+      int fd;
+      char *podaci;
+      const char *poruka;
+
+      if (argc < 2)
+          poruka = "Pozdrav iz zajedničke memorije!";
+      else
+          poruka = argv[1];
+
+      /* stvori (ili otvori postojeci) objekt dijeljene memorije */
+      fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+      if (fd < 0) { perror("shm_open"); return 1; }
+
+      /* postavi velicinu (rezerviraj prostor) */
+      if (ftruncate(fd, VELICINA) < 0) { perror("ftruncate"); return 1; }
+
+      /* mapiraj objekt u adresni prostor */
+      podaci = mmap(NULL, VELICINA, PROT_READ | PROT_WRITE,
+                    MAP_SHARED, fd, 0);
+      if (podaci == MAP_FAILED) { perror("mmap"); return 1; }
+
+      /* upisi poruku; kopiramo najvise VELICINA-1 bajtova kako bi
+       * preostao prostor za zavrsni nul-znak (ako je poruka duza,
+       * visak se odbacuje, a nikad se ne pise izvan rezerviranog bloka) */
+      strncpy(podaci, poruka, VELICINA - 1);
+      podaci[VELICINA - 1] = '\0';
+
+      printf("Upisano u %s: %s\n", SHM_NAME, podaci);
+
+      munmap(podaci, VELICINA);
+      close(fd);
+      return 0;
+  }
+  ```
+
+- [**`shm_citaj.c`**](shm_citaj.c) — otvara isti shm objekt samo za čitanje, mapira ga, ispisuje sadržaj.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <fcntl.h>
+  #include <sys/mman.h>
+
+  #define SHM_NAME "/moja_memorija"
+  #define VELICINA 256
+
+  int main(void) {
+      int fd;
+      char *podaci;
+
+      fd = shm_open(SHM_NAME, O_RDONLY, 0);
+      if (fd < 0) { perror("shm_open"); return 1; }
+
+      podaci = mmap(NULL, VELICINA, PROT_READ, MAP_SHARED, fd, 0);
+      if (podaci == MAP_FAILED) { perror("mmap"); return 1; }
+
+      printf("Procitano iz %s: %s\n", SHM_NAME, podaci);
+
+      munmap(podaci, VELICINA);
+      close(fd);
+      return 0;
+  }
+  ```
+
+  Pokrenimo programe — mogu se izvršavati u istoj ljusci ili u različitima, vremenski razmaknuti, sasvim svejedno:
+
+  ```
+  $ ./shm_pisi "Pozdrav iz prvog procesa!"
+  Upisano u /moja_memorija: Pozdrav iz prvog procesa!
+
+  $ ./shm_citaj
+  Procitano iz /moja_memorija: Pozdrav iz prvog procesa!
+
+  $ ./shm_citaj
+  Procitano iz /moja_memorija: Pozdrav iz prvog procesa!
+  ```
+
+  Drugi `shm_citaj` u istom primjeru ispisuje istu poruku iako je prvi `shm_citaj` već završio — tekst je i dalje u memoriji. Možemo ga prepisati ponovnim pozivom `shm_pisi`-a:
+
+  ```
+  $ ./shm_pisi "Druga poruka"
+  Upisano u /moja_memorija: Druga poruka
+
+  $ ./shm_citaj
+  Procitano iz /moja_memorija: Druga poruka
+  ```
+
+  shm objekt je trajan — vidi se i u datotečnom sustavu pod `/dev/shm`:
+
+  ```
+  $ ls -l /dev/shm/
+  total 4
+  -rw-r--r-- 1 dkrst users 256 May  7 18:00 moja_memorija
+  ```
+
+  Ako su u sustavu još i drugi procesi koji koriste POSIX dijeljenu memoriju, pojavit će se i njihovi shm objekti — `/dev/shm/` je zajednički direktorij za sve. Za razliku od FIFO-a, ovdje veličina nije nula — shm objekt rezervira pravi prostor (256 bajtova, kao što smo zatražili `ftruncate`-om), a sav sadržaj koji upisujemo zapravo se nalazi u tom prostoru. Iako `/dev/shm` izgleda kao obični dio datotečnog stabla, njegov sadržaj zapravo ne završi na disku — `tmpfs` je memorijski datotečni sustav koji jezgra drži u RAM-u. To znači da je pristup tim podacima jednako brz kao i pristup bilo kojoj drugoj memorijskoj lokaciji, bez latencije koja je neizbježna kod pisanja na fizičke diskove.
+
+  Kad shm objekt više ne trebamo, brišemo ga pozivom `shm_unlink`, ili u ljusci jednostavno:
+
+  ```
+  $ rm /dev/shm/moja_memorija
+  ```
+
+  Nakon brisanja, novi pokušaj čitanja više nije moguć — objekt je nestao iz sustava:
+
+  ```
+  $ ./shm_citaj
+  shm_open: No such file or directory
+  ```
+
+  `shm_open` u `shm_citaj` programu pozvan je s `O_RDONLY` (bez `O_CREAT`), pa kad nema postojećeg objekta s tim imenom, vraća grešku. Da smo programu prepustili da sam stvori objekt, dobili bismo prazan blok memorije bez ikakvog sadržaja.
+
+Ovaj jednostavan par programa pokazuje tri ključne osobine POSIX dijeljene memorije:
+
+- **Dijeljenje** — više nezavisnih procesa pristupa istom memorijskom prostoru, jer svi koriste isto ime (`/moja_memorija`) i `mmap` ih sve preslikava u istu fizičku regiju.
+- **Postojanost** — shm objekt nadživljuje proces koji ga je stvorio. Sadržaj ostaje dostupan dok ga eksplicitno ne uklonimo, ili dok se sustav ne ponovno pokrene.
+- **Imenovanost** — pristup ide kroz putanju u datotečnom sustavu, baš kao kod FIFO-a; ne treba `fork` ni nasljeđivanje deskriptora kao kod anonimnih cjevovoda.
+
+Ono što naš primjer ne pokazuje, a što je u praksi vrlo bitno: kako se uskladiti kad više procesa istovremeno piše u istu memoriju. Bez dodatnog mehanizma može doći do situacija u kojima dva procesa istovremeno pišu u isti segment dijeljene memorije, pri čemu jedan proces može "pregaziti" podatke koje je upisao drugi i podatak postaje neispravan. Ovaj problem zovemo *race condition* (utrkivanje za resursom). U sljedećoj sekciji vidjet ćemo kako on nastaje i kako se može riješiti pomoću **semafora**.
+
+## Sinkronizacija pomoću semafora
+
+### Race condition: zašto `i++` nije atomarna operacija
+
+Čovjek koji čita izraz `i++` vidi jednu, jednostavnu operaciju: "uvećaj `i` za jedan". Procesor, međutim, ne vidi to tako. Svaka aritmetička operacija nad varijablom u memoriji zapravo se izvršava u **tri zasebna koraka**:
+
+1. **Učitaj** trenutnu vrijednost iz memorije u registar procesora.
+2. **Uvećaj** vrijednost u registru za 1.
+3. **Pohrani** novu vrijednost iz registra natrag u memoriju.
+
+Na x86 assembly-u, ako je `count` varijabla u memoriji a `eax` registar, izraz `count++` prevodi se otprilike u ove tri instrukcije:
+
+```asm
+mov  eax, [count]    ; korak 1: ucitaj count iz memorije u eax
+inc  eax             ; korak 2: povecaj eax za 1
+mov  [count], eax    ; korak 3: pohrani eax natrag u count
+```
+
+Operacijski sustav u svakom trenutku može prekinuti izvršavanje procesa — između bilo koja dva koraka — i pustiti drugi proces da nastavi. Ako oba procesa rade nad istim podatkom u dijeljenoj memoriji, lako se dogodi sljedeća situacija:
+
+![Race condition pri inkrementaciji dijeljenog brojača](slike/race_condition.png)
+
+Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji je `6`, a ne `7` kako bismo očekivali. Jedna inkrementacija je **izgubljena**, jer su oba procesa pročitala istu staru vrijednost prije nego što je itko stigao zapisati novu. Dok god se procesi izvršavaju neometano (svaki dovrši sva tri koraka prije nego se prebaci na drugog), sve radi ispravno; problem se javlja samo kad ih se "pogode" preklopiti baš oko iste lokacije u memoriji. To čini ovu vrstu pogreške posebno opasnom — javlja se neredovito, i pojavljuje se baš onda kad sustav ima najviše posla.
+
+#### Demonstracija: dijeljeni brojač bez sinkronizacije
+
+- [**`shm_brojac.c`**](shm_brojac.c) — dva procesa (roditelj i dijete) dijele jedan cjelobrojni brojač u `shm` objektu i svaki ga povećava milijun puta. Očekivani rezultat na kraju je 2 × 1 000 000 = 2 000 000.
 
   ```c
   #include <stdio.h>
@@ -477,7 +648,6 @@ Pokazat ćemo dva procesa koji dijele jedan cjelobrojni brojač i svaki ga pove�
   #include <fcntl.h>
   #include <sys/mman.h>
   #include <sys/wait.h>
-  #include <sys/stat.h>
 
   #define SHM_NAME "/moj_brojac"
   #define ITERACIJA 1000000
@@ -487,16 +657,10 @@ Pokazat ćemo dva procesa koji dijele jedan cjelobrojni brojač i svaki ga pove�
       int *brojac;
       pid_t pid;
 
-      /* stvori (ili otvori postojeci) objekt dijeljene memorije */
       fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
       if (fd < 0) { perror("shm_open"); return 1; }
-
-      /* postavi velicinu na sizeof(int) */
       if (ftruncate(fd, sizeof(int)) < 0) { perror("ftruncate"); return 1; }
-
-      /* mapiraj objekt u adresni prostor */
-      brojac = mmap(NULL, sizeof(int),
-                    PROT_READ | PROT_WRITE,
+      brojac = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE,
                     MAP_SHARED, fd, 0);
       if (brojac == MAP_FAILED) { perror("mmap"); return 1; }
 
@@ -505,20 +669,18 @@ Pokazat ćemo dva procesa koji dijele jedan cjelobrojni brojač i svaki ga pove�
       pid = fork();
       if (pid < 0) { perror("fork"); return 1; }
 
-      /* oba procesa povecavaju brojac istovremeno - bez sinkronizacije! */
+      /* oba procesa povecavaju brojac istovremeno - bez sinkronizacije */
       for (int i = 0; i < ITERACIJA; i++)
           (*brojac)++;
 
       if (pid == 0) {
-          /* dijete */
           munmap(brojac, sizeof(int));
           close(fd);
           return 0;
       }
 
-      /* roditelj */
       wait(NULL);
-      printf("Konacna vrijednost brojaca: %d (ocekivano: %d)\n",
+      printf("Konacna vrijednost: %d (ocekivano: %d)\n",
              *brojac, 2 * ITERACIJA);
 
       munmap(brojac, sizeof(int));
@@ -528,40 +690,33 @@ Pokazat ćemo dva procesa koji dijele jedan cjelobrojni brojač i svaki ga pove�
   }
   ```
 
-  Bitno je primijetiti redoslijed: **najprije** stvorimo i mapiramo dijeljenu memoriju, **onda** pozivamo `fork()`. Tako oba procesa nakon `fork`-a nastavljaju s istim mapiranjem koje pokazuje na isti dijeljeni objekt.
-
-  Pokretanje primjera nekoliko puta zaredom:
+  Pokrenimo nekoliko puta zaredom:
 
   ```
-  $ ./shm_demo
-  Konacna vrijednost brojaca: 2000000 (ocekivano: 2000000)
-  $ ./shm_demo
-  Konacna vrijednost brojaca: 1000000 (ocekivano: 2000000)
-  $ ./shm_demo
-  Konacna vrijednost brojaca: 1837421 (ocekivano: 2000000)
-  $ ./shm_demo
-  Konacna vrijednost brojaca: 2000000 (ocekivano: 2000000)
+  $ ./shm_brojac
+  Konacna vrijednost: 2000000 (ocekivano: 2000000)
+  $ ./shm_brojac
+  Konacna vrijednost: 2000000 (ocekivano: 2000000)
+  $ ./shm_brojac
+  Konacna vrijednost: 1437218 (ocekivano: 2000000)
+  $ ./shm_brojac
+  Konacna vrijednost: 1000000 (ocekivano: 2000000)
+  $ ./shm_brojac
+  Konacna vrijednost: 2000000 (ocekivano: 2000000)
   ```
 
-  Različiti pokušaji daju **različite rezultate** — ponekad točan, češće manje od očekivanog. Razlog je što operacija `(*brojac)++` na razini procesora nije atomarna; ona se dijeli na tri koraka: pročitaj trenutnu vrijednost iz memorije, povećaj je za 1, upiši natrag. Ako se dva procesa **prekriva** u tim koracima — proces A pročita vrijednost 100, prije nego što je upiše 101, proces B pročita istu vrijednost 100, povećaj na 101, upiše 101 u memoriju, pa onda i A upiše 101 — gubi se jedna inkrementacija.
+  Različiti pokušaji daju različite rezultate — ponekad točan, ponekad manje od očekivanog. Ovo je race condition u praksi.
 
-  Da bismo ovaj problem riješili, trebamo nekakav mehanizam koji garantira da samo jedan proces u datom trenutku može mijenjati brojač. To je posao **sinkronizacijskih primitiva**.
-
-## Sinkronizacija pomoću semafora
+### Semafor kao sinkronizacijski mehanizam
 
 **Semafor** je sinkronizacijska primitiva koja čuva cjelobrojnu vrijednost i podržava dvije atomarne operacije:
 
 - **`wait`** (povijesno ime: `P`) — smanji vrijednost za 1; ako bi rezultat bio negativan, blokiraj dok netko drugi ne pozove `post`.
 - **`post`** (povijesno ime: `V`) — povećaj vrijednost za 1; ako su procesi blokirani u `wait`-u, jedan od njih se odblokira.
 
-Kad se semafor inicijalizira na 1 i koristi se kao zaštita kritične sekcije, on funkcionira kao **mutex** (engl. *mutual exclusion lock*). Drugačije inicijalne vrijednosti omogućuju složenije obrasce sinkronizacije (npr. semafor inicijaliziran na `N` dopušta `N` procesa istodobno u kritičnoj sekciji).
+Inicijaliziramo li semafor na 1 i koristimo li ga kao zaštitu kritične sekcije — dijela koda koji ne smije izvršavati više procesa istovremeno — semafor djeluje kao **mutex** (engl. *mutual exclusion lock*). Prvi proces uđe u kritičnu sekciju (`wait` smanji vrijednost s 1 na 0); svi ostali blokiraju u `wait`-u dok prvi proces ne završi i ne pozove `post` (vrati vrijednost na 1, oslobađa jednog koji je čekao). Drugačije inicijalne vrijednosti omogućuju složenije obrasce sinkronizacije (npr. semafor inicijaliziran na `N` dopušta `N` procesa istodobno u kritičnoj sekciji).
 
-POSIX standard nudi dvije inačice semafora:
-
-- **Imenovane** semafore — identificirani putanjom kao i shm objekti, dostupni nepovezanim procesima.
-- **Anonimne** semafore — žive u procesovoj memoriji ili u dijeljenoj memoriji, dostupni samo procesima koji ih dijele.
-
-Mi ćemo koristiti **imenovane** semafore jer su jednostavniji za upotrebu i pristupa im se gotovo identično kao shm objektima.
+POSIX standard nudi dvije inačice semafora — **imenovane** (identificirani putanjom kao i shm objekti, dostupni nepovezanim procesima) i **anonimne** (žive u memoriji, dostupni samo procesima koji ih dijele). Mi ćemo koristiti imenovane semafore jer su jednostavniji za upotrebu i pristupa im se gotovo identično kao shm objektima.
 
 ```c
 #include <semaphore.h>
@@ -596,11 +751,11 @@ Stvara ili otvara imenovani semafor.
 
 `sem_close` zatvara *deskriptor* semafora u trenutnom procesu (semafor i dalje postoji u sustavu). `sem_unlink` briše imenovani semafor iz sustava (kao `shm_unlink` za shm objekte).
 
-### Primjer: dijeljeni brojač sa semaforom
+#### Demonstracija: dijeljeni brojač sa semaforom
 
-Sad kad imamo i `shm` i semafor, ispravljamo prethodni primjer. Brojač i dalje živi u dijeljenoj memoriji, ali je svaka inkrementacija zaštićena semaforom inicijaliziranim na 1.
+Sad ćemo isti `shm_brojac` proširiti tako da je svaka inkrementacija zaštićena binarnim semaforom — drugim riječima, samo jedan proces u jednom trenutku smije ulaziti u "load → increment → store" sekvencu.
 
-- [**`shm_sem_demo.c`**](shm_sem_demo.c) — dijeljeni brojač **sa** sinkronizacijom.
+- [**`shm_brojac_sem.c`**](shm_brojac_sem.c) — dijeljeni brojač sa sinkronizacijom.
 
   ```c
   #include <stdio.h>
@@ -609,7 +764,6 @@ Sad kad imamo i `shm` i semafor, ispravljamo prethodni primjer. Brojač i dalje 
   #include <fcntl.h>
   #include <sys/mman.h>
   #include <sys/wait.h>
-  #include <sys/stat.h>
   #include <semaphore.h>
 
   #define SHM_NAME "/moj_brojac"
@@ -622,41 +776,37 @@ Sad kad imamo i `shm` i semafor, ispravljamo prethodni primjer. Brojač i dalje 
       sem_t *sem;
       pid_t pid;
 
-      /* dijeljena memorija (kao prije) */
       fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
       if (fd < 0) { perror("shm_open"); return 1; }
       if (ftruncate(fd, sizeof(int)) < 0) { perror("ftruncate"); return 1; }
-      brojac = mmap(NULL, sizeof(int),
-                    PROT_READ | PROT_WRITE,
+      brojac = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE,
                     MAP_SHARED, fd, 0);
       if (brojac == MAP_FAILED) { perror("mmap"); return 1; }
       *brojac = 0;
 
-      /* semafor - inicijalna vrijednost 1 (binarni semafor) */
+      /* binarni semafor inicijaliziran na 1 */
       sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
       if (sem == SEM_FAILED) { perror("sem_open"); return 1; }
 
       pid = fork();
       if (pid < 0) { perror("fork"); return 1; }
 
-      /* oba procesa povecavaju brojac, ali sad pod zastitom semafora */
+      /* oba procesa povecavaju brojac, pristup zasticen semaforom */
       for (int i = 0; i < ITERACIJA; i++) {
-          sem_wait(sem);                       /* udji u kriticnu sekciju */
+          sem_wait(sem);
           (*brojac)++;
-          sem_post(sem);                       /* napusti kriticnu sekciju */
+          sem_post(sem);
       }
 
       if (pid == 0) {
-          /* dijete */
           sem_close(sem);
           munmap(brojac, sizeof(int));
           close(fd);
           return 0;
       }
 
-      /* roditelj */
       wait(NULL);
-      printf("Konacna vrijednost brojaca: %d (ocekivano: %d)\n",
+      printf("Konacna vrijednost: %d (ocekivano: %d)\n",
              *brojac, 2 * ITERACIJA);
 
       sem_close(sem);
@@ -671,15 +821,17 @@ Sad kad imamo i `shm` i semafor, ispravljamo prethodni primjer. Brojač i dalje 
   Pokretanje:
 
   ```
-  $ ./shm_sem_demo
-  Konacna vrijednost brojaca: 2000000 (ocekivano: 2000000)
-  $ ./shm_sem_demo
-  Konacna vrijednost brojaca: 2000000 (ocekivano: 2000000)
-  $ ./shm_sem_demo
-  Konacna vrijednost brojaca: 2000000 (ocekivano: 2000000)
+  $ ./shm_brojac_sem
+  Konacna vrijednost: 2000000 (ocekivano: 2000000)
+  $ ./shm_brojac_sem
+  Konacna vrijednost: 2000000 (ocekivano: 2000000)
+  $ ./shm_brojac_sem
+  Konacna vrijednost: 2000000 (ocekivano: 2000000)
   ```
 
-  Sad je rezultat **uvijek točan**, neovisno o tome kako se procesi međusobno prepleću — semafor garantira da je svaka inkrementacija atomarna iz perspektive drugih procesa. Cijena je manja brzina (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali kod gdje su podaci točni je gotovo uvijek bolji od bržeg koji daje pogrešne rezultate.
+  Sada je rezultat **uvijek točan**, neovisno o tome kako se procesi međusobno prepleću — `sem_wait` osigurava da samo jedan proces u danom trenutku radi `(*brojac)++`. Cijena je manja brzina (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali kod gdje su podaci točni je gotovo uvijek bolji od bržeg koji daje pogrešne rezultate.
+
+> **Napomena**: u poglavlju o pthread-ima vraćamo se na ovu problematiku, ali sinkronizaciju kritične sekcije rješavamo pomoću **mutex-a** — sinkronizacijske primitive koja je konceptualno identična binarnom semaforu, ali se nalazi u drugoj biblioteci i koristi se u kontekstu dretvi unutar istog procesa.
 
 ## POSIX redovi poruka
 
@@ -884,6 +1036,17 @@ Nedostaci:
 
 Za male datoteke ili kad treba upravljati streaming-om, klasični `read`/`write` ostaju primjereniji. Za velike datoteke kojima se pristupa nasumično, ili koje treba dijeliti između procesa, `mmap` je često znatno brži i elegantniji.
 
+#### Analogija s cjevovodima
+
+Sad kad smo upoznali oba lica `mmap`-a — i mapiranje shm objekta, i mapiranje regularne datoteke — vrijedi povući paralelu s mehanizmima koje smo ranije upoznali. UNIX je vrlo dosljedan u tome kako razdvaja **anonimne** i **imenovane** varijante istog koncepta:
+
+| | Bez imena u datotečnom sustavu | S imenom u datotečnom sustavu |
+|---|---|---|
+| **Tok bajtova** | anonimni cjevovod (`pipe()`) | FIFO (`mkfifo()`) |
+| **Memorijska regija** | `mmap` s `MAP_ANONYMOUS` | `shm_open` + `mmap` (ili `mmap` na regularnu datoteku) |
+
+Anonimna varijanta uvijek se može dijeliti samo između srodnih procesa, jer se prenosi kroz `fork()`. Imenovana varijanta dostupna je svakom procesu koji zna ime u datotečnom sustavu — bez obzira jesu li procesi povezani. Isti obrazac, primijenjen u dva različita konteksta (tokovi bajtova naspram regija memorije).
+
 ## System V IPC — kratko upoznavanje
 
 Prije nego što je POSIX standardizirao IPC funkcije koje smo upravo upoznali, AT&T-jev System V UNIX je imao vlastiti skup mehanizama: System V poruke, semafore i dijeljenu memoriju. Iako su POSIX inačice danas preporučene za nove programe, System V API i dalje postoji na svim modernim UNIX sustavima i čest je u starijim kodovima — pa je dobro znati prepoznati ga.
@@ -983,7 +1146,7 @@ System V semafori i dijeljena memorija imaju analogan API (`semget`/`semop`/`sem
 
 ## Što smo zapravo radili
 
-Vrijedi se na kraju ovog poglavlja na trenutak osvrnuti na sliku koja je nastala. Procesi u UNIX sustavu, ako žele surađivati, imaju na raspolaganju lepezu mehanizama — od najjednostavnijih (signali, cjevovodi) preko sofisticiranih (redovi poruka, dijeljena memorija sa semaforima) do mrežno-orijentiranih (socketi, koje obrađujemo u sljedećem poglavlju). Svaki mehanizam ima svoje mjesto:
+Vrijedi se na kraju ovog poglavlja na trenutak osvrnuti na sliku koja je nastala. Procesi u UNIX sustavu, ako žele surađivati, imaju na raspolaganju lepezu mehanizama — od najjednostavnijih (signali, cjevovodi) preko sofisticiranih (redovi poruka, dijeljena memorija) do mrežno-orijentiranih (socketi, koje obrađujemo u sljedećem poglavlju). Svaki mehanizam ima svoje mjesto:
 
 - **Signali** za jednostavno obavještavanje — kad nije važan sadržaj, samo da se nešto dogodilo.
 - **Cjevovodi i FIFO** za jednosmjeran tok bajtova — klasika za "filterski" stil programa kakav vidimo svaki dan u UNIX ljusci (`ls | grep | wc`).
@@ -1004,6 +1167,6 @@ Ove dodatne biblioteke su u Makefile-u već navedene gdje su potrebne. System V 
 
 ```sh
 make all          # gradi sve primjere
-make cjev         # gradi pojedinačni primjer
+make cijev        # gradi pojedinačni primjer
 make clean        # čisti generirane datoteke
 ```
