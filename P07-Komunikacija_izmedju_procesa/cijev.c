@@ -7,7 +7,6 @@
 int main(void) {
   int fd[2];
   pid_t pid;
-  char buf[128];
 
   /* fd[0] - kraj za citanje
    * fd[1] - kraj za pisanje */
@@ -24,6 +23,7 @@ int main(void) {
 
   if (pid == 0) {
     /* dijete - cita iz cjevovoda */
+    char buf[128];
     close(fd[1]);                       /* ne treba nam pisanje */
     ssize_t n = read(fd[0], buf, sizeof(buf) - 1);
     if (n > 0) {
@@ -31,15 +31,15 @@ int main(void) {
       printf("Dijete primilo: %s\n", buf);
     }
     close(fd[0]);
-    return 0;
+  } else {
+    /* roditelj - pise u cjevovod */
+    const char *poruka = "Pozdrav iz roditelja!";
+    close(fd[0]);                       /* ne treba nam citanje */
+    write(fd[1], poruka, strlen(poruka));
+    close(fd[1]);
+
+    wait(NULL);                         /* cekaj da dijete zavrsi */
   }
 
-  /* roditelj - pise u cjevovod */
-  close(fd[0]);                         /* ne treba nam citanje */
-  const char *poruka = "Pozdrav iz roditelja!";
-  write(fd[1], poruka, strlen(poruka));
-  close(fd[1]);
-
-  wait(NULL);                           /* cekaj da dijete zavrsi */
   return 0;
 }

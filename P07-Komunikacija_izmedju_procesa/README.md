@@ -55,17 +55,17 @@ Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i 
 
 ![Cjevovod odmah nakon poziva pipe()](slike/cjevovod_pipe.png)
 
-Ljude koji govore sami sa sobom obično "čudno" gledamo, a ni kod procesa ovo nema previše smisla — postoje znatno jednostavniji načini da proces sam sebi nešto dojavi (obične varijable u memoriji). Cjevovod postaje koristan tek kad ga **dijelimo s drugim procesom**, što se postiže pozivom `fork()` neposredno nakon `pipe()`-a.
+Ljude koji govore sami sa sobom obično "čudno" gledamo, a ni kod procesa ovo nema previše smisla. Cjevovod postaje koristan tek kad ga **dijelimo s drugim procesom**, što se postiže pozivom `fork()` neposredno nakon `pipe()`-a.
 
-Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Oba procesa sad imaju sve četiri "krajeve" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). Da bi smjer bio jasan, **svaki proces zatvara onaj kraj koji ne koristi**: ako roditelj piše, zatvara `fd[0]`; ako dijete čita, zatvara `fd[1]`.
+Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Proces dijete nasljeđuje sve otvorene deskriptore datoteka roditelja, pa tako oba procesa sada imaju sva četiri "kraja" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). S obzirom da su cjevovodi zamišljeni za jednosmjernu komunikaciju, svaki proces trebao bi zatvoriti onaj kraj koji nema namjeru koristiti: npr. ako će informacija putovati od roditelja prema djetetu, tj. ako roditelj piše a dijete čita, roditelj zatvara `fd[0]`, a dijete `fd[1]`.
 
 ![Cjevovod nakon fork() — roditelj piše, dijete čita](slike/cjevovod_fork.png)
 
-Time se uspostavlja jednoznačan kanal: roditeljev pisuće deskriptor je jedini koji ostaje otvoren za pisanje, a djetetov čitajući je jedini koji ostaje otvoren za čitanje. Suprotni smjer — od djeteta natrag prema roditelju — fizički postoji u jezgri, ali pošto su pripadajući deskriptori zatvoreni s obje strane, tim smjerom se ne može komunicirati. Ako trebamo komunikaciju u oba smjera, uobičajeno je rješenje stvoriti **dva** cjevovoda, svaki za svoj smjer.
+Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje ostaje otvoren samo u roditelju, dok deskriptor `fd[0]` otvoren za čitanje ostaje otvoren samo u djetetu. Komunikacija u suprotnom smjeru, od djeteta prema roditelju, nije više moguća (barem ne kroz ovaj cjevovod), jer su deskriptori koji bi omogućili komunikaciju u tom smjeru zatvoreni s obje strane. Ako trebamo komunikaciju u oba smjera, uobičajeno je rješenje stvoriti dva cjevovoda, svaki za svoj smjer.
 
 ### Cjevovod između roditelja i djeteta
 
-- [**`cjev.c`**](cjev.c) — minimalan primjer cjevovoda: roditelj šalje poruku djetetu kroz cjevovod.
+- [**`cijev.c`**](cijev.c) — minimalan primjer cjevovoda: roditelj šalje poruku djetetu kroz cjevovod.
 
   ```c
   #include <stdio.h>
@@ -77,7 +77,6 @@ Time se uspostavlja jednoznačan kanal: roditeljev pisuće deskriptor je jedini 
   int main(void) {
       int fd[2];
       pid_t pid;
-      char buf[128];
 
       /* fd[0] - kraj za citanje
        * fd[1] - kraj za pisanje */
@@ -94,6 +93,7 @@ Time se uspostavlja jednoznačan kanal: roditeljev pisuće deskriptor je jedini 
 
       if (pid == 0) {
           /* dijete - cita iz cjevovoda */
+          char buf[128];
           close(fd[1]);                       /* ne treba nam pisanje */
           ssize_t n = read(fd[0], buf, sizeof(buf) - 1);
           if (n > 0) {
@@ -101,36 +101,47 @@ Time se uspostavlja jednoznačan kanal: roditeljev pisuće deskriptor je jedini 
               printf("Dijete primilo: %s\n", buf);
           }
           close(fd[0]);
-          return 0;
+      } else {
+          /* roditelj - pise u cjevovod */
+          const char *poruka = "Pozdrav iz roditelja!";
+          close(fd[0]);                       /* ne treba nam citanje */
+          write(fd[1], poruka, strlen(poruka));
+          close(fd[1]);
+
+          wait(NULL);                         /* cekaj da dijete zavrsi */
       }
 
-      /* roditelj - pise u cjevovod */
-      close(fd[0]);                         /* ne treba nam citanje */
-      const char *poruka = "Pozdrav iz roditelja!";
-      write(fd[1], poruka, strlen(poruka));
-      close(fd[1]);
-
-      wait(NULL);                           /* cekaj da dijete zavrsi */
       return 0;
   }
   ```
 
-  Bitno je primijetiti redoslijed pozivа: prvo se otvara cjevovod (u roditelju), a tek **onda** se radi `fork()`. Time se osigurava da oba procesa naslijede iste deskriptore. Da je redoslijed obrnut, dijete ne bi imalo pristup cjevovodu.
+  Bitno je primijetiti redoslijed pozivа: prvo se otvara cjevovod (u roditelju), a tek onda se radi `fork()`. Time se osigurava da oba procesa imaju iste deskriptore. Ukoliko bi prvo napravili `fork()`, a tek zatim `pipe()`, dijete ne bi imalo pristup cjevovodu. Još veća greška bila bi napraviti `fork()`, a zatim `pipe()` u oba procesa — ovim bi dobili dva potpuno odvojena cjevovoda, a svaki proces bi mogao jedino pričati sam sa sobom.
 
-  Zatvaranje "krivog" kraja u svakom procesu nije samo čistunska sitnica — bez toga čitač može u nekim slučajevima zauvijek čekati podatke koje samog sebe smatra "još uvijek mogućim pošiljateljem". `read` na cjevovod vraća `0` (kraj toka) tek kad **svi** deskriptori za pisanje budu zatvoreni; ako roditelj pošalje poruku ali dijete zaboravi zatvoriti svoj kopiju `fd[1]`, dijete će zauvijek blokirati u `read`-u jer cjevovod sa svoje strane "još uvijek može doći podatak".
+  Primijetimo i da su lokalne varijable jasno razdvojene između grana: međuspremnik `buf` deklariran je samo unutar grane djeteta, a varijabla `poruka` (i tekst poruke) zapisana je samo u grani roditelja. Ovo je u primjeru namjerno napravljeno kako bi se dodatno naglasilo da dijete nije imalo mogućnost direktnog pristupa poruci definiranoj u procesu roditelju. Razmjena podataka između roditelja i djeteta moguća je isključivo kroz cjevovod — vrijednost se mora upisati u `fd[1]` na jednoj strani i pročitati iz `fd[0]` na drugoj.
+
+  U praksi smo varijablu mogli definirati samo jednom, na početku programa. Nakon poziva `fork()` adresni prostori roditelja i djeteta se odvajaju, pa smo u roditelju mogli koristiti istu varijablu za definiranje poruke, a u djetetu za primanje poruke kroz cjevovod — ili za bilo što drugo. Nakon poziva `fork()`, dvije naizgled "iste" varijable u dva procesa zapravo pokazuju na dvije odvojene adrese u odvojenim adresnim prostorima. Međutim, kao što smo već ranije rekli, u ovom primjeru namjerno koristimo različita imena varijabli kako bismo dodatno naglasili funkcionalnost primjera.
 
   Pokretanje:
 
   ```
-  $ ./cjev
+  $ ./cijev
   Dijete primilo: Pozdrav iz roditelja!
   ```
 
-### Implementacija ljuskinog "pipe" operatora
+  Važno je napomenuti da zatvaranje "nepotrebnog" kraja cjevovoda u svakom od procesa nije korak koji nam služi tek tome da bismo imali pregledniji kod — bez ovog koraka proces koji čita iz cjevovoda može ostati zauvijek blokiran u pozivu `read()`. Naime, nakon što proces koji u cjevovod piše zatvori `fd[1]`, ili završi s izvršavanjem (čime se zatvaraju i svi otvoreni deskriptori datoteka), idući poziv `read()` u čitatelju vratit će `0` (*End of file* — podsjetimo se sistemskog poziva `read()`). Međutim, ukoliko čitatelj sam drži otvorenim svoju kopiju kraja za pisanje (`fd[1]`), `read()` neće vratiti `0` jer je s gledišta jezgre drugi kraj cjevovoda i dalje otvoren — postoji još jedan deskriptor preko kojeg bi netko mogao pisati. Posljedica je vječno blokiranje čitatelja u `read()`-u, čak i nakon što je proces koji bi u cjevovod trebao pisati odavno gotov.
 
-Naredba ljuske `ls | wc -l` povezuje izlaz `ls`-a s ulazom `wc -l`-a kroz cjevovod. Ovaj klasičan UNIX idiom možemo implementirati i sami — uz `pipe()`, `fork()`, **`dup2()`** i `exec`. `dup2()` preusmjerava jedan deskriptor u drugi (već smo ga upoznali u poglavlju o ulazno/izlaznim operacijama). Trik je u tome da prije `exec`-a preusmjerimo standardne deskriptore na krajeve cjevovoda.
+### Preusmjeravanje i cjevovodi
 
-- [**`mojcjev.c`**](mojcjev.c) — implementacija naredbe `ls | wc -l` korištenjem `pipe`, `fork`, `dup2` i `exec`.
+U sljedećem primjeru iskoristit ćemo cjevovode da implementiramo još jednu uobičajenu funkciju ljuske: **preusmjeravanje standardnih ulaza i izlaza i ulančavanje procesa**. Podsjetimo se prvog poglavlja (vidi sekciju o preusmjeravanju u P01) i operatora `|` kojim standardni izlaz jednog procesa možemo povezati izravno na standardni ulaz drugog. Tako, na primjer, ukoliko želimo prebrojati koliko u nekom direktoriju ima datoteka, možemo kombinirati dvije standardne UNIX naredbe: **`ls`** za pregled sadržaja direktorija i **`wc -l`** za brojanje redaka na standardnom ulazu (`wc` bez ikakve opcije ispisuje broj redaka, riječi i znakova; opcija `-l` ograničava ispis samo na broj redaka — pojedinosti nudi `man wc`):
+
+```
+$ ls | wc -l
+14
+```
+
+Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovoda. Trik se sastoji od nekoliko koraka. Najprije glavni proces stvori cjevovod pozivom `pipe()`, nakon čega pozove `fork()` — sad imamo dva procesa koja imaju pristup krajevima cjevovoda za čitanje i pisanje. Kako nam je cilj da izlaz iz naredbe `ls` završi na ulazu naredbe `wc`, na standardni izlaz procesa koji će izvršiti `ls` dupliciramo `fd[1]` — kraj za pisanje cjevovoda koji smo upravo stvorili. Slično, u procesu koji će izvršiti `wc`, na standardni ulaz dupliciramo `fd[0]` — kraj cjevovoda za čitanje. Za dupliciranje deskriptora služi nam sistemski poziv `dup2()` koji smo već upoznali u poglavlju o ulazno/izlaznim operacijama. Tek nakon ovog preusmjeravanja, svaki proces pozove `exec` i postane `ls` odnosno `wc`. Time `ls`, koji ne zna ništa o našem cjevovodu, jednostavno piše svoje rezultate na svoj standardni izlaz — koji se "magično" završava u cjevovodu; a `wc -l`, isto neupućen u priču, čita s ulaza koji je zapravo drugi kraj istog cjevovoda.
+
+- [**`prebroji.c`**](prebroji.c) — implementacija `ls | wc -l`, korištenjem `pipe`, `fork`, `dup2` i `exec`.
 
   ```c
   #include <stdio.h>
@@ -140,60 +151,60 @@ Naredba ljuske `ls | wc -l` povezuje izlaz `ls`-a s ulazom `wc -l`-a kroz cjevov
 
   int main(void) {
       int fd[2];
-      pid_t pid_ls, pid_wc;
+      pid_t pid;
 
       if (pipe(fd) < 0) {
           perror("pipe");
           return 1;
       }
 
-      /* prvi proces: ls */
-      pid_ls = fork();
-      if (pid_ls < 0) { perror("fork"); return 1; }
-      if (pid_ls == 0) {
-          /* preusmjeri standardni izlaz na pisuci kraj cjevovoda */
-          dup2(fd[1], STDOUT_FILENO);
-          close(fd[0]);
-          close(fd[1]);
-          execlp("ls", "ls", (char *)NULL);
-          perror("execlp ls");
+      pid = fork();
+      if (pid < 0) {
+          perror("fork");
           return 1;
       }
 
-      /* drugi proces: wc -l */
-      pid_wc = fork();
-      if (pid_wc < 0) { perror("fork"); return 1; }
-      if (pid_wc == 0) {
-          /* preusmjeri standardni ulaz na citajuci kraj cjevovoda */
-          dup2(fd[0], STDIN_FILENO);
+      if (pid == 0) {
+          /* preusmjeri standardni izlaz na fd[1] */
+          dup2(fd[1], STDOUT_FILENO);
+          if (fd[1] != STDOUT_FILENO)
+              close(fd[1]);
           close(fd[0]);
+          execlp("ls", "ls", (char *)NULL);
+          perror("execlp ls");
+          return 1;
+      } else {
+          /* preusmjeri standardni ulaz na fd[0] */
+          dup2(fd[0], STDIN_FILENO);
+          if (fd[0] != STDIN_FILENO)
+              close(fd[0]);
           close(fd[1]);
           execlp("wc", "wc", "-l", (char *)NULL);
           perror("execlp wc");
           return 1;
       }
-
-      /* roditelj: zatvori oba kraja i cekaj djecu */
-      close(fd[0]);
-      close(fd[1]);
-      waitpid(pid_ls, NULL, 0);
-      waitpid(pid_wc, NULL, 0);
-      return 0;
   }
   ```
 
-  Bitan detalj: roditelj **mora zatvoriti oba kraja** cjevovoda. Inače `wc` nikad ne dobije EOF (krajni proces drži pisuće deskriptore otvorenim) i program zaglavi.
+  Ključne stvari koje treba primijetiti:
+
+  - **`dup2(fd[1], STDOUT_FILENO)`** u djetetu znači: "neka deskriptor 1 (stdout) sad bude kopija onoga što pokazuje `fd[1]`" — efektivno, sve što `ls` napiše na svoj standardni izlaz zapravo ide u cjevovod.
+  - Jednako tome, **`dup2(fd[0], STDIN_FILENO)`** u roditelju preusmjerava `wc`-ov ulaz na čitajući kraj cjevovoda.
+  - **Oba procesa zatvaraju izvorne deskriptore cjevovoda** odmah nakon `dup2`-a. Razlog je upravo onaj koji smo opisali u prethodnoj sekciji: ako `wc` (roditelj) drži otvoren `fd[1]`, kraj za pisanje na svojoj strani, on bi sam sebi spriječio EOF — `read` na cjevovodu ne bi nikad vratio `0`, i `wc` bi zaglavio. Pažljivi čitatelj primijetit će uvjete `if (fd[1] != STDOUT_FILENO)` i `if (fd[0] != STDIN_FILENO)` prije zatvaranja: oni štite od rubnog slučaja kad bi `pipe()` slučajno vratio `fd[0] == 0` ili `fd[1] == 1` (npr. ako je standardni ulaz/izlaz već ranije bio zatvoren). Tada bismo `close`-om upravo zatvorili kraj cjevovoda koji smo netom postavili kroz `dup2`, čime bi cijela konstrukcija propala.
+  - **Nije nužan eksplicitni `wait`** na dijete: nakon što roditelj pozove `exec` i postane `wc`, `wc` će prirodno blokirati u `read`-u dok se cjevovod ne zatvori s druge strane. To se događa kad dijete (`ls`) završi svoj posao i jezgra zatvori njegove deskriptore. Tek tada `wc` dobije EOF i ispiše broj redaka. Zanimljiva posljedica je da `ls` nakratko postaje **zombie proces** (jer ga njegov roditelj `wc` ne `wait`-a), no čim cijeli naš `prebroji` (koji je u međuvremenu postao `wc`) završi, sirotinjski `ls` zombie usvaja `init` proces (`PID 1`) koji ga uredno počisti pozivom `wait`. Tako smo izbjegli trajno zaglavljivanje zombie procesa, iako u kodu nigdje eksplicitno nismo čekali djecu.
 
   Pokretanje:
 
   ```
-  $ ./mojcjev
-  9
+  $ ./prebroji
+  14
+  $ ls | wc -l
+  14
   ```
 
-  (Rezultat će biti broj zapisa u trenutnom direktoriju — kao `ls | wc -l`.)
+  Rezultat je broj zapisa u trenutnom direktoriju — identičan onome što daje `ls | wc -l` u ljusci.
 
-  Ovaj sažeti primjer pokazuje **kako ljuska zapravo radi pipe**: ona za svaku komponentu cjevovoda pokrene zaseban proces, a između njih postavi cjevovode kroz `dup2`. Naš program implementira točno ono što ljuska radi kad joj utipkamo `ls | wc -l`.
+  Ovaj sažeti primjer pokazuje kako je u ljusci implementirano ulančavanje procesa u blokove: za svaku komponentu cjevovoda pokrene zaseban proces, a između njih postavi cjevovod uz odgovarajuća preusmjeravanja. U pravoj ljusci proces bi tekao ovako: ljuska prvo stvori cjevovod, a nakon toga pokrene dva nova procesa — u jednom `ls`, u drugom `wc -l`. U svakom od dva novostvorena procesa odradio bi se postupak koji smo upravo pokazali primjerom (preusmjeravanje deskriptora, zatim `exec`). Proces roditelj — sama ljuska — pak nastavio bi se izvršavati i pozvao `wait` za oba procesa djeteta, nakon čega bi čekao iduću naredbu korisnika. U našem slučaju nema iduće naredbe nakon `prebroji`, pa smo primjer pojednostavnili tako što je sam glavni proces postao jedna od komponenata cjevovoda (`wc -l`).
 
 ## Imenovani cjevovodi (FIFO)
 
