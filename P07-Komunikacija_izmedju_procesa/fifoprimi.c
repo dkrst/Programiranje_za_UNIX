@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -10,7 +9,7 @@
 
 int main(void) {
   int fd;
-  char buf[256];
+  char s;
   ssize_t n;
 
   /* stvori FIFO ako jos ne postoji */
@@ -26,11 +25,10 @@ int main(void) {
     return 1;
   }
 
-  n = read(fd, buf, sizeof(buf) - 1);
-  if (n > 0) {
-    buf[n] = '\0';
-    printf("Primljeno: %s\n", buf);
-  }
+  /* citaj iz FIFO-a i ispisuj na standardni izlaz znak po znak,
+   * dok read ne vrati 0 (kad pisac zatvori svoj kraj cjevovoda) */
+  while ((n = read(fd, &s, 1)) > 0)
+    write(STDOUT_FILENO, &s, 1);
 
   close(fd);
   return 0;

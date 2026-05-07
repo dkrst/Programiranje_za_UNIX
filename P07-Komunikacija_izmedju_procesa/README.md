@@ -28,7 +28,7 @@ Signali, koje smo detaljno obradili u prethodnom poglavlju, ujedno su i najjedno
 
 Najjednostavniji i najstariji UNIX IPC mehanizam je **anonimni cjevovod** (engl. *pipe*). Cjevovod je jednosmjerni komunikacijski kanal — niz bajtova koji jedan proces piše s jednog kraja, a drugi čita s drugog. Implementiran je kao međuspremnik (engl. *buffer*) u jezgri.
 
-S programerske strane, cjevovod se predstavlja kao **par file deskriptora**: jedan za čitanje, drugi za pisanje. Time se cjevovod uklapa u UNIX-ovu paradigmu *"sve je datoteka"* — čitamo i pišemo iste sistemske pozive (`read`, `write`) koje smo upoznali u poglavlju o ulazno/izlaznim operacijama.
+S programerske strane, cjevovod se predstavlja kao **par deskriptora datoteke**: jedan za čitanje, drugi za pisanje. Time se cjevovod uklapa u UNIX-ovu paradigmu *"sve je datoteka"* — čitamo i pišemo iste sistemske pozive (`read`, `write`) koje smo upoznali u poglavlju o ulazno/izlaznim operacijama.
 
 Karakteristike anonimnih cjevovoda:
 
@@ -49,7 +49,7 @@ int pipe(int fd[2]);
 
 **Argumenti:**
 
-- **`fd`** — polje od dva cijela broja u koje funkcija upisuje dva nova file deskriptora: `fd[0]` (kraj za **čitanje**) i `fd[1]` (kraj za **pisanje**). Zgodno mnemoničko pomagalo: `0` se često asocira sa standardnim ulazom (čitanjem), `1` sa standardnim izlazom (pisanjem).
+- **`fd`** — polje od dva cijela broja u koje funkcija upisuje dva nova deskriptora datoteke: `fd[0]` (kraj za **čitanje**) i `fd[1]` (kraj za **pisanje**). Zgodno mnemoničko pomagalo: `0` se često asocira sa standardnim ulazom (čitanjem), `1` sa standardnim izlazom (pisanjem).
 
 Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i čitajući i pisajući deskriptor. U principu, ovaj proces sad može pisati u `fd[1]` i sam čitati to što je napisao iz `fd[0]`, dakle, razgovarati sam sa sobom:
 
@@ -190,8 +190,8 @@ Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovo
 
   - **`dup2(fd[1], STDOUT_FILENO)`** u djetetu znači: "neka deskriptor 1 (stdout) sad bude kopija onoga što pokazuje `fd[1]`" — efektivno, sve što `ls` napiše na svoj standardni izlaz zapravo ide u cjevovod.
   - Jednako tome, **`dup2(fd[0], STDIN_FILENO)`** u roditelju preusmjerava `wc`-ov ulaz na čitajući kraj cjevovoda.
-  - **Oba procesa zatvaraju izvorne deskriptore cjevovoda** odmah nakon `dup2`-a. Razlog je upravo onaj koji smo opisali u prethodnoj sekciji: ako `wc` (roditelj) drži otvoren `fd[1]`, kraj za pisanje na svojoj strani, on bi sam sebi spriječio EOF — `read` na cjevovodu ne bi nikad vratio `0`, i `wc` bi zaglavio. Pažljivi čitatelj primijetit će uvjete `if (fd[1] != STDOUT_FILENO)` i `if (fd[0] != STDIN_FILENO)` prije zatvaranja: oni štite od rubnog slučaja kad bi `pipe()` slučajno vratio `fd[0] == 0` ili `fd[1] == 1` (npr. ako je standardni ulaz/izlaz već ranije bio zatvoren). Tada bismo `close`-om upravo zatvorili kraj cjevovoda koji smo netom postavili kroz `dup2`, čime bi cijela konstrukcija propala.
-  - **Nije nužan eksplicitni `wait`** na dijete: nakon što roditelj pozove `exec` i postane `wc`, `wc` će prirodno blokirati u `read`-u dok se cjevovod ne zatvori s druge strane. To se događa kad dijete (`ls`) završi svoj posao i jezgra zatvori njegove deskriptore. Tek tada `wc` dobije EOF i ispiše broj redaka. Zanimljiva posljedica je da `ls` nakratko postaje **zombie proces** (jer ga njegov roditelj `wc` ne `wait`-a), no čim cijeli naš `prebroji` (koji je u međuvremenu postao `wc`) završi, sirotinjski `ls` zombie usvaja `init` proces (`PID 1`) koji ga uredno počisti pozivom `wait`. Tako smo izbjegli trajno zaglavljivanje zombie procesa, iako u kodu nigdje eksplicitno nismo čekali djecu.
+  - **Oba procesa zatvaraju izvorne deskriptore cjevovoda** odmah nakon `dup2`-a. Razlog je upravo onaj koji smo opisali u prethodnoj sekciji: ako `wc` (roditelj) drži otvoren `fd[1]`, kraj za pisanje na svojoj strani, on bi sam sebi spriječio kraj toka — `read` na cjevovodu ne bi nikad vratio `0`, i `wc` bi zaglavio. Pažljivi čitatelj primijetit će uvjete `if (fd[1] != STDOUT_FILENO)` i `if (fd[0] != STDIN_FILENO)` prije zatvaranja: oni štite od rubnog slučaja kad bi `pipe()` slučajno vratio `fd[0] == 0` ili `fd[1] == 1` (npr. ako je standardni ulaz/izlaz već ranije bio zatvoren). Tada bismo `close`-om upravo zatvorili kraj cjevovoda koji smo netom postavili kroz `dup2`, čime bi cijela konstrukcija propala.
+  - **Nije nužan eksplicitni `wait`** na dijete: nakon što roditelj pozove `exec` i postane `wc`, `wc` će prirodno blokirati u `read`-u dok se cjevovod ne zatvori s druge strane. To se događa kad dijete (`ls`) završi svoj posao i jezgra zatvori njegove deskriptore. Tek tada `read` u `wc`-u vrati `0` i `wc` ispiše broj redaka. Zanimljiva posljedica je da `ls` nakratko postaje **zombie proces** (jer ga njegov roditelj `wc` ne `wait`-a), no čim cijeli naš `prebroji` (koji je u međuvremenu postao `wc`) završi, sirotinjski `ls` zombie usvaja `init` proces (`PID 1`) koji ga uredno počisti pozivom `wait`. Tako smo izbjegli trajno zaglavljivanje zombie procesa, iako u kodu nigdje eksplicitno nismo čekali djecu.
 
   Pokretanje:
 
@@ -210,9 +210,9 @@ Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovo
 
 Anonimni cjevovodi imaju jedno ozbiljno ograničenje: budući da nemaju ime u datotečnom sustavu, mogu ih koristiti samo srodni procesi (preko `fork`-a). Što ako želimo da dva potpuno nezavisna procesa — pokrenuta od strane različitih korisnika, u različitim trenutcima — komuniciraju cjevovodom?
 
-Odgovor su **imenovani cjevovodi** (engl. *named pipes*) ili **FIFO**. Riječ je o cjevovodima koji imaju ime u datotečnom sustavu — vidljivi su naredbom `ls`, mogu se otvoriti običnim `open()`-om, i obrisati naredbom `rm` ili `unlink()`-om. S programerske strane, koriste se gotovo identično anonimnim cjevovodima: `read` i `write` rade isto, semantika blokiranja je ista, ograničenje smjera (jedan smjer po cjevovodu) je isto.
+Odgovor su **imenovani cjevovodi** (engl. *named pipes*) ili **FIFO** (kratica od *First In, First Out* — prvi unesen, prvi pročitan, što opisuje sam način rada cjevovoda: bajt koji se prvi upiše s jednog kraja prvi će biti i pročitan s drugog kraja). Riječ je o cjevovodima koji imaju ime u datotečnom sustavu — vidljivi su naredbom `ls` (gdje su označeni slovom `p` u prvom stupcu prava pristupa, kao u `prw-r--r--` — `p` znači *pipe*), mogu se otvoriti kao i svaka druga datoteka — pozivom `open()`, i obrisati naredbom `rm` ili `unlink()`-om. S programerske strane, koriste se gotovo identično anonimnim cjevovodima: `read` i `write` rade isto, semantika blokiranja je ista, ograničenje smjera (jedan smjer po cjevovodu) je isto.
 
-Ključna razlika u korištenju: FIFO se ne stvara `pipe()`-om, nego **`mkfifo()`-om**, i otvara običnim `open()`-om kao da je obična datoteka. Tip "FIFO" upisuje se u `st_mode` polje i-noda (sjetite se `S_ISFIFO` makroa iz poglavlja o upravljanju datotekama).
+Ključna razlika u korištenju: FIFO se ne stvara `pipe()`-om, nego **`mkfifo()`** sistemskim pozivom (ili istoimenom naredbom `mkfifo` iz ljuske). Postoji još jedna bitna razlika između ova dva poziva: `pipe()` u jednom koraku stvara cjevovod i vraća deskriptore datoteke za njegova oba kraja — jedan za čitanje, jedan za pisanje. `mkfifo()`, naprotiv, stvara samo datoteku tipa FIFO u datotečnom stablu, i ne vraća nikakve deskriptore. Tek kad tu datoteku potom otvorimo običnim pozivom `open()` (s `O_RDONLY` ili `O_WRONLY`), dobivamo deskriptor datoteke kojim možemo čitati ili pisati. Tip "FIFO" zapisan je u `st_mode` polju i-noda — sjetimo se makroa `S_ISFIFO` iz poglavlja o upravljanju datotekama, koji je upravo ono što provjerava taj bit u i-nodu i daje slovnu oznaku `p` koju vidimo u `ls -l` ispisu.
 
 ```c
 #include <sys/types.h>
@@ -228,22 +228,21 @@ int mkfifo(const char *pathname, mode_t mode);
 - **`pathname`** — putanja na kojoj će biti stvoren FIFO.
 - **`mode`** — prava pristupa (kao za `open` ili `mkdir`); konačna prava se dobiju kombinacijom s `umask` procesa.
 
-Bitne karakteristike koje treba imati na umu kod FIFO-a:
+Jednom kad imamo datoteku tipa FIFO u datotečnom sustavu — bez obzira jesmo li je upravo napravili s `mkfifo`, ili je tu od ranije (možda ju je napravila sasvim druga aplikacija) — možemo je otvoriti kao bilo koju drugu datoteku, jednostavnim pozivom `open()`. Bitne karakteristike koje treba imati na umu kod FIFO-a:
 
-- **Otvaranje blokira po defaultu**: `open()` na FIFO za čitanje blokira sve dok neki drugi proces ne otvori isti FIFO za pisanje (i obratno). Time se procesi automatski "rendez-vous"-iraju.
-- **Postoje na disku** sve dok ih netko ne obriše (`unlink` ili `rm`). Ako program zaboravi to napraviti, FIFO ostaje kao "smeće" u datotečnom sustavu.
+- **Otvaranje blokira po defaultu**: `open()` na FIFO za čitanje blokira sve dok neki drugi proces ne otvori isti FIFO za pisanje (i obratno). Time se osigurava točka susreta (engl. *rendezvous point*) za procese.
+- **Postoje na disku** sve dok ih netko ne obriše (`unlink` ili `rm`). Ovo je ponekad i poželjno — FIFO se može namjerno ostaviti u datotečnom sustavu kao trajna komunikacijska točka koju kasnije koriste razni programi. Ako pak FIFO više nije potreban, treba ga obrisati kako ne bismo gomilali nepotrebne datoteke u datotečnom sustavu.
 - **Više čitača/pisača**: na isti FIFO može se istovremeno spojiti više procesa, ali tada poredak primanja nije zajamčen ako više pisača istovremeno piše.
 
 ### Primjer: razmjena poruke kroz FIFO
 
-Stvorit ćemo dva mala programa — jedan koji šalje poruku, drugi koji je prima — koji komuniciraju kroz FIFO. Kad ih pokrenemo u dvije zasebne ljuske (ili u pozadini), ovo demonstrira IPC između potpuno **nepovezanih** procesa.
+Stvorit ćemo dva mala programa — jedan koji preuzima sa standardnog ulaza i šalje u FIFO, drugi koji čita iz FIFO-a i ispisuje na standardni izlaz — koji komuniciraju kroz FIFO. Kad ih pokrenemo u dvije zasebne ljuske, ovo demonstrira IPC između potpuno **nepovezanih** procesa.
 
-- [**`fifoposalji.c`**](fifoposalji.c) — stvara FIFO ako ne postoji, otvara ga za pisanje, šalje poruku.
+- [**`fifoposalji.c`**](fifoposalji.c) — stvara FIFO ako ne postoji, otvara ga za pisanje, te u petlji prosljeđuje sve što dolazi sa standardnog ulaza u FIFO sve dok `read` ne vrati `0` (npr. korisnik utipka Ctrl+D u terminalu).
 
   ```c
   #include <stdio.h>
   #include <stdlib.h>
-  #include <string.h>
   #include <errno.h>
   #include <fcntl.h>
   #include <unistd.h>
@@ -251,14 +250,10 @@ Stvorit ćemo dva mala programa — jedan koji šalje poruku, drugi koji je prim
 
   #define FIFO_PATH "/tmp/moj_fifo"
 
-  int main(int argc, char *argv[]) {
+  int main(void) {
       int fd;
-      const char *poruka;
-
-      if (argc < 2)
-          poruka = "Pozdrav kroz FIFO!";
-      else
-          poruka = argv[1];
+      char s;
+      ssize_t n;
 
       /* stvori FIFO ako ne postoji */
       if (mkfifo(FIFO_PATH, 0666) < 0 && errno != EEXIST) {
@@ -273,20 +268,21 @@ Stvorit ćemo dva mala programa — jedan koji šalje poruku, drugi koji je prim
           return 1;
       }
 
-      write(fd, poruka, strlen(poruka));
-      printf("Poruka poslana: %s\n", poruka);
+      /* citaj sa standardnog ulaza i prosljedjuj u FIFO znak po znak,
+       * sve dok read ne vrati 0 (korisnik je utipkao Ctrl+D u terminalu) */
+      while ((n = read(STDIN_FILENO, &s, 1)) > 0)
+          write(fd, &s, 1);
 
       close(fd);
       return 0;
   }
   ```
 
-- [**`fifoprimi.c`**](fifoprimi.c) — otvara isti FIFO za čitanje i ispisuje primljenu poruku.
+- [**`fifoprimi.c`**](fifoprimi.c) — otvara isti FIFO za čitanje i u petlji prosljeđuje sve pročitano na standardni izlaz.
 
   ```c
   #include <stdio.h>
   #include <stdlib.h>
-  #include <string.h>
   #include <errno.h>
   #include <fcntl.h>
   #include <unistd.h>
@@ -296,7 +292,7 @@ Stvorit ćemo dva mala programa — jedan koji šalje poruku, drugi koji je prim
 
   int main(void) {
       int fd;
-      char buf[256];
+      char s;
       ssize_t n;
 
       /* stvori FIFO ako jos ne postoji */
@@ -305,54 +301,100 @@ Stvorit ćemo dva mala programa — jedan koji šalje poruku, drugi koji je prim
           return 1;
       }
 
-      printf("Otvaram FIFO za citanje (cekam pisaca)...\n");
+      printf("Otvaram FIFO za citanje (cekam pisca)...\n");
       fd = open(FIFO_PATH, O_RDONLY);
       if (fd < 0) {
           perror("open");
           return 1;
       }
 
-      n = read(fd, buf, sizeof(buf) - 1);
-      if (n > 0) {
-          buf[n] = '\0';
-          printf("Primljeno: %s\n", buf);
-      }
+      /* citaj iz FIFO-a i ispisuj na standardni izlaz znak po znak,
+       * dok read ne vrati 0 (kad pisac zatvori svoj kraj cjevovoda) */
+      while ((n = read(fd, &s, 1)) > 0)
+          write(STDOUT_FILENO, &s, 1);
 
       close(fd);
       return 0;
   }
   ```
 
-  Pokretanje (u dvije zasebne ljuske, ili u pozadini):
+  Pokrenimo programe u dvije **zasebne** ljuske. U prvoj pokrećemo čitatelja:
 
   ```
-  ## ljuska 1:
+  ## ljuska 1 (citatelj):
   $ ./fifoprimi
-  Otvaram FIFO za citanje (cekam pisaca)...
+  Otvaram FIFO za citanje (cekam pisca)...
+  ```
 
-  ## ljuska 2 (paralelno):
-  $ ./fifoposalji "Bok iz druge ljuske!"
+  Program će "blokirati" na pozivu `open()` jer još nema pisca. Sad u drugoj ljusci pokrećemo pisca i utipkavamo nekoliko redaka, završavajući s `Ctrl+D`:
+
+  ```
+  ## ljuska 2 (pisac):
+  $ ./fifoposalji
   Otvaram FIFO za pisanje (cekam citatelja)...
-  Poruka poslana: Bok iz druge ljuske!
-
-  ## natrag u ljusku 1:
-  Primljeno: Bok iz druge ljuske!
+  pozdrav iz druge ljuske!
+  ovo je drugi redak.
+  ^D
+  $
   ```
 
-  Provjerimo i datotečni sustav — FIFO je stvarno tu:
+  Tek kad je u drugoj ljusci pokrenut `fifoposalji`, čitatelj u prvoj ljusci se odblokira i počinje primati podatke. Svaki redak koji utipkamo u drugoj ljusci ispisuje se u prvoj:
 
   ```
-  $ ls -l /tmp/moj_fifo
-  prw-rw-rw- 1 dkrst users 0 May  7 18:00 /tmp/moj_fifo
+  ## ljuska 1 (nastavak):
+  pozdrav iz druge ljuske!
+  ovo je drugi redak.
+  $
   ```
 
-  Početno slovo `p` označava FIFO ("**p**ipe"). Veličina je 0 jer FIFO sam ne čuva podatke na disku — samo ime i tip. Stvarni podaci prolaze kroz međuspremnik u jezgri, kao i kod anonimnih cjevovoda.
+  Pokušajte sad pokrenuti programe obrnutim redoslijedom — prvo program koji piše, a tek nakon toga program koji čita iz FIFO-a. Slobodno utipkajte i nekoliko redaka u program-pisac prije nego što pokrenete čitača. Rezultat je uvijek isti: čim pokrenete program koji čita, sve što je upisano u FIFO (koji je u osnovi cjevovod, samo što ima ime u datotečnom stablu) pojavit će se na njegovom drugom kraju.
 
-  Kad više ne trebamo FIFO, brišemo ga kao i bilo koju drugu datoteku:
+#### Veličina FIFO datoteke
 
-  ```
-  $ rm /tmp/moj_fifo
-  ```
+Provjerimo i datotečni sustav — FIFO je stvarno tu:
+
+```
+$ ls -l /tmp/moj_fifo
+prw-rw-rw- 1 dkrst users 0 May  7 18:00 /tmp/moj_fifo
+```
+
+Veličina FIFO datoteke prikazana korištenjem naredbe `ls` je **uvijek nula**, čak i ako smo pokrenuli program koji piše u FIFO i upisali nekoliko redaka prije nego što smo pokrenuli čitača. Razlog je u tome što se podaci nikada ne zapisuju stvarno na disk — kad ih netko čita, prolaze kroz cjevovod u jezgri; kad još nitko ne čita, čuvaju se u međuspremniku u jezgri. Ovo je bitno naglasiti jer čini ključnu razliku u odnosu na korištenje obične datoteke kao komunikacijske točke između dva procesa: kod obične datoteke podaci se stvarno zapisuju i čitaju s diska, što je višestruko sporiji proces od komunikacije kroz međuspremnik u jezgri. FIFO se na disku očituje samo kao ime i tip — sve "zanimljivo" događa se u memoriji.
+
+#### Pristup FIFO-u iz drugog programa
+
+Pošto je FIFO datoteka vidljiva i dostupna u datotečnom sustavu, možemo je otvoriti i s drugim programima. Pokušajmo našu datoteku `/tmp/moj_fifo` otvoriti s programom `cat` — standardnom UNIX naredbom koja čita datoteku i ispisuje njezin sadržaj na standardni izlaz:
+
+```
+## ljuska 1 (citatelj):
+$ cat /tmp/moj_fifo
+```
+
+U ovom slučaju, `cat` blokira u pokušaju čitanja iz FIFO-a, baš kao što je radio i naš `fifoprimi`. Pokrenimo sad u drugoj ljusci našeg pisca i utipkajmo poruku:
+
+```
+## ljuska 2 (pisac):
+$ ./fifoposalji
+Otvaram FIFO za pisanje (cekam citatelja)...
+ne treba nam vlastiti program za citanje!
+^D
+$
+```
+
+Čim utipkamo `Ctrl+D`, `fifoposalji` zatvori svoj kraj cjevovoda, `cat` u prvoj ljusci dobije `0` od `read`-a (kraj toka) i ispiše ono što je primio:
+
+```
+## ljuska 1 (nastavak):
+ne treba nam vlastiti program za citanje!
+$
+```
+
+Na sličan način, naš program `fifoposalji` mogli bismo zamijeniti naredbom `cat` (uz preusmjeravanje izlaza, npr. `cat > /tmp/moj_fifo`) ili još jednostavnije, naredbom `echo` (`echo "poruka" > /tmp/moj_fifo`). FIFO datoteci možemo pristupiti bilo kojim alatom koji zna otvarati datoteke — od strane FIFO-a nema nikakve razlike između specijaliziranog programa kao što je naš `fifoposalji` i standardne naredbe poput `echo`-a. To je još jedna ilustracija osnovnog UNIX principa — *sve je datoteka*. Mehanizam IPC-a (FIFO) preko datotečnog sustava postaje dostupan svim postojećim alatima, bez potrebe da znaju išta posebno o cjevovodima. Naši programi `fifoposalji` i `fifoprimi` korisni su prvenstveno kao primjeri koji ilustriraju kako se s FIFO-om radi izravno kroz sistemske pozive; u praksi bi se često koristili upravo `cat`, `echo`, ili neki drugi standardni alat.
+
+Kad više ne trebamo FIFO, brišemo ga kao i bilo koju drugu datoteku:
+
+```
+$ rm /tmp/moj_fifo
+```
 
 ## Dijeljena memorija
 
@@ -381,7 +423,7 @@ int   ftruncate(int fd, off_t length);
 
 Stvara novi (ili otvara postojeći) objekt dijeljene memorije. Ponaša se kao `open()` za obične datoteke, samo što "datoteka" živi u memorijskom datotečnom sustavu.
 
-**Povratna vrijednost:** file deskriptor u slučaju uspjeha, `-1` u slučaju greške.
+**Povratna vrijednost:** deskriptor datoteke u slučaju uspjeha, `-1` u slučaju greške.
 
 **Argumenti:**
 
