@@ -1,6 +1,6 @@
 # Programiranje za UNIX
 
-Skripta s primjerima koda iz kolegija **Programiranje za UNIX** (Damir Krstinić, Maja Braović, travanj 2026.), Sveučilište u Splitu, Fakultet elektrotehnike, strojarstva i brodogradnje (FESB).
+Skripta s primjerima iz kolegija **Programiranje za UNIX** (Damir Krstinić, Maja Braović, travanj 2026.), Sveučilište u Splitu, Fakultet elektrotehnike, strojarstva i brodogradnje (FESB).
 
 Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa i signala. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja.
 
@@ -23,6 +23,7 @@ Svaki direktorij odgovara jednom poglavlju skripte:
 | [`P04-Upravljanje_datotekama/`](P04-Upravljanje_datotekama/) | Upravljanje datotekama |
 | [`P05-Okruzenje_procesa/`](P05-Okruzenje_procesa/) | Okruženje procesa |
 | [`P06-Signali/`](P06-Signali/) | Signali |
+| [`P07-Komunikacija_izmedju_procesa/`](P07-Komunikacija_izmedju_procesa/) | Komunikacija između procesa |
 
 ### [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/)
 
@@ -47,6 +48,10 @@ Primjeri koji obrađuju životni ciklus UNIX procesa: argumente naredbenog retka
 ### [`P06-Signali/`](P06-Signali/)
 
 Primjeri koji obrađuju signale — UNIX-ov primarni mehanizam za asinkronu komunikaciju s procesom. Pokrivaju hvatanje signala (`signal`, `sigaction`), korištenje `SIGALRM` za vlastite alarme, signalnu komunikaciju između procesa, blokiranje i ignoriranje signala, te pokupljanje djece preko `SIGCHLD` rukovatelja.
+
+### [`P07-Komunikacija_izmedju_procesa/`](P07-Komunikacija_izmedju_procesa/)
+
+Mehanizmi međuprocesne komunikacije (IPC): anonimni i imenovani cjevovodi (`pipe`, FIFO), POSIX dijeljena memorija (`shm_open`, `mmap`), sinkronizacija pomoću semafora, POSIX redovi poruka, mapiranje datoteka u memoriju, te kratki uvod u System V IPC. Poglavlje uvodi i koncepte race condition-a i atomskih operacija u kontekstu paralelnog rada više procesa.
 
 ## Prevođenje i pokretanje
 
