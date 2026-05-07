@@ -1,8 +1,8 @@
 # Komunikacija između procesa
 
-Procesi u UNIX sustavu žive u potpuno odvojenim adresnim prostorima — varijable jednog procesa su nevidljive drugom, čak i ako su procesi nastali pozivom `fork()` iz istog programa. Ova izolacija je temeljna značajka modernog operacijskog sustava: ona štiti procese međusobno (jedan ne može srušiti ili korumpirati drugi), olakšava paralelno izvršavanje, i čini sustav robusnijim. Međutim, u praksi često **želimo** da procesi razmjenjuju podatke — bilo da prosljeđuju rezultate, koordiniraju rad, ili dijele zajedničke resurse. Skup mehanizama koji to omogućuju zajedničkim imenom zovemo **međuprocesna komunikacija** (engl. *Inter-Process Communication*, IPC).
+Procesi u UNIX sustavu žive u potpuno odvojenim adresnim prostorima — varijable jednog procesa su nevidljive drugom, čak i ako je jedan proces nastao od drugog pozivom `fork()`, ili ako imaju istog zajedničkog pretka — isti proces-roditelj stvorio ih je s dva poziva `fork()`. Ova izolacija je temeljna značajka modernog operacijskog sustava: ona štiti procese međusobno (jedan ne može srušiti ili neispravno izmijeniti podatke drugog), olakšava paralelno izvršavanje, i čini sustav robusnijim. Međutim, u praksi često želimo da procesi razmjenjuju podatke — bilo da prosljeđuju rezultate, koordiniraju rad, ili dijele zajedničke resurse. Skup mehanizama koji to omogućuju zajedničkim imenom zovemo **međuprocesna komunikacija** (engl. *Inter-Process Communication*, IPC).
 
-UNIX nudi cijelu lepezu IPC mehanizama, od najjednostavnijeg cjevovoda do složenih dijelova zajedničke memorije i mrežnih socketa. U ovom poglavlju upoznat ćemo glavne klasične mehanizme. Prije nego krenemo, vrijedi se kratko podsjetiti na još jedan oblik komunikacije koji smo već obradili.
+UNIX nudi cijelu lepezu IPC mehanizama, od najjednostavnijeg cjevovoda do složenih koncepata dijeljene memorije, ili mrežnih socketa koji omogućavaju ne samo komunikaciju između procesa na istom računalu, već i među procesima koji se izvršavaju na različitim krajevima svijeta. IPC je opsežno područje — sveobuhvatna skripta koja bi pokrila sve mehanizme i ilustrirala ih dovoljnim brojem primjera vjerojatno bi zahtijevala volumen barem jednak ovoj skripti u cjelini. Stoga ćemo se ovdje ograničiti na osnovne mehanizme, dovoljno detaljno obrađene da čitatelj stekne uvid u područje i razumijevanje osnovnih koncepata međuprocesne komunikacije, a zainteresiranog čitatelja potaknemo da sam nastavi s istraživanjem onoga što ostaje izvan dometa ovog poglavlja. Prije nego krenemo, vrijedi se kratko podsjetiti na još jedan oblik komunikacije koji smo već obradili.
 
 ## Pregled mehanizama IPC-a
 
@@ -16,15 +16,13 @@ UNIX ima više IPC mehanizama, svaki s vlastitim svojstvima i tipičnom primjeno
 | **POSIX redovi poruka** (engl. *message queues*) | unutar sustava | strukturirana komunikacija s prioritetima |
 | **POSIX dijeljena memorija** | unutar sustava | dijeljenje memorijskog prostora između procesa |
 | **POSIX semafori** | unutar sustava | sinkronizacija pristupa zajedničkim resursima |
-| **System V IPC** (poruke, semafori, dijeljena memorija) | unutar sustava | starija, ali još raširena alternativa POSIX-u |
+| **System V IPC** (poruke, semafori, dijeljena memorija) | unutar sustava | starija, ali raširena alternativa POSIX-u |
 | **Memory mapping** (`mmap`) | unutar sustava | mapiranje datoteka i anonimne memorijske regije |
 | **Socketi** | unutar i između sustava | komunikacija lokalna ili preko mreže |
 
-Ovo poglavlje obrađuje sve navedeno **osim socketa** koji zbog svog opsega zaslužuju zasebno poglavlje.
-
 ### Signali kao oblik IPC-a
 
-Signali, koje smo detaljno obradili u prethodnom poglavlju, ujedno su i najjednostavniji oblik međuprocesne komunikacije. Jedan proces može poslati signal drugome (pozivom `kill()`), a primatelj na njega reagira ovisno o tome je li definirao vlastiti rukovatelj signalom. Signali su međutim **vrlo siromašan** komunikacijski kanal — pošiljatelj ne može uz signal poslati nikakve podatke (osim signal numbera; novije inačice signala kroz `sigqueue` mogu nositi i jednu cijelobrojnu vrijednost). Zato signale zapravo i ne smatramo komunikacijom u užem smislu, nego prije **obavještavanjem**: "dogodilo se nešto", a primatelj sam zaključuje što s tim treba raditi. Za pravu razmjenu podataka trebamo bogatije mehanizme koje obrađujemo u ovom poglavlju.
+Signali, koje smo detaljno obradili u prethodnom poglavlju, ujedno su i najjednostavniji oblik međuprocesne komunikacije. Jedan proces može poslati signal drugome (sistemskim pozivom `kill()`), a primatelj na njega reagira ovisno o tome je li definirao vlastiti rukovatelj signalom. Signali su u osnovi vrlo jednostavan komunikacijski kanal — pošiljatelj ne može uz signal poslati nikakve podatke (novije inačice signala kroz `sigqueue` mogu nositi i jednu cijelobrojnu vrijednost). Komunikacija koju signalima možemo ostvariti zapravo se svodi na jednostavne obavijesti: *"dogodilo se nešto"*. Usporedimo ovo s lampicom *"Check engine"* koju često nalazimo u modernim automobilima (a nažalost, često i svijetli): automobil nam signalizira da je nastupilo neko stanje na koje trebamo obratiti pažnju, ali nam ne daje nikakve dodatne informacije i na nama je da s tim postupimo kako najbolje znamo. Za pravu razmjenu podataka trebamo bogatije mehanizme koje obrađujemo u ovom poglavlju.
 
 ## Anonimni cjevovodi
 
@@ -34,9 +32,9 @@ S programerske strane, cjevovod se predstavlja kao **par file deskriptora**: jed
 
 Karakteristike anonimnih cjevovoda:
 
-- **Jednosmjerni** — podaci teku od pisača prema čitaču; za dvosmjernu komunikaciju treba dva cjevovoda.
+- **Jednosmjerni** — podaci teku od jednog procesa prema drugom, od pisača prema čitaču (engl. *writer to reader*); za dvosmjernu komunikaciju treba dva cjevovoda.
 - **Anonimni** — nemaju ime u datotečnom sustavu; postoje samo dok ih neki proces drži otvorenima preko deskriptora.
-- **Samo između srodnih procesa** — pošto su anonimni, jedini način da drugi proces dobije pristup deskriptoru je da ga **naslijedi** od roditelja kroz `fork()`. Cjevovod stoga obično povezuje roditelja i dijete (ili dvoje djece istog roditelja).
+- **Samo između povezanih procesa** — pošto su anonimni, jedini način da drugi proces dobije pristup deskriptoru je da ga **naslijedi** od roditelja kroz `fork()`. Cjevovod stoga obično povezuje roditelja i dijete (ili dvoje djece istog roditelja).
 - **Ograničen kapacitet** — međuspremnik je konačan (na Linuxu obično 64 KB). Pisanje u puni cjevovod blokira pisača sve dok čitač nešto ne pročita; čitanje iz praznog cjevovoda blokira čitača sve dok pisač nešto ne napiše.
 
 ### Sistemski poziv `pipe()`
@@ -53,7 +51,17 @@ int pipe(int fd[2]);
 
 - **`fd`** — polje od dva cijela broja u koje funkcija upisuje dva nova file deskriptora: `fd[0]` (kraj za **čitanje**) i `fd[1]` (kraj za **pisanje**). Zgodno mnemoničko pomagalo: `0` se često asocira sa standardnim ulazom (čitanjem), `1` sa standardnim izlazom (pisanjem).
 
+Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i čitajući i pisajući deskriptor. U principu, ovaj proces sad može pisati u `fd[1]` i sam čitati to što je napisao iz `fd[0]`, dakle, razgovarati sam sa sobom:
+
+![Cjevovod odmah nakon poziva pipe()](slike/cjevovod_pipe.png)
+
+Ljude koji govore sami sa sobom obično "čudno" gledamo, a ni kod procesa ovo nema previše smisla — postoje znatno jednostavniji načini da proces sam sebi nešto dojavi (obične varijable u memoriji). Cjevovod postaje koristan tek kad ga **dijelimo s drugim procesom**, što se postiže pozivom `fork()` neposredno nakon `pipe()`-a.
+
 Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Oba procesa sad imaju sve četiri "krajeve" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). Da bi smjer bio jasan, **svaki proces zatvara onaj kraj koji ne koristi**: ako roditelj piše, zatvara `fd[0]`; ako dijete čita, zatvara `fd[1]`.
+
+![Cjevovod nakon fork() — roditelj piše, dijete čita](slike/cjevovod_fork.png)
+
+Time se uspostavlja jednoznačan kanal: roditeljev pisuće deskriptor je jedini koji ostaje otvoren za pisanje, a djetetov čitajući je jedini koji ostaje otvoren za čitanje. Suprotni smjer — od djeteta natrag prema roditelju — fizički postoji u jezgri, ali pošto su pripadajući deskriptori zatvoreni s obje strane, tim smjerom se ne može komunicirati. Ako trebamo komunikaciju u oba smjera, uobičajeno je rješenje stvoriti **dva** cjevovoda, svaki za svoj smjer.
 
 ### Cjevovod između roditelja i djeteta
 
