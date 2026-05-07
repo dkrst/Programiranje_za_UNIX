@@ -30,13 +30,14 @@ int main(void) {
     (*brojac)++;
 
   if (pid == 0) {
-    /* dijete */
+    /* dijete je gotovo - izlazi (inace bi i ono ispisalo rezultat) */
     munmap(brojac, sizeof(int));
     close(fd);
     return 0;
   }
 
-  /* roditelj */
+  /* roditelj ceka dijete kako ne bi ostao zombie proces, pa
+   * tek onda procita i ispise konacnu vrijednost brojaca */
   wait(NULL);
   printf("Konacna vrijednost: %d (ocekivano: %d)\n",
          *brojac, 2 * ITERACIJA);

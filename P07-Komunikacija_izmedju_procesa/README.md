@@ -608,22 +608,24 @@ Pokazat ćemo dva mala programa — jedan koji upisuje tekst u dijeljenu memorij
 Ovaj jednostavan par programa pokazuje tri ključne osobine POSIX dijeljene memorije:
 
 - **Dijeljenje** — više nezavisnih procesa pristupa istom memorijskom prostoru, jer svi koriste isto ime (`/moja_memorija`) i `mmap` ih sve preslikava u istu fizičku regiju.
-- **Postojanost** — shm objekt nadživljuje proces koji ga je stvorio. Sadržaj ostaje dostupan dok ga eksplicitno ne uklonimo, ili dok se sustav ne ponovno pokrene.
+- **Perzistentnost** — shm objekt nadživljuje proces koji ga je stvorio. Sadržaj ostaje dostupan dok ga eksplicitno ne uklonimo, ili dok se sustav ne ponovno pokrene.
 - **Imenovanost** — pristup ide kroz putanju u datotečnom sustavu, baš kao kod FIFO-a; ne treba `fork` ni nasljeđivanje deskriptora kao kod anonimnih cjevovoda.
 
 Ono što naš primjer ne pokazuje, a što je u praksi vrlo bitno: kako se uskladiti kad više procesa istovremeno piše u istu memoriju. Bez dodatnog mehanizma može doći do situacija u kojima dva procesa istovremeno pišu u isti segment dijeljene memorije, pri čemu jedan proces može "pregaziti" podatke koje je upisao drugi i podatak postaje neispravan. Ovaj problem zovemo *race condition* (utrkivanje za resursom). U sljedećoj sekciji vidjet ćemo kako on nastaje i kako se može riješiti pomoću **semafora**.
 
-## Sinkronizacija pomoću semafora
+## Semafori: upravljanje pristupom dijeljenim resursima
 
-### Race condition: zašto `i++` nije atomarna operacija
+Vratimo se na primjer iz uvoda: dva ili više procesa inkrementira brojač koji se nalazi u dijeljenoj memoriji. Zadatak je naizgled jednostavan — svaki put kada u bilo kojem od procesa nastupi određeno stanje, proces inkrementira brojač. Pri tom nas u ovom primjeru ne zanima koje je to stanje ili događaj koji bi proces trebao detektirati — taj dio odvija se u lokalnom memorijskom prostoru procesa i nema nikakvog utjecaja na varijablu u dijeljenoj memoriji. Jedino što proces mora napraviti u trenutku kada stanje detektira je jednostavna inkrementacija `count++`, pri čemu je varijabla `count` u dijeljenoj memoriji.
 
-Čovjek koji čita izraz `i++` vidi jednu, jednostavnu operaciju: "uvećaj `i` za jedan". Procesor, međutim, ne vidi to tako. Svaka aritmetička operacija nad varijablom u memoriji zapravo se izvršava u **tri zasebna koraka**:
+Prisjetimo se koncepta atomskih operacija: atomska operacija jest niz koraka koji se ili u potpunosti izvode, ili se ne izvodi niti jedan korak — nema mogućnosti da operacija bude prekinuta na pola. Možete li se sjetiti operacije jednostavnije od `count++` i postoji li uopće šansa da bi ova naredba mogla biti prekinuta, tj. da se ne izvodi atomski?
+
+Zapravo, i te kako postoji, a direktna je posljedica arhitekture digitalnih računala kod kojih se sva aritmetika nad varijablama odvija u procesoru (CPU), a ne izravno u memoriji (RAM). Svaka aritmetička operacija nad bilo kojom varijablom u memoriji zapravo se odvija u tri zasebna koraka:
 
 1. **Učitaj** trenutnu vrijednost iz memorije u registar procesora.
 2. **Uvećaj** vrijednost u registru za 1.
 3. **Pohrani** novu vrijednost iz registra natrag u memoriju.
 
-Na x86 assembly-u, ako je `count` varijabla u memoriji a `eax` registar, izraz `count++` prevodi se otprilike u ove tri instrukcije:
+Na strojnom jeziku (asembleru) x86 obitelji procesora, ako je `count` varijabla u memoriji a `eax` registar, izraz `count++` prevodi se otprilike u ove tri instrukcije:
 
 ```asm
 mov  eax, [count]    ; korak 1: ucitaj count iz memorije u eax
@@ -635,7 +637,7 @@ Operacijski sustav u svakom trenutku može prekinuti izvršavanje procesa — iz
 
 ![Race condition pri inkrementaciji dijeljenog brojača](slike/race_condition.png)
 
-Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji je `6`, a ne `7` kako bismo očekivali. Jedna inkrementacija je **izgubljena**, jer su oba procesa pročitala istu staru vrijednost prije nego što je itko stigao zapisati novu. Dok god se procesi izvršavaju neometano (svaki dovrši sva tri koraka prije nego se prebaci na drugog), sve radi ispravno; problem se javlja samo kad ih se "pogode" preklopiti baš oko iste lokacije u memoriji. To čini ovu vrstu pogreške posebno opasnom — javlja se neredovito, i pojavljuje se baš onda kad sustav ima najviše posla.
+Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji je `6`, a ne `7` kako bismo očekivali. Jedna inkrementacija je **izgubljena**, jer su oba procesa pročitala istu staru vrijednost prije nego što je itko stigao zapisati novu. Dok god se procesi izvršavaju neometano (svaki dovrši sva tri koraka prije nego se prebaci na drugog), sve radi ispravno; problem se javlja samo kad ih se "pogode" preklopiti baš oko iste lokacije u strojnom kodu. To čini ovu vrstu pogreške posebno opasnom — javlja se neredovito, i pojavljuje se baš onda kad sustav ima najviše posla.
 
 #### Demonstracija: dijeljeni brojač bez sinkronizacije
 
@@ -674,11 +676,14 @@ Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji
           (*brojac)++;
 
       if (pid == 0) {
+          /* dijete je gotovo - izlazi (inace bi i ono ispisalo rezultat) */
           munmap(brojac, sizeof(int));
           close(fd);
           return 0;
       }
 
+      /* roditelj ceka dijete kako ne bi ostao zombie proces, pa
+       * tek onda procita i ispise konacnu vrijednost brojaca */
       wait(NULL);
       printf("Konacna vrijednost: %d (ocekivano: %d)\n",
              *brojac, 2 * ITERACIJA);
@@ -694,18 +699,20 @@ Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji
 
   ```
   $ ./shm_brojac
-  Konacna vrijednost: 2000000 (ocekivano: 2000000)
+  Konacna vrijednost: 1141112 (ocekivano: 2000000)
+  $ ./shm_brojac
+  Konacna vrijednost: 1078418 (ocekivano: 2000000)
   $ ./shm_brojac
   Konacna vrijednost: 2000000 (ocekivano: 2000000)
   $ ./shm_brojac
-  Konacna vrijednost: 1437218 (ocekivano: 2000000)
-  $ ./shm_brojac
-  Konacna vrijednost: 1000000 (ocekivano: 2000000)
+  Konacna vrijednost: 1115554 (ocekivano: 2000000)
   $ ./shm_brojac
   Konacna vrijednost: 2000000 (ocekivano: 2000000)
   ```
 
   Različiti pokušaji daju različite rezultate — ponekad točan, ponekad manje od očekivanog. Ovo je race condition u praksi.
+
+  Ako primijetite da na svom sustavu gotovo svaki put dobivate točnu konačnu vrijednost, možete doraditi program tako da pokrene više procesa djece (npr. tri, četiri ili više) koji bi svi paralelno s roditeljem inkrementirali isti brojač. Što više procesa istodobno radi nad istom varijablom, to je veća šansa da se njihove "load → increment → store" sekvence preklope, pa će neispravna konačna vrijednost biti znatno češća. Ostavljamo to čitatelju kao vježbu: izmijenite `shm_brojac.c` tako da umjesto jednog `fork`-a poziv stoji u petlji koja pokrene `N` djece, a roditelj na kraju pričeka sva. Probajte različite vrijednosti `N`-a i različite brojeve iteracija pa promatrajte koliko često rezultat odstupa od očekivanog.
 
 ### Semafor kao sinkronizacijski mehanizam
 
