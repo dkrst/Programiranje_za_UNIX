@@ -615,7 +615,7 @@ Ono što naš primjer ne pokazuje, a što je u praksi vrlo bitno: kako se usklad
 
 ## Semafori: upravljanje pristupom dijeljenim resursima
 
-Vratimo se na primjer iz uvoda: dva ili više procesa inkrementira brojač koji se nalazi u dijeljenoj memoriji. Zadatak je naizgled jednostavan — svaki put kada u bilo kojem od procesa nastupi određeno stanje, proces inkrementira brojač. Pri tom nas u ovom primjeru ne zanima koje je to stanje ili događaj koji bi proces trebao detektirati — taj dio odvija se u lokalnom memorijskom prostoru procesa i nema nikakvog utjecaja na varijablu u dijeljenoj memoriji. Jedino što proces mora napraviti u trenutku kada stanje detektira je jednostavna inkrementacija `count++`, pri čemu je varijabla `count` u dijeljenoj memoriji.
+Vratimo se na primjer iz uvoda: dva ili više procesa inkrementiraju brojač koji se nalazi u dijeljenoj memoriji. Zadatak je naizgled jednostavan — svaki put kada u bilo kojem od procesa nastupi određeno stanje, proces inkrementira brojač. Pri tom nas u ovom primjeru ne zanima koje je to stanje ili događaj koji bi proces trebao detektirati — taj dio odvija se u lokalnom memorijskom prostoru procesa i nema nikakvog utjecaja na varijablu u dijeljenoj memoriji. Jedino što proces mora napraviti u trenutku kada stanje detektira je jednostavna inkrementacija `count++`, pri čemu je varijabla `count` u dijeljenoj memoriji.
 
 Prisjetimo se koncepta atomskih operacija: atomska operacija jest niz koraka koji se ili u potpunosti izvode, ili se ne izvodi niti jedan korak — nema mogućnosti da operacija bude prekinuta na pola. Možete li se sjetiti operacije jednostavnije od `count++` i postoji li uopće šansa da bi ova naredba mogla biti prekinuta, tj. da se ne izvodi atomski?
 
@@ -628,9 +628,9 @@ Zapravo, i te kako postoji, a direktna je posljedica arhitekture digitalnih rač
 Na strojnom jeziku (asembleru) x86 obitelji procesora, ako je `count` varijabla u memoriji a `eax` registar, izraz `count++` prevodi se otprilike u ove tri instrukcije:
 
 ```asm
-mov  eax, [count]    ; korak 1: ucitaj count iz memorije u eax
+mov  eax, [count]    ; korak 1: ucitaj count iz memorije u registar eax
 inc  eax             ; korak 2: povecaj eax za 1
-mov  [count], eax    ; korak 3: pohrani eax natrag u count
+mov  [count], eax    ; korak 3: pohrani vrijednost registra eax natrag u count
 ```
 
 Operacijski sustav u svakom trenutku može prekinuti izvršavanje procesa — između bilo koja dva koraka — i pustiti drugi proces da nastavi. Ako oba procesa rade nad istim podatkom u dijeljenoj memoriji, lako se dogodi sljedeća situacija:
@@ -716,12 +716,16 @@ Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji
 
 ### Semafor kao sinkronizacijski mehanizam
 
-**Semafor** je sinkronizacijska primitiva koja čuva cjelobrojnu vrijednost i podržava dvije atomarne operacije:
+**Semafor** je sinkronizacijska primitiva koja čuva cjelobrojnu vrijednost i podržava dvije atomske operacije:
 
-- **`wait`** (povijesno ime: `P`) — smanji vrijednost za 1; ako bi rezultat bio negativan, blokiraj dok netko drugi ne pozove `post`.
-- **`post`** (povijesno ime: `V`) — povećaj vrijednost za 1; ako su procesi blokirani u `wait`-u, jedan od njih se odblokira.
+- **`wait`** (povijesno ime: `P`) — smanji vrijednost semafora za 1; ako bi rezultat bio negativan, blokiraj dok netko drugi ne pozove `post`.
+- **`post`** (povijesno ime: `V`) — povećaj vrijednost semafora za 1; ako su procesi blokirani u `wait`-u, jedan od njih se odblokira.
 
-Inicijaliziramo li semafor na 1 i koristimo li ga kao zaštitu kritične sekcije — dijela koda koji ne smije izvršavati više procesa istovremeno — semafor djeluje kao **mutex** (engl. *mutual exclusion lock*). Prvi proces uđe u kritičnu sekciju (`wait` smanji vrijednost s 1 na 0); svi ostali blokiraju u `wait`-u dok prvi proces ne završi i ne pozove `post` (vrati vrijednost na 1, oslobađa jednog koji je čekao). Drugačije inicijalne vrijednosti omogućuju složenije obrasce sinkronizacije (npr. semafor inicijaliziran na `N` dopušta `N` procesa istodobno u kritičnoj sekciji).
+Imena `P` i `V` potječu iz originalnog Dijkstrinog rada *"Cooperating Sequential Processes"* iz 1965. godine (objavljenog 1968., zabilježenog kao EWD 123 u Dijkstrinim rukopisima[^dijkstra-ewd]) — Dijkstra je bio Nizozemac i izabrao je slova prema nizozemskim glagolima *passeren* ("proći") odnosno *probeer te verlagen* ("probaj smanjiti") za `P`, te *verhogen* ("povisiti") za `V`. Iako su `P` i `V` i danas često spominjani u literaturi (osobito akademskoj), u praksi se znatno češće koriste opisnija imena `wait` i `post`.
+
+[^dijkstra-ewd]: Dijkstra, E. W. (1968). *Cooperating Sequential Processes*. U: F. Genuys (ur.), *Programming Languages: NATO Advanced Study Institute*, str. 43–112. Academic Press. Rukopis je dostupan u [E. W. Dijkstra arhivi Sveučilišta u Texasu](https://www.cs.utexas.edu/users/EWD/transcriptions/EWD01xx/EWD123.html).
+
+Inicijaliziramo li semafor na 1 i koristimo li ga kao zaštitu kritične sekcije — dijela koda koji ne smije izvršavati više procesa istovremeno — semafor djeluje kao **mutex** (engl. *mutual exclusion lock*). Prvi proces uđe u kritičnu sekciju (`wait` smanji vrijednost s 1 na 0); svi ostali procesi koji nakon toga pozovu `wait` blokiraju dok proces koji je semafor zaključao ne završi i ne pozove `post` (vrati vrijednost na 1, oslobađa jednog koji je čekao). Drugačije inicijalne vrijednosti omogućuju složenije obrasce sinkronizacije (npr. semafor inicijaliziran na `N` dopušta `N` procesa istodobno u kritičnoj sekciji).
 
 POSIX standard nudi dvije inačice semafora — **imenovane** (identificirani putanjom kao i shm objekti, dostupni nepovezanim procesima) i **anonimne** (žive u memoriji, dostupni samo procesima koji ih dijele). Mi ćemo koristiti imenovane semafore jer su jednostavniji za upotrebu i pristupa im se gotovo identično kao shm objektima.
 
@@ -836,13 +840,13 @@ Sad ćemo isti `shm_brojac` proširiti tako da je svaka inkrementacija zaštiće
   Konacna vrijednost: 2000000 (ocekivano: 2000000)
   ```
 
-  Sada je rezultat **uvijek točan**, neovisno o tome kako se procesi međusobno prepleću — `sem_wait` osigurava da samo jedan proces u danom trenutku radi `(*brojac)++`. Cijena je manja brzina (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali kod gdje su podaci točni je gotovo uvijek bolji od bržeg koji daje pogrešne rezultate.
+  Sada je rezultat **uvijek točan**, neovisno o tome kako se procesi međusobno prepleću — `sem_wait` osigurava da samo jedan proces u danom trenutku radi `(*brojac)++`. Cijena je manja brzina jer svaki ulazak u kritičnu sekciju zahtijeva zaključavanje semafora (`sem_wait`), a svaki izlazak njegovo otključavanje (`sem_post`) — a obje operacije imaju svoj trošak. Ipak, kod gdje su podaci točni je gotovo uvijek bolji od bržeg koji daje pogrešne rezultate.
 
-> **Napomena**: u poglavlju o pthread-ima vraćamo se na ovu problematiku, ali sinkronizaciju kritične sekcije rješavamo pomoću **mutex-a** — sinkronizacijske primitive koja je konceptualno identična binarnom semaforu, ali se nalazi u drugoj biblioteci i koristi se u kontekstu dretvi unutar istog procesa.
+> **Napomena**: u poglavlju o pthread-ima vraćamo se na ovu problematiku, ali sinkronizaciju kritične sekcije rješavamo pomoću **mutex-a** — sinkronizacijske primitive koja je konceptualno identična binarnom semaforu, ali se nalazi u drugoj biblioteci i koristi se u kontekstu niti unutar istog procesa.
 
 ## POSIX redovi poruka
 
-Cjevovodi i FIFO-i prenose **niz neformatiranih bajtova** — ako primatelj ne zna unaprijed gdje jedna poruka završava i druga počinje, mora si sam izgraditi protokol (npr. zaglavlje s duljinom poruke). **Redovi poruka** rješavaju taj problem: prenose **diskretne, atomarne poruke** s definiranim granicama. Dodatno nude i **prioritete** — poruka višeg prioriteta čita se prije poruke nižeg, neovisno o redoslijedu slanja.
+Cjevovodi i FIFO-i prenose **niz neformatiranih bajtova** — ako primatelj ne zna unaprijed gdje jedna poruka završava i druga počinje, mora si sam izgraditi protokol (npr. zaglavlje s duljinom poruke). **Redovi poruka** rješavaju taj problem: prenose **diskretne, atomske poruke** s definiranim granicama. Dodatno nude i **prioritete** — poruka višeg prioriteta čita se prije poruke nižeg, neovisno o redoslijedu slanja.
 
 POSIX redovi poruka identificiraju se imenom kao i shm/sem objekti.
 
@@ -852,8 +856,10 @@ POSIX redovi poruka identificiraju se imenom kao i shm/sem objekti.
 #include <mqueue.h>
 
 mqd_t   mq_open(const char *name, int oflag, ...);
-int     mq_send(mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int msg_prio);
-ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg_prio);
+int     mq_send(mqd_t mqdes, const char *msg_ptr,
+                size_t msg_len, unsigned int msg_prio);
+ssize_t mq_receive(mqd_t mqdes, char *msg_ptr,
+                   size_t msg_len, unsigned int *msg_prio);
 int     mq_close(mqd_t mqdes);
 int     mq_unlink(const char *name);
 ```
@@ -862,7 +868,7 @@ int     mq_unlink(const char *name);
 
 Otvara (ili stvara) red poruka. Pri stvaranju treba dodatne argumente: `mode` (prava) i `attr` (atributi reda — najvažniji su `mq_maxmsg` koliko poruka može stati u red, i `mq_msgsize` najveća veličina jedne poruke u bajtovima).
 
-**Povratna vrijednost:** *deskriptor* reda poruka (`mqd_t`) u slučaju uspjeha, `(mqd_t)-1` u slučaju greške.
+**Povratna vrijednost:** u slučaju uspjeha vraća se *deskriptor* reda poruka tipa `mqd_t`; u slučaju greške vraća se vrijednost `(mqd_t)-1` — odnosno vrijednost `-1` eksplicitno pretvorena u tip `mqd_t`. Razlog ovakvog zapisa je u tome što POSIX standard ne propisuje da `mqd_t` mora biti cjelobrojni tip (na nekim sustavima može biti pokazivač ili struktura), pa se "neispravna vrijednost" mora eksplicitno označiti pretvorbom (engl. *cast*).
 
 #### Funkcija `mq_send()`
 
@@ -1007,6 +1013,32 @@ Uzima sljedeću poruku iz reda. Ako je red prazan, blokira (osim ako je red u ne
   ```
 
   Iako su poruke poslane redom 1-9-5, primljene su 9-5-1 — **u opadajućem redoslijedu prioriteta**, kao što se i očekuje.
+
+#### Perzistentnost reda poruka i alati ljuske
+
+Kao i POSIX dijeljena memorija, i POSIX red poruka je **perzistentan** — nakon što proces koji je slao poruke završi, red i sve njegove poruke ostaju u jezgri sve dok ih netko ne pročita ili dok se red eksplicitno ne ukloni pozivom `mq_unlink` (ili dok se sustav ponovno ne pokrene). Možete to lako provjeriti tako da pošaljete nekoliko poruka, prekinete primatelja prije nego što je pročitao sve, i kasnije ga ponovno pokrenete — preostale poruke i dalje su dostupne.
+
+Na Linuxu, POSIX redove poruka možemo pregledavati i kroz datotečni sustav. Jezgra im pridružuje virtualni `mqueue` datotečni sustav, koji je na većini distribucija već montiran pod `/dev/mqueue` (ako nije, montiramo ga sa `sudo mount -t mqueue none /dev/mqueue`). Standardni alati ljuske rade nad ovim direktorijem kao i nad bilo kojim drugim datotečnim sustavom:
+
+```
+$ ls -l /dev/mqueue/
+-rw-rw-rw- 1 dkrst users 80 May  8 14:00 moja_poruka
+```
+
+Naredba `cat` nad takvom "datotekom" ne ispisuje sadržaj poruka, već metapodatke o redu — koliko bajtova podataka red trenutno sadrži, je li netko registriran za asinkrono obavještavanje o pristizanju novih poruka i slično:
+
+```
+$ cat /dev/mqueue/moja_poruka
+QSIZE:42  NOTIFY:0  SIGNO:0  NOTIFY_PID:0
+```
+
+`QSIZE` je ukupan broj bajtova svih poruka koje se nalaze u redu. Stvarni sadržaj poruka iz ljuske nije moguće pročitati — za to nam treba program koji koristi `mq_receive` (poput našeg `mq_primi`). Ovdje vidimo razliku u odnosu na FIFO datoteke, gdje smo sadržaj mogli pročitati običnim `cat`-om: kod redova poruka ne radi se o linearnom toku bajtova nego o strukturi poruka s prioritetima, a takav model ne uklapa se u jednostavnu apstrakciju datoteke kao niza bajtova.
+
+Red poruka možemo i ukloniti iz ljuske, što je ekvivalentno pozivu `mq_unlink`:
+
+```
+$ rm /dev/mqueue/moja_poruka
+```
 
 ## Mapiranje datoteka u memoriju
 
@@ -1157,7 +1189,7 @@ Vrijedi se na kraju ovog poglavlja na trenutak osvrnuti na sliku koja je nastala
 
 - **Signali** za jednostavno obavještavanje — kad nije važan sadržaj, samo da se nešto dogodilo.
 - **Cjevovodi i FIFO** za jednosmjeran tok bajtova — klasika za "filterski" stil programa kakav vidimo svaki dan u UNIX ljusci (`ls | grep | wc`).
-- **Redovi poruka** kad nam treba strukturirana, atomarna razmjena diskretnih poruka — eventualno s prioritetima.
+- **Redovi poruka** kad nam treba strukturirana, atomska razmjena diskretnih poruka — eventualno s prioritetima.
 - **Dijeljena memorija + semafori** za izrazito brzu razmjenu velikih količina podataka — uz oprez da svaki pristup zajedničkim podacima mora biti sinkroniziran.
 
 Kao što su gotovo svi UNIX alati zapravo tanki sloj iznad sistemskih poziva, tako je i lepeza IPC mehanizama u biti zbirka pažljivo dizajniranih primitiva u jezgri. Razumijevanjem ovih primitiva razumijemo i kako rade veći sustavi koje koristimo svakodnevno: bazu podataka, web poslužitelje, procesne arhitekture orkestracijskih alata. Iza svega stoji par desetaka sistemskih poziva, isti već desetljećima.
