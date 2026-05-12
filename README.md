@@ -2,7 +2,7 @@
 
 Skripta s primjerima iz kolegija **Programiranje za UNIX** (Damir Krstinić, Maja Braović, travanj 2026.), Sveučilište u Splitu, Fakultet elektrotehnike, strojarstva i brodogradnje (FESB).
 
-Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa i signala. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja.
+Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa i signala. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja. Na kraju svakog poglavlja dana je bibliografija s referencama na dodatnu literaturu — knjige, sveučilišne udžbenike i online vodiče, kako na engleskom tako i na hrvatskom jeziku. Iako se uglavnom koristi istih nekoliko naslova, bibliografija je ciljano dana zasebno za svaku cjelinu kako bi je čitatelj lakše pratio uz odgovarajuću temu.
 
 ## Preduvjeti
 
@@ -35,7 +35,7 @@ Uvod u proces prevođenja i povezivanja C programa s primjerima. Demonstrira osn
 
 ### [`P03-Ulazno_izlazne_operacije/`](P03-Ulazno_izlazne_operacije/)
 
-Primjeri koji ilustriraju UNIX sistemske pozive za rad s datotekama (`open`, `creat`, `close`, `read`, `write`, `lseek`, `umask`, `dup`, `dup2`) i temeljni UNIX koncept *"sve je datoteka"* — datoteke, uređaji, terminali, cijevi i mrežni socketi koriste se kroz isto sučelje file deskriptora. Obrađuje se i dijeljenje datoteka među procesima i unutar istog procesa, s mehanizmom preusmjeravanja standardnih tokova.
+Primjeri koji ilustriraju UNIX sistemske pozive za rad s datotekama (`open`, `creat`, `close`, `read`, `write`, `lseek`, `umask`, `dup`, `dup2`) i temeljni UNIX koncept *"sve je datoteka"* — datoteke, uređaji, terminali, cijevi i mrežni socketi koriste se kroz isto sučelje deskriptora datoteka. Obrađuje se i dijeljenje datoteka među procesima i unutar istog procesa, s mehanizmom preusmjeravanja standardnih tokova.
 
 ### [`P04-Upravljanje_datotekama/`](P04-Upravljanje_datotekama/)
 
