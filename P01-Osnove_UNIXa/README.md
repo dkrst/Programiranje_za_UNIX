@@ -150,11 +150,11 @@ Po zadanom, kad pokrenemo neki program iz ljuske, ona čeka da on završi prije 
 
 ```
 $ tar -czf backup.tar.gz /home/dkrst &
-[1] 3963
+[2] 3963
 $
 ```
 
-Ljuska ispisuje **redni broj posla** u uglatim zagradama (`[1]`) i **PID** (`Process ID`) procesa (`3963`), te odmah pokazuje promptom da je spremna za novu naredbu. Status pokrenutih poslova provjeravamo naredbom `jobs`, premještamo ih iz pozadine u prvi plan s `fg`, a iz prvog plana u pozadinu s `bg` (uz prethodno suspendiranje pomoću `Ctrl+Z`).
+Ljuska ispisuje **redni broj posla** u uglatim zagradama (`[2]`) i **PID** (`Process ID`) procesa (`3963`), te odmah pokazuje promptom da je spremna za novu naredbu. Status pokrenutih poslova provjeravamo naredbom `jobs`, premještamo ih iz pozadine u prvi plan s `fg`, a iz prvog plana u pozadinu s `bg` (uz prethodno suspendiranje pomoću `Ctrl+Z`).
 
 ### Priručnik — naredba `man`
 
@@ -287,7 +287,7 @@ Pri izradi skripti potrebno je imati na umu **tip ljuske** za koji je skripta pi
 | Kraj `for` petlje | `done` | `end` |
 | `while` petlja | `while [ uvjet ]; do` | `while (uvjet)` |
 | Izlazni status | `$?` | `$status` |
-| Argumenti skripte | `$1, $2, ...` | `$argv[1], $argv[2], ...` |
+| Argumenti skripte | `$1, $2, ...` | `$argv[2], $argv[1], ...` |
 
 Prvi redak skripte (`#!/bin/bash`) zove se **shebang** — to je posebna direktiva koju jezgra prepoznaje pri pokretanju skripte i koristi za odabir interpretera. Komentari u skripti počinju znakom `#` i traju do kraja retka.
 
@@ -354,7 +354,7 @@ U ovom direktoriju nalazi se nekoliko jednostavnih bash skripti koje ilustriraju
 
   Skripta uvodi nekoliko bitnih koncepata:
   - **`$#`** — broj argumenata kojima je skripta pozvana (analogno `argc` u C-u).
-  - **`$1`** — prvi argument (analogno `argv[1]`). Slično tome `$2`, `$3` itd. su drugi, treći argument; `$0` je ime skripte (analogno `argv[0]`).
+  - **`$1`** — prvi argument (analogno `argv[2]`). Slično tome `$2`, `$3` itd. su drugi, treći argument; `$0` je ime skripte (analogno `argv[0]`).
   - **`if [ uvjet ]; then ... else ... fi`** — uvjetno grananje. Razmaci unutar zagrada su obavezni.
   - **`-eq`** — operator jednakosti za cijele brojeve. Za znakovne nizove koristimo `=` (npr. `if [ "$ime" = "Marko" ]`).
   - **`for i in lista; do ... done`** — petlja kroz vrijednosti u listi. Lista se može zadati eksplicitno (`for i in 1 2 3; do`), ili generirati naredbom (`for i in $(seq 1 5); do`), ili kao popis datoteka (`for f in *.txt; do`).
@@ -510,3 +510,13 @@ U ovom direktoriju nalazi se nekoliko jednostavnih bash skripti koje ilustriraju
 ## Što dalje?
 
 U sljedećem poglavlju krećemo s osnovama programiranja u C-u i procesa prevođenja, što su preduvjeti za C programiranje na UNIX sustavima koje obrađujemo u ostatku skripte. Sve što smo naučili u ovom poglavlju — rad u terminalu, prava pristupa, preusmjeravanje — koristit ćemo praktično u radu s primjerima.
+
+Čitatelju koji želi proširiti svoje znanje izvan dosega ove skripte preporučujemo nekoliko klasičnih referenci. Za dublji uvod u UNIX okruženje, alate i filozofiju ulančavanja, klasik je *The UNIX Programming Environment*, Kernighan & Pike [1] — knjiga koju mnogi smatraju najboljim uvodom u "UNIX način razmišljanja". Za napredne teme koje će nas zaokupiti u idućim poglavljima — sistemske pozive, procese, datotečni sustav i međuprocesnu komunikaciju — referenca koja prati skriptu na više mjesta je *Advanced Programming in the UNIX Environment*, Stevens & Rago [2]. Konačno, za temeljito razumijevanje općih koncepata operacijskih sustava (procesi, niti, sinkronizacija, memorija, raspoređivanje) na hrvatskom jeziku preporučujemo sveučilišni udžbenik *Operacijski sustavi*, Budin, Golub, Jakobović i Jelenković [3], standardno štivo na hrvatskim sveučilištima.
+
+## Bibliografija
+
+[1] B. W. Kernighan and R. Pike, *The UNIX Programming Environment*. Englewood Cliffs, NJ, USA: Prentice Hall, 1984.
+
+[2] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
+
+[3] L. Budin, M. Golub, D. Jakobović, and L. Jelenković, *Operacijski sustavi*, 3. izd. Zagreb, Hrvatska: Element, 2013.

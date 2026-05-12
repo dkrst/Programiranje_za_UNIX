@@ -1,6 +1,6 @@
 # Osnove programiranja
 
-U ovom poglavlju dan je uvod u proces prevođenja i povezivanja C programa ilustriran jednostavnim primjerima.
+U ovom poglavlju dan je uvod u proces prevođenja i povezivanja C programa ilustriran jednostavnim primjerima. Sintaksu C-a podrazumijevamo poznatom — za sustavno učenje samog jezika preporučujemo klasičnu *The C Programming Language*, Kernighan & Ritchie [1], odnosno na hrvatskom jeziku FESB-ovu nastavnu skriptu *Programiranje C jezikom*, Mateljan [2], dostupnu i u digitalnom obliku.
 
 ### Najjednostavniji program
 
@@ -94,7 +94,7 @@ Ovaj uvid je upravo razlog postojanja alata `make`. U projektu od nekoliko datot
 
 ### Korištenje alata `make`
 
-`make` je alat koji automatizira upravo takav proces. Iz datoteke s pravilima (`Makefile`) čita koje ulazne datoteke čine projekt, kako ovise jedna o drugoj i kojim se naredbama iz njih generiraju izlazne datoteke. Na temelju vremena zadnje izmjene datoteka, `make` ponovno prevodi samo one koje su mijenjane od posljednjeg prevođenja, i ništa više. Pokreće se tako da se u direktoriju s `Makefile`-om zada:
+`make` je alat koji automatizira upravo takav proces. Iz datoteke s pravilima (`Makefile`) čita koje ulazne datoteke čine projekt, kako ovise jedna o drugoj i kojim se naredbama iz njih generiraju izlazne datoteke. Na temelju vremena zadnje izmjene datoteka, `make` ponovno prevodi samo one koje su mijenjane od posljednjeg prevođenja, i ništa više. U nastavku obrađujemo samo onoliko mogućnosti koliko nam je potrebno za vlastite primjere — `make` je znatno bogatiji alat, a definitivna referenca za sve njegove mogućnosti je *GNU Make Manual*, Stallman, McGrath & Smith [3], opsežan priručnik dostupan i besplatno online na stranicama GNU projekta. Pokreće se tako da se u direktoriju s `Makefile`-om zada:
 
 ```sh
 make              # izvršava prvo pravilo u Makefileu
@@ -287,3 +287,11 @@ Izvršni programi pokreću se navođenjem relativne putanje (`./`) iz istog dire
 ```
 
 Oba primjera ispisuju istu poruku; razlika je isključivo u unutarnjoj organizaciji koda.
+
+## Bibliografija
+
+[1] B. W. Kernighan and D. M. Ritchie, *The C Programming Language*, 2nd ed. Englewood Cliffs, NJ, USA: Prentice Hall, 1988.
+
+[2] I. Mateljan, *Programiranje C jezikom*. Split, Hrvatska: Fakultet elektrotehnike, strojarstva i brodogradnje, 2006. [Online]. Dostupno na: <http://programiranje.yolasite.com/resources/Programiranje_C_jezikom.pdf>
+
+[3] R. M. Stallman, R. McGrath, and P. D. Smith, *GNU Make Manual*. Boston, MA, USA: Free Software Foundation, 2023. [Online]. Dostupno na: <https://www.gnu.org/software/make/manual/>

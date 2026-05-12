@@ -2,7 +2,7 @@
 
 U ovom poglavlju upoznat ćemo **signale** — UNIX-ov primarni mehanizam za asinkronu komunikaciju s procesom. Signal je kratka poruka koju jezgra šalje procesu kao obavijest da se dogodio neki događaj: korisnik je pritisnuo Ctrl+C, proces je pokušao pristupiti nedopuštenoj memorijskoj adresi, istekao je timer, neki drugi proces je eksplicitno zatražio prekid, i tako dalje. Iz perspektive procesa, signal može stići u **bilo kojem trenutku** između dvije strojne instrukcije — proces nema mogućnost predvidjeti kada će se to dogoditi.
 
-Proces na primljeni signal može reagirati na nekoliko načina: prepustiti zadanu reakciju jezgri (što za većinu signala znači prekid procesa), eksplicitno ignorirati signal, ili registrirati vlastitu funkciju — **rukovatelj signala** (engl. *signal handler*) — koja će se izvršiti svaki put kad takav signal stigne. U ovom poglavlju kroz nekoliko primjera ilustriramo kako registriramo rukovatelj signala, kako se signali hvataju, kako se koriste za komunikaciju među procesima i o čemu je potrebno voditi računa pri pisanju rukovatelja.
+Proces na primljeni signal može reagirati na nekoliko načina: prepustiti zadanu reakciju jezgri (što za većinu signala znači prekid procesa), eksplicitno ignorirati signal, ili registrirati vlastitu funkciju — **rukovatelj signala** (engl. *signal handler*) — koja će se izvršiti svaki put kad takav signal stigne. U ovom poglavlju kroz nekoliko primjera ilustriramo kako registriramo rukovatelj signala, kako se signali hvataju, kako se koriste za komunikaciju među procesima i o čemu je potrebno voditi računa pri pisanju rukovatelja. Signali su tema iznimno bogata specifičnim slučajevima i suptilnim detaljima — čitatelj koji se njima profesionalno bavi gotovo sigurno će se vraćati na *Advanced Programming in the UNIX Environment*, Stevens & Rago [1], koja signalima posvećuje cijelo opsežno poglavlje s pažljivom raspravom o sigurnosti rukovatelja, semantici višestrukih signala i razlikama među UNIX inačicama.
 
 ## Najčešći signali
 
@@ -711,3 +711,7 @@ make all          # gradi sve primjere
 make stoperica    # gradi samo zadani primjer
 make clean        # briše izvršne i objektne datoteke
 ```
+
+## Bibliografija
+
+[1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.

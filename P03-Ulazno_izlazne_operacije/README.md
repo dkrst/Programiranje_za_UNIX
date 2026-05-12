@@ -587,7 +587,7 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
 
 ## Ulazno-izlazne strukture podataka
 
-U primjerima iznad držali smo se praktične razine — otvorimo datoteku, dobijemo deskriptor, čitamo i pišemo. U tekstu koji slijedi dat ćemo malo više "teorije": objasnit ćemo kako UNIX upravlja otvorenim datotekama, koje interne strukture jezgra pri tom koristi i kako su one međusobno povezane. Nestrpljiv čitatelj koji želi što prije vidjeti dodatne primjere može nastaviti dalje, ali valja naglasiti da je razumijevanje ovih struktura važno ne samo za rad s datotekama, nego i za razumijevanje UNIX-a kao operacijskog sustava u cjelini. Mnogi koncepti koje ćemo susresti kasnije (dijeljenje datoteka među procesima, nasljeđivanje deskriptora, preusmjeravanje ulaza i izlaza, kao i temeljno UNIX načelo *"sve je datoteka"*) izravno proizlaze iz organizacije struktura opisanih u nastavku.
+U primjerima iznad držali smo se praktične razine — otvorimo datoteku, dobijemo deskriptor, čitamo i pišemo. U tekstu koji slijedi dat ćemo malo više "teorije": objasnit ćemo kako UNIX upravlja otvorenim datotekama, koje interne strukture jezgra pri tom koristi i kako su one međusobno povezane. Detaljniji prikaz ovih internih struktura, kao i mnogih drugih tema iz ovog poglavlja, čitatelj će pronaći u temeljnom djelu *Advanced Programming in the UNIX Environment*, Stevens & Rago [1] — knjizi koja prati gotovo svako poglavlje ove skripte; istu materiju, ali iz šire perspektive datotečnog podsustava operacijskih sustava, obrađuje i sveučilišni udžbenik *Operacijski sustavi*, Budin, Golub, Jakobović & Jelenković [2]. Nestrpljiv čitatelj koji želi što prije vidjeti dodatne primjere može nastaviti dalje, ali valja naglasiti da je razumijevanje ovih struktura važno ne samo za rad s datotekama, nego i za razumijevanje UNIX-a kao operacijskog sustava u cjelini. Mnogi koncepti koje ćemo susresti kasnije (dijeljenje datoteka među procesima, nasljeđivanje deskriptora, preusmjeravanje ulaza i izlaza, kao i temeljno UNIX načelo *"sve je datoteka"*) izravno proizlaze iz organizacije struktura opisanih u nastavku.
 
 Govorit ćemo o **tablici procesa**, **tablici datoteka** i **v-node tablici** — internim strukturama UNIX jezgre. Bitno je odmah naglasiti da korisnički proces tim strukturama ne može pristupati izravno, putem varijable ili pokazivača, jer se radi o internim strukturama smještenim u memoriji jezgre; jedini način na koji proces može s njima komunicirati jesu sistemski pozivi.
 
@@ -846,3 +846,9 @@ make clean        # briše izvršne, objektne i generirane datoteke
 ```
 
 Pravilo `clean` briše sve izvršne datoteke, objektne datoteke, privremene `*~` datoteke, `a.out`, kao i datoteke koje primjeri sami stvaraju pri pokretanju — `file.strip`, `file.hole`, `datoteka1`, `datoteka2` — kako bi se radni direktorij vratio u čisto stanje.
+
+## Bibliografija
+
+[1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
+
+[2] L. Budin, M. Golub, D. Jakobović, and L. Jelenković, *Operacijski sustavi*, 3. izd. Zagreb, Hrvatska: Element, 2013.

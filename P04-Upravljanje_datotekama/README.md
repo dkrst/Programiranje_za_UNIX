@@ -1,6 +1,6 @@
 # Upravljanje datotekama
 
-U ovom poglavlju upoznat ćemo dublji UNIX pogled na datoteke: njihove **atribute**, kako jezgra organizira informacije o njima, te kako iz programa dohvatiti i mijenjati ta svojstva. Dok smo se u prethodnom poglavlju bavili **sadržajem** datoteka — čitanjem i pisanjem bajtova — ovdje stojimo "stepenicu više" i gledamo **metapodatke**: tip datoteke, vlasnika, prava pristupa, vremena pristupa, broj linkova, fizičku organizaciju na disku.
+U ovom poglavlju upoznat ćemo dublji UNIX pogled na datoteke: njihove **atribute**, kako jezgra organizira informacije o njima, te kako iz programa dohvatiti i mijenjati ta svojstva. Dok smo se u prethodnom poglavlju bavili **sadržajem** datoteka — čitanjem i pisanjem bajtova — ovdje stojimo "stepenicu više" i gledamo **metapodatke**: tip datoteke, vlasnika, prava pristupa, vremena pristupa, broj linkova, fizičku organizaciju na disku. Sve teme koje slijede klasično su pokrivene u *Advanced Programming in the UNIX Environment*, Stevens & Rago [1], i čitatelj koji želi šire i detaljnije obrade može tamo pronaći dodatne primjere i rasprave o specifičnim slučajevima.
 
 ## Tipovi datoteka
 
@@ -1135,3 +1135,7 @@ make all          # gradi sve primjere
 make fileinfo     # gradi pojedinačni primjer
 make clean        # čisti generirane datoteke
 ```
+
+## Bibliografija
+
+[1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
