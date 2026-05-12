@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS = 
-TARGETS = cijev prebroji fifoposalji fifoprimi shm_pisi shm_citaj shm_brojac shm_brojac_sem mq_posalji mq_primi msg_demo
+TARGETS = cijev prebroji fifoposalji fifoprimi shm_pisi shm_citaj shm_brojac shm_brojac_sem mq_posalji mq_primi sysv_msg_posalji sysv_msg_primi
 
 # POSIX shm trebaju -lrt na nekim sustavima (Linux pre-glibc-2.34)
 LIBS_RT = -lrt
@@ -44,8 +44,11 @@ mq_posalji: mq_posalji.o
 mq_primi: mq_primi.o
 	$(CC) $(LDFLAGS) mq_primi.o -o mq_primi $(LIBS_MQ)
 
-msg_demo: msg_demo.o
-	$(CC) $(LDFLAGS) msg_demo.o -o msg_demo
+sysv_msg_posalji: sysv_msg_posalji.o
+	$(CC) $(LDFLAGS) sysv_msg_posalji.o -o sysv_msg_posalji
+
+sysv_msg_primi: sysv_msg_primi.o
+	$(CC) $(LDFLAGS) sysv_msg_primi.o -o sysv_msg_primi
 
 clean:
 	rm -f $(TARGETS) *.o *~ a.out

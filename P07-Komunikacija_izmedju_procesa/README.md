@@ -2,7 +2,7 @@
 
 Procesi u UNIX sustavu žive u potpuno odvojenim adresnim prostorima — varijable jednog procesa su nevidljive drugom, čak i ako je jedan proces nastao od drugog pozivom `fork()`, ili ako imaju istog zajedničkog pretka — isti proces-roditelj stvorio ih je s dva poziva `fork()`. Ova izolacija je temeljna značajka modernog operacijskog sustava: ona štiti procese međusobno (jedan ne može srušiti ili neispravno izmijeniti podatke drugog), olakšava paralelno izvršavanje, i čini sustav robusnijim. Međutim, u praksi često želimo da procesi razmjenjuju podatke — bilo da prosljeđuju rezultate, koordiniraju rad, ili dijele zajedničke resurse. Skup mehanizama koji to omogućuju zajedničkim imenom zovemo **međuprocesna komunikacija** (engl. *Inter-Process Communication*, IPC).
 
-UNIX nudi cijelu lepezu IPC mehanizama, od najjednostavnijeg cjevovoda do složenih koncepata dijeljene memorije, ili mrežnih socketa koji omogućavaju ne samo komunikaciju između procesa na istom računalu, već i među procesima koji se izvršavaju na različitim krajevima svijeta. IPC je opsežno područje — sveobuhvatna skripta koja bi pokrila sve mehanizme i ilustrirala ih dovoljnim brojem primjera vjerojatno bi zahtijevala volumen barem jednak ovoj skripti u cjelini. Stoga ćemo se ovdje ograničiti na osnovne mehanizme, dovoljno detaljno obrađene da čitatelj stekne uvid u područje i razumijevanje osnovnih koncepata međuprocesne komunikacije, a zainteresiranog čitatelja potaknemo da sam nastavi s istraživanjem onoga što ostaje izvan dometa ovog poglavlja. Prije nego krenemo, vrijedi se kratko podsjetiti na još jedan oblik komunikacije koji smo već obradili.
+UNIX nudi cijelu lepezu IPC mehanizama, od najjednostavnijeg cjevovoda do složenih koncepata dijeljene memorije, ili mrežnih socketa koji omogućavaju ne samo komunikaciju između procesa na istom računalu, već i među procesima koji se izvršavaju na različitim krajevima svijeta. IPC je opsežno područje — sveobuhvatna skripta koja bi pokrila sve mehanizme i ilustrirala ih dovoljnim brojem primjera vjerojatno bi zahtijevala volumen barem jednak ovoj skripti u cjelini. Stoga ćemo se ovdje ograničiti na osnovne mehanizme, dovoljno detaljno obrađene da čitatelj stekne uvid u područje i razumijevanje osnovnih koncepata međuprocesne komunikacije, a zainteresiranog čitatelja potaknemo da sam nastavi s istraživanjem onoga što ostaje izvan dometa ovog poglavlja — primjerice u temeljnom djelu Stevensa i Raga [1], koje cijelo poglavlje 15 posvećuje IPC mehanizmima i pruža najtemeljitiji obrazovni materijal na tu temu. Prije nego krenemo, vrijedi se kratko podsjetiti na još jedan oblik komunikacije koji smo već obradili.
 
 ## Pregled mehanizama IPC-a
 
@@ -42,26 +42,26 @@ Karakteristike anonimnih cjevovoda:
 ```c
 #include <unistd.h>
 
-int pipe(int fd[2]);
+int pipe(int fd[3]);
 ```
 
 **Povratna vrijednost:** `0` u slučaju uspjeha, `-1` u slučaju greške.
 
 **Argumenti:**
 
-- **`fd`** — polje od dva cijela broja u koje funkcija upisuje dva nova deskriptora datoteke: `fd[0]` (kraj za **čitanje**) i `fd[1]` (kraj za **pisanje**). Zgodno mnemoničko pomagalo: `0` se često asocira sa standardnim ulazom (čitanjem), `1` sa standardnim izlazom (pisanjem).
+- **`fd`** — polje od dva cijela broja u koje funkcija upisuje dva nova deskriptora datoteke: `fd[0]` (kraj za **čitanje**) i `fd[2]` (kraj za **pisanje**). Zgodno mnemoničko pomagalo: `0` se često asocira sa standardnim ulazom (čitanjem), `1` sa standardnim izlazom (pisanjem).
 
-Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i čitajući i pisajući deskriptor. U principu, ovaj proces sad može pisati u `fd[1]` i sam čitati to što je napisao iz `fd[0]`, dakle, razgovarati sam sa sobom:
+Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i čitajući i pisajući deskriptor. U principu, ovaj proces sad može pisati u `fd[2]` i sam čitati to što je napisao iz `fd[0]`, dakle, razgovarati sam sa sobom:
 
 ![Cjevovod odmah nakon poziva pipe()](slike/cjevovod_pipe.png)
 
 Ljude koji govore sami sa sobom obično "čudno" gledamo, a ni kod procesa ovo nema previše smisla. Cjevovod postaje koristan tek kad ga **dijelimo s drugim procesom**, što se postiže pozivom `fork()` neposredno nakon `pipe()`-a.
 
-Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Proces dijete nasljeđuje sve otvorene deskriptore datoteka roditelja, pa tako oba procesa sada imaju sva četiri "kraja" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). S obzirom da su cjevovodi zamišljeni za jednosmjernu komunikaciju, svaki proces trebao bi zatvoriti onaj kraj koji nema namjeru koristiti: npr. ako će informacija putovati od roditelja prema djetetu, tj. ako roditelj piše a dijete čita, roditelj zatvara `fd[0]`, a dijete `fd[1]`.
+Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Proces dijete nasljeđuje sve otvorene deskriptore datoteka roditelja, pa tako oba procesa sada imaju sva četiri "kraja" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). S obzirom da su cjevovodi zamišljeni za jednosmjernu komunikaciju, svaki proces trebao bi zatvoriti onaj kraj koji nema namjeru koristiti: npr. ako će informacija putovati od roditelja prema djetetu, tj. ako roditelj piše a dijete čita, roditelj zatvara `fd[0]`, a dijete `fd[2]`.
 
 ![Cjevovod nakon fork() — roditelj piše, dijete čita](slike/cjevovod_fork.png)
 
-Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje ostaje otvoren samo u roditelju, dok deskriptor `fd[0]` otvoren za čitanje ostaje otvoren samo u djetetu. Komunikacija u suprotnom smjeru, od djeteta prema roditelju, nije više moguća (barem ne kroz ovaj cjevovod), jer su deskriptori koji bi omogućili komunikaciju u tom smjeru zatvoreni s obje strane. Ako trebamo komunikaciju u oba smjera, uobičajeno je rješenje stvoriti dva cjevovoda, svaki za svoj smjer.
+Time se uspostavlja jednosmjerni kanal: deskriptor `fd[2]` otvoren za pisanje ostaje otvoren samo u roditelju, dok deskriptor `fd[0]` otvoren za čitanje ostaje otvoren samo u djetetu. Komunikacija u suprotnom smjeru, od djeteta prema roditelju, nije više moguća (barem ne kroz ovaj cjevovod), jer su deskriptori koji bi omogućili komunikaciju u tom smjeru zatvoreni s obje strane. Ako trebamo komunikaciju u oba smjera, uobičajeno je rješenje stvoriti dva cjevovoda, svaki za svoj smjer.
 
 ### Cjevovod između roditelja i djeteta
 
@@ -75,11 +75,11 @@ Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje os
   #include <sys/wait.h>
 
   int main(void) {
-      int fd[2];
+      int fd[3];
       pid_t pid;
 
       /* fd[0] - kraj za citanje
-       * fd[1] - kraj za pisanje */
+       * fd[2] - kraj za pisanje */
       if (pipe(fd) < 0) {
           perror("pipe");
           return 1;
@@ -94,7 +94,7 @@ Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje os
       if (pid == 0) {
           /* dijete - cita iz cjevovoda */
           char buf[128];
-          close(fd[1]);                       /* ne treba nam pisanje */
+          close(fd[2]);                       /* ne treba nam pisanje */
           ssize_t n = read(fd[0], buf, sizeof(buf) - 1);
           if (n > 0) {
               buf[n] = '\0';
@@ -105,8 +105,8 @@ Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje os
           /* roditelj - pise u cjevovod */
           const char *poruka = "Pozdrav iz roditelja!";
           close(fd[0]);                       /* ne treba nam citanje */
-          write(fd[1], poruka, strlen(poruka));
-          close(fd[1]);
+          write(fd[2], poruka, strlen(poruka));
+          close(fd[2]);
 
           wait(NULL);                         /* cekaj da dijete zavrsi */
       }
@@ -117,7 +117,7 @@ Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje os
 
   Bitno je primijetiti redoslijed pozivа: prvo se otvara cjevovod (u roditelju), a tek onda se radi `fork()`. Time se osigurava da oba procesa imaju iste deskriptore. Ukoliko bi prvo napravili `fork()`, a tek zatim `pipe()`, dijete ne bi imalo pristup cjevovodu. Još veća greška bila bi napraviti `fork()`, a zatim `pipe()` u oba procesa — ovim bi dobili dva potpuno odvojena cjevovoda, a svaki proces bi mogao jedino pričati sam sa sobom.
 
-  Primijetimo i da su lokalne varijable jasno razdvojene između grana: međuspremnik `buf` deklariran je samo unutar grane djeteta, a varijabla `poruka` (i tekst poruke) zapisana je samo u grani roditelja. Ovo je u primjeru namjerno napravljeno kako bi se dodatno naglasilo da dijete nije imalo mogućnost direktnog pristupa poruci definiranoj u procesu roditelju. Razmjena podataka između roditelja i djeteta moguća je isključivo kroz cjevovod — vrijednost se mora upisati u `fd[1]` na jednoj strani i pročitati iz `fd[0]` na drugoj.
+  Primijetimo i da su lokalne varijable jasno razdvojene između grana: međuspremnik `buf` deklariran je samo unutar grane djeteta, a varijabla `poruka` (i tekst poruke) zapisana je samo u grani roditelja. Ovo je u primjeru namjerno napravljeno kako bi se dodatno naglasilo da dijete nije imalo mogućnost direktnog pristupa poruci definiranoj u procesu roditelju. Razmjena podataka između roditelja i djeteta moguća je isključivo kroz cjevovod — vrijednost se mora upisati u `fd[2]` na jednoj strani i pročitati iz `fd[0]` na drugoj.
 
   U praksi smo varijablu mogli definirati samo jednom, na početku programa. Nakon poziva `fork()` adresni prostori roditelja i djeteta se odvajaju, pa smo u roditelju mogli koristiti istu varijablu za definiranje poruke, a u djetetu za primanje poruke kroz cjevovod — ili za bilo što drugo. Nakon poziva `fork()`, dvije naizgled "iste" varijable u dva procesa zapravo pokazuju na dvije odvojene adrese u odvojenim adresnim prostorima. Međutim, kao što smo već ranije rekli, u ovom primjeru namjerno koristimo različita imena varijabli kako bismo dodatno naglasili funkcionalnost primjera.
 
@@ -128,7 +128,7 @@ Time se uspostavlja jednosmjerni kanal: deskriptor `fd[1]` otvoren za pisanje os
   Dijete primilo: Pozdrav iz roditelja!
   ```
 
-  Važno je napomenuti da zatvaranje "nepotrebnog" kraja cjevovoda u svakom od procesa nije korak koji nam služi tek tome da bismo imali pregledniji kod — bez ovog koraka proces koji čita iz cjevovoda može ostati zauvijek blokiran u pozivu `read()`. Naime, nakon što proces koji u cjevovod piše zatvori `fd[1]`, ili završi s izvršavanjem (čime se zatvaraju i svi otvoreni deskriptori datoteka), idući poziv `read()` u čitatelju vratit će `0` (*End of file* — podsjetimo se sistemskog poziva `read()`). Međutim, ukoliko čitatelj sam drži otvorenim svoju kopiju kraja za pisanje (`fd[1]`), `read()` neće vratiti `0` jer je s gledišta jezgre drugi kraj cjevovoda i dalje otvoren — postoji još jedan deskriptor preko kojeg bi netko mogao pisati. Posljedica je vječno blokiranje čitatelja u `read()`-u, čak i nakon što je proces koji bi u cjevovod trebao pisati odavno gotov.
+  Važno je napomenuti da zatvaranje "nepotrebnog" kraja cjevovoda u svakom od procesa nije korak koji nam služi tek tome da bismo imali pregledniji kod — bez ovog koraka proces koji čita iz cjevovoda može ostati zauvijek blokiran u pozivu `read()`. Naime, nakon što proces koji u cjevovod piše zatvori `fd[2]`, ili završi s izvršavanjem (čime se zatvaraju i svi otvoreni deskriptori datoteka), idući poziv `read()` u čitatelju vratit će `0` (*End of file* — podsjetimo se sistemskog poziva `read()`). Međutim, ukoliko čitatelj sam drži otvorenim svoju kopiju kraja za pisanje (`fd[2]`), `read()` neće vratiti `0` jer je s gledišta jezgre drugi kraj cjevovoda i dalje otvoren — postoji još jedan deskriptor preko kojeg bi netko mogao pisati. Posljedica je vječno blokiranje čitatelja u `read()`-u, čak i nakon što je proces koji bi u cjevovod trebao pisati odavno gotov.
 
 ### Preusmjeravanje i cjevovodi
 
@@ -139,7 +139,7 @@ $ ls | wc -l
 14
 ```
 
-Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovoda. Trik se sastoji od nekoliko koraka. Najprije glavni proces stvori cjevovod pozivom `pipe()`, nakon čega pozove `fork()` — sad imamo dva procesa koja imaju pristup krajevima cjevovoda za čitanje i pisanje. Kako nam je cilj da izlaz iz naredbe `ls` završi na ulazu naredbe `wc`, na standardni izlaz procesa koji će izvršiti `ls` dupliciramo `fd[1]` — kraj za pisanje cjevovoda koji smo upravo stvorili. Slično, u procesu koji će izvršiti `wc`, na standardni ulaz dupliciramo `fd[0]` — kraj cjevovoda za čitanje. Za dupliciranje deskriptora služi nam sistemski poziv `dup2()` koji smo već upoznali u poglavlju o ulazno/izlaznim operacijama. Tek nakon ovog preusmjeravanja, svaki proces pozove `exec` i postane `ls` odnosno `wc`. Time `ls`, koji ne zna ništa o našem cjevovodu, jednostavno piše svoje rezultate na svoj standardni izlaz — koji se "magično" završava u cjevovodu; a `wc -l`, isto neupućen u priču, čita s ulaza koji je zapravo drugi kraj istog cjevovoda.
+Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovoda. Trik se sastoji od nekoliko koraka. Najprije glavni proces stvori cjevovod pozivom `pipe()`, nakon čega pozove `fork()` — sad imamo dva procesa koja imaju pristup krajevima cjevovoda za čitanje i pisanje. Kako nam je cilj da izlaz iz naredbe `ls` završi na ulazu naredbe `wc`, na standardni izlaz procesa koji će izvršiti `ls` dupliciramo `fd[2]` — kraj za pisanje cjevovoda koji smo upravo stvorili. Slično, u procesu koji će izvršiti `wc`, na standardni ulaz dupliciramo `fd[0]` — kraj cjevovoda za čitanje. Za dupliciranje deskriptora služi nam sistemski poziv `dup2()` koji smo već upoznali u poglavlju o ulazno/izlaznim operacijama. Tek nakon ovog preusmjeravanja, svaki proces pozove `exec` i postane `ls` odnosno `wc`. Time `ls`, koji ne zna ništa o našem cjevovodu, jednostavno piše svoje rezultate na svoj standardni izlaz — koji se "magično" završava u cjevovodu; a `wc -l`, isto neupućen u priču, čita s ulaza koji je zapravo drugi kraj istog cjevovoda.
 
 - [**`prebroji.c`**](prebroji.c) — implementacija `ls | wc -l`, korištenjem `pipe`, `fork`, `dup2` i `exec`.
 
@@ -150,7 +150,7 @@ Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovo
   #include <sys/wait.h>
 
   int main(void) {
-      int fd[2];
+      int fd[3];
       pid_t pid;
 
       if (pipe(fd) < 0) {
@@ -165,10 +165,10 @@ Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovo
       }
 
       if (pid == 0) {
-          /* preusmjeri standardni izlaz na fd[1] */
-          dup2(fd[1], STDOUT_FILENO);
-          if (fd[1] != STDOUT_FILENO)
-              close(fd[1]);
+          /* preusmjeri standardni izlaz na fd[2] */
+          dup2(fd[2], STDOUT_FILENO);
+          if (fd[2] != STDOUT_FILENO)
+              close(fd[2]);
           close(fd[0]);
           execlp("ls", "ls", (char *)NULL);
           perror("execlp ls");
@@ -178,7 +178,7 @@ Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovo
           dup2(fd[0], STDIN_FILENO);
           if (fd[0] != STDIN_FILENO)
               close(fd[0]);
-          close(fd[1]);
+          close(fd[2]);
           execlp("wc", "wc", "-l", (char *)NULL);
           perror("execlp wc");
           return 1;
@@ -188,9 +188,9 @@ Isti efekt možemo postići i sami, kombiniranjem dvaju procesa i jednog cjevovo
 
   Ključne stvari koje treba primijetiti:
 
-  - **`dup2(fd[1], STDOUT_FILENO)`** u djetetu znači: "neka deskriptor 1 (stdout) sad bude kopija onoga što pokazuje `fd[1]`" — efektivno, sve što `ls` napiše na svoj standardni izlaz zapravo ide u cjevovod.
+  - **`dup2(fd[2], STDOUT_FILENO)`** u djetetu znači: "neka deskriptor 1 (stdout) sad bude kopija onoga što pokazuje `fd[2]`" — efektivno, sve što `ls` napiše na svoj standardni izlaz zapravo ide u cjevovod.
   - Jednako tome, **`dup2(fd[0], STDIN_FILENO)`** u roditelju preusmjerava `wc`-ov ulaz na čitajući kraj cjevovoda.
-  - **Oba procesa zatvaraju izvorne deskriptore cjevovoda** odmah nakon `dup2`-a. Razlog je upravo onaj koji smo opisali u prethodnoj sekciji: ako `wc` (roditelj) drži otvoren `fd[1]`, kraj za pisanje na svojoj strani, on bi sam sebi spriječio kraj toka — `read` na cjevovodu ne bi nikad vratio `0`, i `wc` bi zaglavio. Pažljivi čitatelj primijetit će uvjete `if (fd[1] != STDOUT_FILENO)` i `if (fd[0] != STDIN_FILENO)` prije zatvaranja: oni štite od rubnog slučaja kad bi `pipe()` slučajno vratio `fd[0] == 0` ili `fd[1] == 1` (npr. ako je standardni ulaz/izlaz već ranije bio zatvoren). Tada bismo `close`-om upravo zatvorili kraj cjevovoda koji smo netom postavili kroz `dup2`, čime bi cijela konstrukcija propala.
+  - **Oba procesa zatvaraju izvorne deskriptore cjevovoda** odmah nakon `dup2`-a. Razlog je upravo onaj koji smo opisali u prethodnoj sekciji: ako `wc` (roditelj) drži otvoren `fd[2]`, kraj za pisanje na svojoj strani, on bi sam sebi spriječio kraj toka — `read` na cjevovodu ne bi nikad vratio `0`, i `wc` bi zaglavio. Pažljivi čitatelj primijetit će uvjete `if (fd[2] != STDOUT_FILENO)` i `if (fd[0] != STDIN_FILENO)` prije zatvaranja: oni štite od rubnog slučaja kad bi `pipe()` slučajno vratio `fd[0] == 0` ili `fd[2] == 1` (npr. ako je standardni ulaz/izlaz već ranije bio zatvoren). Tada bismo `close`-om upravo zatvorili kraj cjevovoda koji smo netom postavili kroz `dup2`, čime bi cijela konstrukcija propala.
   - **Nije nužan eksplicitni `wait`** na dijete: nakon što roditelj pozove `exec` i postane `wc`, `wc` će prirodno blokirati u `read`-u dok se cjevovod ne zatvori s druge strane. To se događa kad dijete (`ls`) završi svoj posao i jezgra zatvori njegove deskriptore. Tek tada `read` u `wc`-u vrati `0` i `wc` ispiše broj redaka. Zanimljiva posljedica je da `ls` nakratko postaje **zombie proces** (jer ga njegov roditelj `wc` ne `wait`-a), no čim cijeli naš `prebroji` (koji je u međuvremenu postao `wc`) završi, sirotinjski `ls` zombie usvaja `init` proces (`PID 1`) koji ga uredno počisti pozivom `wait`. Tako smo izbjegli trajno zaglavljivanje zombie procesa, iako u kodu nigdje eksplicitno nismo čekali djecu.
 
   Pokretanje:
@@ -499,7 +499,7 @@ Pokazat ćemo dva mala programa — jedan koji upisuje tekst u dijeljenu memorij
       if (argc < 2)
           poruka = "Pozdrav iz zajedničke memorije!";
       else
-          poruka = argv[1];
+          poruka = argv[2];
 
       /* stvori (ili otvori postojeci) objekt dijeljene memorije */
       fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
@@ -721,9 +721,7 @@ Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji
 - **`wait`** (povijesno ime: `P`) — smanji vrijednost semafora za 1; ako bi rezultat bio negativan, blokiraj dok netko drugi ne pozove `post`.
 - **`post`** (povijesno ime: `V`) — povećaj vrijednost semafora za 1; ako su procesi blokirani u `wait`-u, jedan od njih se odblokira.
 
-Imena `P` i `V` potječu iz originalnog Dijkstrinog rada *"Cooperating Sequential Processes"* iz 1965. godine (objavljenog 1968., zabilježenog kao EWD 123 u Dijkstrinim rukopisima[^dijkstra-ewd]) — Dijkstra je bio Nizozemac i izabrao je slova prema nizozemskim glagolima *passeren* ("proći") odnosno *probeer te verlagen* ("probaj smanjiti") za `P`, te *verhogen* ("povisiti") za `V`. Iako su `P` i `V` i danas često spominjani u literaturi (osobito akademskoj), u praksi se znatno češće koriste opisnija imena `wait` i `post`.
-
-[^dijkstra-ewd]: Dijkstra, E. W. (1968). *Cooperating Sequential Processes*. U: F. Genuys (ur.), *Programming Languages: NATO Advanced Study Institute*, str. 43–112. Academic Press. Rukopis je dostupan u [E. W. Dijkstra arhivi Sveučilišta u Texasu](https://www.cs.utexas.edu/users/EWD/transcriptions/EWD01xx/EWD123.html).
+Imena `P` i `V` potječu iz originalnog Dijkstrinog rada *"Cooperating Sequential Processes"* iz 1965. godine, objavljenog 1968. i zabilježenog kao EWD 123 u Dijkstrinim rukopisima [2] — Dijkstra je bio Nizozemac i izabrao je slova prema nizozemskim glagolima *passeren* ("proći") odnosno *probeer te verlagen* ("probaj smanjiti") za `P`, te *verhogen* ("povisiti") za `V`. Iako su `P` i `V` i danas često spominjani u literaturi (osobito akademskoj), u praksi se znatno češće koriste opisnija imena `wait` i `post`.
 
 Inicijaliziramo li semafor na 1 i koristimo li ga kao zaštitu kritične sekcije — dijela koda koji ne smije izvršavati više procesa istovremeno — semafor djeluje kao **mutex** (engl. *mutual exclusion lock*). Prvi proces uđe u kritičnu sekciju (`wait` smanji vrijednost s 1 na 0); svi ostali procesi koji nakon toga pozovu `wait` blokiraju dok proces koji je semafor zaključao ne završi i ne pozove `post` (vrati vrijednost na 1, oslobađa jednog koji je čekao). Drugačije inicijalne vrijednosti omogućuju složenije obrasce sinkronizacije (npr. semafor inicijaliziran na `N` dopušta `N` procesa istodobno u kritičnoj sekciji).
 
@@ -919,8 +917,8 @@ Uzima sljedeću poruku iz reda. Ako je red prazan, blokira (osim ako je red u ne
       if (argc < 2) {
           poruka = "Pozdrav kroz red poruka!";
       } else {
-          poruka = argv[1];
-          if (argc >= 3) prioritet = (unsigned)atoi(argv[2]);
+          poruka = argv[2];
+          if (argc >= 3) prioritet = (unsigned)atoi(argv[3]);
       }
 
       struct mq_attr attr;
@@ -1042,7 +1040,7 @@ $ rm /dev/mqueue/moja_poruka
 
 ## Mapiranje datoteka u memoriju
 
-Funkciju `mmap()` upoznali smo gore u kontekstu dijeljene memorije. Ona ima i drugu, jednako važnu primjenu: **mapiranje regularnih datoteka** u adresni prostor procesa. Umjesto da datoteku čitamo `read`-om u međuspremnik, dobivamo pokazivač na memorijski blok koji *je* datoteka — pristupamo bajtovima datoteke kao da su elementi polja.
+Funkciju `mmap()` upoznali smo ranije u kontekstu dijeljene memorije. Ona ima i drugu, jednako važnu primjenu: **mapiranje regularnih datoteka** u adresni prostor procesa. Umjesto da datoteku čitamo `read`-om u međuspremnik, dobivamo pokazivač na memorijski blok koji *je* datoteka — pristupamo bajtovima datoteke kao da su elementi polja.
 
 Razmotrimo razliku:
 
@@ -1063,15 +1061,15 @@ char prvi = podaci[0];
 
 Prednosti mapiranja:
 
-- **Bez kopiranja** — jezgra "pretvara" stranice datoteke u stranice u memoriji procesa. Pri prvom pristupu nekoj stranici, jezgra je tek tada učita s diska (engl. *demand paging*) — pa ne plaćamo cijenu učitavanja onoga što ne pročitamo.
+- **Bez kopiranja** — jezgra "pretvara" stranice datoteke u stranice u memoriji procesa. Stranica (engl. *page*) je osnovna jedinica kojom jezgra upravlja memorijom: komad memorije fiksne veličine, tipično 4 KB. Možemo ju zamisliti kao memorijski analog bloku podataka na disku — datoteka je na disku podijeljena u blokove, a u memoriji se ti blokovi drže u stranicama jezginog *cachea* (`page cache`). Mapiranjem datoteke u memoriju procesa zapravo govorimo jezgri da stranice iz tog cachea treba učiniti dostupnima u virtualnom adresnom prostoru našeg procesa. Pri prvom pristupu nekoj stranici, jezgra je tek tada učita s diska (engl. *demand paging*) — pa ne plaćamo cijenu učitavanja onoga što ne pročitamo.
 - **Slučajan pristup** — možemo skočiti u sredinu datoteke (`podaci[ogromni_offset]`) bez `lseek`-a.
-- **Više procesa može mapirati istu datoteku** — što omogućuje da se velike datoteke (npr. baze podataka) dijele između više procesa bez dupliciranja u memoriji.
+- **Više procesa može mapirati istu datoteku** — i to na potpuno isti način kao što smo to radili kod dijeljene memorije: svaki proces vlastitim pozivom `mmap` dobiva pokazivač u svoj adresni prostor, ali svi ti pokazivači zapravo gledaju u istu fizičku regiju memorije (iste stranice u cacheu jezgre). Tako se velike datoteke (npr. baze podataka) mogu efikasno dijeliti između više procesa bez dupliciranja u memoriji. Sjetimo se naše opaske iz uvoda sekcije o dijeljenoj memoriji: jezgra ne pravi nikakvu razliku između shm objekta i obične datoteke — i jedno i drugo se preko `mmap`-a mapira u memoriju procesa po identičnom mehanizmu.
 
 Nedostaci:
 
-- **Veličina mora biti unaprijed poznata** — `mmap` zahtijeva da znamo koliko bajtova mapirati. Za dinamičke datoteke koje rastu (npr. log datoteke) ovo je nezgodno.
-- **Pokazivač sjedi na konačnoj veličini** — ako kroz mapu pišemo izvan granica, dobijemo `SIGSEGV`.
-- **Greške se manifestiraju kao `SIGBUS`/`SIGSEGV`** — što je teže za debugirati od greške koju vrati `read()`.
+- **Veličina mora biti unaprijed poznata** — `mmap` zahtijeva da znamo koliko bajtova mapirati. Za dinamičke datoteke koje rastu (npr. log datoteke) ovo nije praktično.
+- **Konačna veličina mapirane memorije** — ako korištenjem pokazivača pišemo izvan granica dodijeljenog memorijskog segmenta, dobijemo `SIGSEGV`.
+- **Greške se manifestiraju kao `SIGBUS`/`SIGSEGV`** — signal `SIGSEGV` (*segmentation violation*) javlja se kad pristupimo memoriji koja nam ne pripada (npr. čitanje ili pisanje izvan mapirane regije), dok `SIGBUS` (*bus error*) signalizira greške pri pristupu *unutar* mapirane regije koje jezgra ne uspijeva poslužiti — najčešće zato što stranica više nije dostupna na disku (npr. datoteka je u međuvremenu skraćena ili obrisana, pa pokušaj učitavanja stranice koja je iza novog kraja datoteke završava ovim signalom). Uobičajena (default) akcija za oba signala je prekidanje procesa, što je teže za debugirati od greške koju vrati `read()`.
 
 Za male datoteke ili kad treba upravljati streaming-om, klasični `read`/`write` ostaju primjereniji. Za velike datoteke kojima se pristupa nasumično, ili koje treba dijeliti između procesa, `mmap` je često znatno brži i elegantniji.
 
@@ -1084,7 +1082,7 @@ Sad kad smo upoznali oba lica `mmap`-a — i mapiranje shm objekta, i mapiranje 
 | **Tok bajtova** | anonimni cjevovod (`pipe()`) | FIFO (`mkfifo()`) |
 | **Memorijska regija** | `mmap` s `MAP_ANONYMOUS` | `shm_open` + `mmap` (ili `mmap` na regularnu datoteku) |
 
-Anonimna varijanta uvijek se može dijeliti samo između srodnih procesa, jer se prenosi kroz `fork()`. Imenovana varijanta dostupna je svakom procesu koji zna ime u datotečnom sustavu — bez obzira jesu li procesi povezani. Isti obrazac, primijenjen u dva različita konteksta (tokovi bajtova naspram regija memorije).
+Anonimna varijanta uvijek se može dijeliti samo između srodnih procesa (dijete-roditelj, ili procesi koji imaju zajedničkog pretka), jer se rukovatelj resursom nasljeđuje kroz `fork`. Imenovana varijanta dostupna je svakom procesu koji zna ime u datotečnom sustavu — bez obzira jesu li procesi povezani. Isti obrazac, primijenjen u dva različita konteksta (tokovi bajtova naspram regija memorije).
 
 ## System V IPC — kratko upoznavanje
 
@@ -1097,7 +1095,7 @@ System V mehanizmi imaju jedinstven obrazac:
 3. **Operacije** koriste taj id: `msgsnd`/`msgrcv`, `semop`, `shmat`/`shmdt`.
 4. **Brisanje** se radi `*ctl` funkcijom s naredbom `IPC_RMID`: `msgctl(id, IPC_RMID, NULL)`.
 
-Bitna posebnost koja zna iznenaditi: System V objekti **opstaju i nakon završetka procesa koji ih je stvorio** — dok ih netko eksplicitno ne obriše ili dok se sustav ne ponovno pokrene. Ako program zaboravi pozvati `IPC_RMID`, objekt ostaje u sustavu kao "smeće". Sustav se može pregledati naredbom **`ipcs`**, a ručno čistiti naredbom **`ipcrm`**:
+Važno je naglasiti: System V objekti **opstaju i nakon završetka procesa koji ih je stvorio** — dok ih netko eksplicitno ne obriše ili dok se sustav ponovno ne pokrene. Ako program zaboravi pozvati `IPC_RMID`, objekt ostaje u sustavu kao "smeće". Sustav se može pregledati naredbom **`ipcs`**, a ručno čistiti naredbom **`ipcrm`**:
 
 ```
 $ ipcs                   # prikazi sve aktivne System V IPC objekte
@@ -1106,11 +1104,11 @@ $ ipcrm -m <shmid>       # obrisi shared memory segment
 $ ipcrm -s <semid>       # obrisi semafor
 ```
 
-### Primjer: System V red poruka
+### Primjer: System V redovi poruka
 
-Da bismo ilustrirali drugačiji API, dat ćemo kratki primjer ekvivalentan onomu što smo radili s POSIX redovima — razmjena poruke između roditelja i djeteta. Koristimo `IPC_PRIVATE` kao ključ jer su procesi srodni (povezani `fork`-om).
+Po uzoru na POSIX par `mq_posalji`/`mq_primi`, napravit ćemo i ovdje dva mala programa: jedan koji šalje poruku u System V red, i drugi koji iz tog reda čita. Razlika u odnosu na POSIX je u načinu identificiranja reda — umjesto putanje sa `/` na početku, ovdje koristimo cjelobrojni **ključ** (`key_t`), koji je tipično generiran funkcijom `ftok` iz neke putanje u datotečnom sustavu i jednog dodatnog `char` identifikatora. Dva procesa koja koriste isti par (putanja, ID) dobit će isti ključ, pa će pristupiti istom redu.
 
-- [**`msg_demo.c`**](msg_demo.c) — System V red poruka, slanje poruke od roditelja djetetu.
+- [**`sysv_msg_posalji.c`**](sysv_msg_posalji.c) — šalje jednu poruku u red. Tekst poruke preuzima iz argumenta naredbenog retka, ili koristi zadanu vrijednost ako argumenta nema.
 
   ```c
   #include <stdio.h>
@@ -1120,68 +1118,149 @@ Da bismo ilustrirali drugačiji API, dat ćemo kratki primjer ekvivalentan onomu
   #include <sys/types.h>
   #include <sys/ipc.h>
   #include <sys/msg.h>
-  #include <sys/wait.h>
 
+  #define KEY_PATH "/tmp"
+  #define KEY_ID   'K'
   #define MAX_TEXT 128
 
-  /* struktura poruke - prvi clan mora biti tipa long (tip poruke) */
+  struct moja_poruka {
+      long mtype;
+      char mtext[MAX_TEXT];
+  };
+
+  int main(int argc, char *argv[]) {
+      key_t kljuc;
+      int   msqid;
+      struct moja_poruka p;
+      const char *poruka;
+
+      if (argc < 2)
+          poruka = "Pozdrav iz System V reda!";
+      else
+          poruka = argv[2];
+
+      /* generiraj kljuc iz putanje i char ID-a -- isti par (putanja, id) u
+       * razlicitim procesima daje isti kljuc, pa procesi nadju isti red */
+      kljuc = ftok(KEY_PATH, KEY_ID);
+      if (kljuc < 0) { perror("ftok"); return 1; }
+
+      /* otvori ili stvori red poruka */
+      msqid = msgget(kljuc, IPC_CREAT | 0666);
+      if (msqid < 0) { perror("msgget"); return 1; }
+
+      /* posalji poruku tipa 1 */
+      p.mtype = 1;
+      strncpy(p.mtext, poruka, MAX_TEXT - 1);
+      p.mtext[MAX_TEXT - 1] = '\0';
+
+      if (msgsnd(msqid, &p, strlen(p.mtext) + 1, 0) < 0) {
+          perror("msgsnd");
+          return 1;
+      }
+
+      printf("Poslano: %s\n", p.mtext);
+      return 0;
+  }
+  ```
+
+  Bitna razlika prema POSIX `mq_*` API-ju je već vidljiva u definiciji strukture poruke: System V poruka nije puki niz bajtova nego **struktura s `long mtype` poljem na početku**. To polje koristi se i za "kanale" — u istom redu mogu biti poruke različitih `mtype` vrijednosti, a `msgrcv` može filtrirati po njima (npr. "uzmi prvu poruku tipa 5").
+
+- [**`sysv_msg_primi.c`**](sysv_msg_primi.c) — čita jednu poruku iz istog reda i ispisuje ju.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <sys/types.h>
+  #include <sys/ipc.h>
+  #include <sys/msg.h>
+
+  #define KEY_PATH "/tmp"
+  #define KEY_ID   'K'
+  #define MAX_TEXT 128
+
   struct moja_poruka {
       long mtype;
       char mtext[MAX_TEXT];
   };
 
   int main(void) {
-      int msqid;
-      pid_t pid;
+      key_t kljuc;
+      int   msqid;
+      struct moja_poruka p;
+      ssize_t n;
 
-      /* IPC_PRIVATE = stvori novi privatni red poruka koji ce nasljediti
-       * djeca preko fork-a; nije dostupan drugim nepovezanim procesima */
-      msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0666);
+      kljuc = ftok(KEY_PATH, KEY_ID);
+      if (kljuc < 0) { perror("ftok"); return 1; }
+
+      /* otvori postojeci red (bez IPC_CREAT) */
+      msqid = msgget(kljuc, 0666);
       if (msqid < 0) { perror("msgget"); return 1; }
 
-      pid = fork();
-      if (pid < 0) { perror("fork"); return 1; }
+      /* primi poruku bilo kojeg tipa (msgtyp=0) */
+      n = msgrcv(msqid, &p, MAX_TEXT, 0, 0);
+      if (n < 0) { perror("msgrcv"); return 1; }
 
-      if (pid == 0) {
-          /* dijete - prima poruku */
-          struct moja_poruka p;
-          if (msgrcv(msqid, &p, MAX_TEXT, 0, 0) < 0) {
-              perror("msgrcv");
-              return 1;
-          }
-          printf("Dijete primilo (tip=%ld): %s\n", p.mtype, p.mtext);
-          return 0;
-      }
-
-      /* roditelj - salje poruku */
-      struct moja_poruka p;
-      p.mtype = 1;
-      strcpy(p.mtext, "Pozdrav od roditelja preko System V!");
-      if (msgsnd(msqid, &p, strlen(p.mtext) + 1, 0) < 0) {
-          perror("msgsnd");
-          return 1;
-      }
-
-      wait(NULL);
-
-      /* obrisi red - inace ostaje u sustavu! */
-      msgctl(msqid, IPC_RMID, NULL);
+      printf("Primljeno (tip=%ld): %s\n", p.mtype, p.mtext);
       return 0;
   }
   ```
 
-  Bitna razlika prema POSIX `mq_*` API-ju: System V poruka nije puki niz bajtova nego **strukturira sa `long mtype` poljem na početku**. To polje koristi se i za "kanale" — u istom redu mogu biti poruke različitih `mtype` vrijednosti, a `msgrcv` može filtrirati po njima (npr. "uzmi prvu poruku tipa 5").
-
-  Pokretanje:
+  Pokrenimo `sysv_msg_posalji` nekoliko puta s različitim porukama:
 
   ```
-  $ ./msg_demo
-  Dijete primilo (tip=1): Pozdrav od roditelja preko System V!
+  $ ./sysv_msg_posalji "Prva poruka"
+  Poslano: Prva poruka
+  $ ./sysv_msg_posalji "Druga poruka"
+  Poslano: Druga poruka
+  $ ./sysv_msg_posalji "Treca poruka"
+  Poslano: Treca poruka
   ```
 
-  U ovom primjeru roditelj briše red (`IPC_RMID`) na kraju — što je dobra praksa. Ako bismo zaboravili to napraviti, red bi ostao u sustavu i bio bi vidljiv u `ipcs` ispisu.
+  Iako su pošiljatelji već završili s radom, sve tri poruke i dalje žive u sustavu — System V red poruka opstaje neovisno o procesima koji su ga koristili. Možemo se u to uvjeriti pregledom svih aktivnih System V redova naredbom `ipcs`:
 
-System V semafori i dijeljena memorija imaju analogan API (`semget`/`semop`/`semctl` za semafore, `shmget`/`shmat`/`shmdt`/`shmctl` za shared memory). Konceptualno rade istu stvar kao POSIX inačice — samo s drugačijim načinom imenovanja i upravljanja.
+  ```
+  $ ipcs -q
+
+  ------ Message Queues --------
+  key        msqid      owner      perms      used-bytes   messages
+  0x4b000155 0          dkrst      666        38           3
+  ```
+
+  Vidimo naš red — identificiran je generiranim ključem (`0x4b000155`), dodijeljen mu je msqid `0`, sadrži ukupno 3 poruke od 38 bajtova. Sada pokrenimo primatelja, koji će pročitati jednu poruku:
+
+  ```
+  $ ./sysv_msg_primi
+  Primljeno (tip=1): Prva poruka
+  ```
+
+  Provjerimo stanje reda nakon čitanja:
+
+  ```
+  $ ipcs -q
+
+  ------ Message Queues --------
+  key        msqid      owner      perms      used-bytes   messages
+  0x4b000155 0          dkrst      666        26           2
+  ```
+
+  Red sad sadrži 2 poruke (26 bajtova) — `msgrcv` je atomski uklonio prvu poruku iz reda. Pošto ni POSIX ni standardni System V API nemaju ekvivalent "peek" operacije (čitanje bez uklanjanja), poruka koju jednom pročitamo nepovratno je uklonjena iz reda.
+
+  Za razliku od POSIX redova, System V red **neće** automatski nestati kad svi procesi zatvore svoje deskriptore — *ne postoji* `mq_unlink` ekvivalent koji se automatski poziva. Red moramo eksplicitno ukloniti, što u kodu radimo pozivom `msgctl(msqid, IPC_RMID, NULL)`, a iz ljuske naredbom `ipcrm`:
+
+  ```
+  $ ipcrm -q 0
+  $ ipcs -q
+
+  ------ Message Queues --------
+  key        msqid      owner      perms      used-bytes   messages
+  ```
+
+  Bez eksplicitnog brisanja, red ostaje u sustavu i nakon završetka svih procesa koji su ga koristili — u praksi često zarobljen i nakon više dana, sve dok administrator ručno ne obriše ili dok se sustav ne resetira. Ovo je čest izvor "smeća" u sustavima koji intenzivno koriste System V IPC.
+
+System V semafori i dijeljena memorija imaju analogan API (`semget`/`semop`/`semctl` za semafore, `shmget`/`shmat`/`shmdt`/`shmctl` za dijeljenu memoriju). Konceptualno rade istu stvar kao POSIX inačice — samo s drugačijim načinom imenovanja i upravljanja.
+
+Čitatelj koji želi dublje istražiti UNIX međuprocesnu komunikaciju — i POSIX i System V varijantu — može pogledati izvrsni *Beej's Guide to Unix IPC* [3], koji svakim mehanizmom prolazi s detaljnim primjerima i pristupačnim objašnjenjima. Vodič je besplatno dostupan online i predstavlja jednu od najboljih praktičnih referenci na ovu temu. Za teorijski temeljitiji i akademski pristup, isti materijal — uz dublje razmatranje detalja implementacije, prijenosnosti i graničnih slučajeva — obrađen je u Stevensovu i Ragovu *Advanced Programming in the UNIX Environment* [1].
 
 ## Što smo zapravo radili
 
@@ -1209,3 +1288,11 @@ make all          # gradi sve primjere
 make cijev        # gradi pojedinačni primjer
 make clean        # čisti generirane datoteke
 ```
+
+## Bibliografija
+
+[1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
+
+[2] E. W. Dijkstra, *"Cooperating Sequential Processes"*, in *Programming Languages: NATO Advanced Study Institute*, F. Genuys, Ed. London, U.K.: Academic Press, 1968, pp. 43–112. Rukopis: EWD 123, dostupno na: <https://www.cs.utexas.edu/users/EWD/transcriptions/EWD01xx/EWD123.html>
+
+[3] B. Hall, *Beej's Guide to Unix IPC*. [Online]. Dostupno na: <https://beej.us/guide/bgipc/>
