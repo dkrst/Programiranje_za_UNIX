@@ -1,42 +1,44 @@
 # Višenitno programiranje
 
-U svim dosadašnjim poglavljima naši programi bili su **jednonitni** — proces je imao jedan tok izvršavanja, koji se grao od `main` prema dolje i u nekom trenutku završavao. Kad smo trebali paralelizam, posezali smo za **procesima** — `fork`-om bismo stvorili novo dijete, koje je dobivalo vlastiti adresni prostor i izvršavalo se neovisno o roditelju (P05). Procesi su moćan mehanizam, ali su **skupi**: stvaranje procesa znači kopiranje cijelog adresnog prostora (uz pomoć tehnika kao što su *copy-on-write* postupak se ubrzava, ali resursi nisu besplatni), a komunikacija među njima zahtijeva eksplicitne mehanizme — cjevovode, dijeljenu memoriju, redove poruka, signale, sve što smo obradili u P07.
+Stvaranje novog procesa sistemskim pozivom `fork` moćan je mehanizam koji nam daje mogućnost da u naše programe ugradimo paralelno izvršavanje. Međutim, stvaranje novog procesa ujedno je i skup mehanizam: podrazumijeva kopiranje cijelog adresnog prostora postojećeg procesa, dodjelu identifikatora i ažuriranje struktura u jezgri koje čuvaju informacije o aktivnim procesima. Pored toga, komunikacija među procesima zahtijeva eksplicitne mehanizme — cjevovode, signale, dijeljenu memoriju, redove poruka, semafore i tako dalje.
 
-U ovom poglavlju upoznajemo **niti** (engl. *thread*) — lakšu jedinicu izvršavanja koja postoji *unutar* procesa. Nit ćemo nekad sresti i pod nazivom **dretva** (kroatistički termin, nešto stariji); oba naziva označavaju isto. U engleskoj literaturi niti se često nazivaju i *lightweight processes* — "lagani procesi" — što dobro opisuje njihovu prirodu: imaju mnoge mogućnosti kao i procesi (paralelno izvršavanje, vlastiti tok upravljanja), ali bez troška kopiranja cijelog adresnog prostora i bez potrebe za posebnim IPC mehanizmima. Niti su odgovor na pitanje: kako iskoristiti više jezgri suvremenih procesora za ubrzanje računski zahtjevnih programa, a istovremeno omogućiti da dijelovi programa međusobno jednostavno dijele podatke?
+U ovom poglavlju upoznajemo **niti** (engl. *thread*) — lakšu jedinicu izvršavanja koja postoji *unutar* procesa. U literaturi na hrvatskom jeziku ponekad se umjesto naziva "nit" koristi i termin "dretva"; oba naziva označavaju isto. U engleskoj literaturi niti se često nazivaju i *lightweight processes* — "lagani procesi" — što dobro opisuje njihovu prirodu: imaju mnoge mogućnosti kao i procesi (paralelno izvršavanje, vlastiti tok upravljanja), ali bez troška kopiranja cijelog adresnog prostora i bez potrebe za posebnim IPC mehanizmima. Niti su odgovor na pitanje: kako iskoristiti više jezgri suvremenih procesora za ubrzanje računski zahtjevnih programa, a istovremeno omogućiti da dijelovi programa međusobno jednostavno dijele podatke?
+
 
 ## Niti i procesi
 
-Da bismo razumjeli odnos između niti i procesa, prisjetimo se što je proces. **Proces** je instanca programa u izvršavanju — apstrakcija koju operacijski sustav drži za svaku aktivnu izvršnu jedinicu. Svaki proces ima svoj jedinstveni identifikator (`PID`), vlastiti **adresni prostor** (memorija u kojoj su smješteni programski kod, statički podaci, hrpa i stog), vlastite **deskriptore otvorenih datoteka**, vlastitu tablicu rukovatelja signala, korisnika i grupu, radni direktorij, varijable okruženja i niz drugih atributa. Svaki proces, kad ga jezgra raspoređuje na procesor, ima jedan **tok izvršavanja** — slijed instrukcija koji jezgra prati kroz programski brojač (engl. *program counter*) i sadržaj procesorskih registara.
+Da bismo razumjeli odnos između niti i procesa, prisjetimo se što je proces. Proces je instanca programa u izvršavanju — apstrakcija koju operacijski sustav drži za svaku aktivnu izvršnu jedinicu. Svaki proces ima svoj jedinstveni identifikator (`PID`), vlastiti adresni prostor (memorija u kojoj su smješteni programski kod, statički podaci, hrpa i stog), vlastite deskriptore otvorenih datoteka, vlastitu tablicu rukovatelja signala, vlasnika i grupu, radni direktorij, varijable okruženja i niz drugih atributa. Svaki proces, kad ga jezgra raspoređuje na procesor, ima jedan tok izvršavanja — slijed instrukcija koji jezgra prati kroz brojač instrukcija (engl. *program counter*, PC) i sadržaj procesorskih registara.
 
-**Nit** je upravo to — *tok izvršavanja* — ali odvojen od pojma procesa. Proces je sad spremnik resursa (adresni prostor, deskriptori, ...), a niti su jedinice izvršavanja koje žive unutar tog spremnika. Klasični jednonitni proces ima jednu nit po definiciji — onu koja izvršava `main`. Višenitni proces ima više njih, sve unutar istog adresnog prostora.
+Nit je upravo to — tok izvršavanja. Pri tom proces možemo promatrati kao "spremnik" resursa (adresni prostor, strojni kod programa, deskriptori otvorenih datoteka, ...), a niti su jedinice izvršavanja koje unutar tog spremnika žive. U svakom procesu imamo najmanje jednu nit — jedan tok izvršavanja, ali ih može biti i više, pri čemu sve niti dijele iste resurse i izvršavaju se unutar istog adresnog prostora.
 
-Razlika između niti i procesa može se sažeti u jednu rečenicu: **niti iste skupine dijele resurse procesa, a procesi su međusobno izolirani.** Konkretnije:
+Upravo ovo ključna je razlika između procesa i niti: procesi su međusobno izolirani, dok niti unutar istog procesa dijele zajedničke resurse.
 
 | Resurs | Vlasništvo |
 |---|---|
-| Programski kod (segment `.text`) | dijele sve niti procesa |
+| PID (identifikator procesa) | zajednički za sve niti procesa |
+| Programski kod (text segment) | dijele sve niti procesa |
 | Globalne i statičke varijable | dijele sve niti procesa |
 | Hrpa (memorija dobivena `malloc`-om) | dijele sve niti procesa |
 | Otvoreni deskriptori datoteka | dijele sve niti procesa |
-| Trenutni radni direktorij, `umask`, korisnik | dijele sve niti procesa |
+| Trenutni radni direktorij, `umask`, vlasnik | dijele sve niti procesa |
 | Tablica rukovatelja signala | dijele sve niti procesa |
 | **Stog (engl. *stack*)** | **vlastiti za svaku nit** |
-| **Programski brojač i procesorski registri** | **vlastiti za svaku nit** |
+| **Brojač instrukcija i procesorski registri** | **vlastiti za svaku nit** |
 | **Identifikator niti** (`pthread_t`) | **jedinstven za svaku nit** |
 | **Lokalna pohrana niti** (TLS) | **vlastita za svaku nit** |
 | **Maska blokiranih signala** | **vlastita za svaku nit** |
 
-Vlastiti stog svake niti je ključ za razumijevanje. Kad nit poziva funkciju, njezini argumenti, lokalne varijable i adresa povratka iz funkcije idu na njen stog — ne na neki "zajednički" stog procesa. Zato dvije niti mogu istovremeno biti unutar iste funkcije, svaka sa svojim privatnim lokalnim varijablama, bez ikakve interferencije. Globalne varijable, hrpa i ostale "zajedničke" strukture su mjesto gdje niti komuniciraju — i upravo zato im je potrebna sinkronizacija, što je tema veće druge polovice ovog poglavlja.
+Vlastiti stog svake niti je ključ za razumijevanje. Kad nit poziva funkciju, njezini argumenti, lokalne varijable i adresa povratka iz funkcije idu na njen stog — ne na neki "zajednički" stog procesa. Zato dvije niti mogu istovremeno biti unutar iste funkcije, svaka sa svojim privatnim lokalnim varijablama, bez ikakve interferencije. Globalne varijable, hrpa i ostale "zajedničke" strukture su mjesto gdje niti komuniciraju — i upravo zato im je potrebna sinkronizacija, ključna stavka za razumijevanje i upravljanje nitima u višenitnom procesu.
 
-## Raspoređivanje niti
+## Raspoređivač (scheduler) i niti
 
-Kad imamo jedan procesor i tisuću procesa, jezgra na procesor postavlja jedan proces na neko vrijeme, pa ga prekida i postavlja drugi — to je raspoređivanje (engl. *scheduling*) koje smo upoznali u P07. Pitanje koje se postavlja u višenitnom kontekstu je: što je jedinica koju raspoređivač zapravo raspoređuje — proces ili nit?
+Promislimo malo o načinu na koji raspoređivač upravlja procesima: kada na sustavu imamo više procesa nego resursa (procesorskih jezgri), raspoređivač upravlja procesima na način da ih izvršava u dijeljenom vremenu (engl. *time sharing*) — svaki proces dobiva na određeno vrijeme potrebne resurse, nakon kojeg ih prepušta drugim procesima dok čeka svoj red da nastavi izvršavanje. Međutim, što ako proces ima više tokova izvršavanja, tj. više niti: što je jedinica koju raspoređivač zapravo raspoređuje — proces ili nit?
 
-Na suvremenom Linuxu (kao i na većini modernih UNIX sustava) odgovor je: **nit**. Raspoređivač jezgre vidi niti kao osnovne jedinice rada, i svakoj niti može dodijeliti procesorsko vrijeme neovisno o drugima. Ako sustav ima više procesorskih jezgri, različite niti istog procesa mogu **istinski paralelno** izvršavati svoj kod na različitim jezgrama — to je upravo ono što nam je trebalo za iskorištavanje višejezgrenih procesora.
+Na suvremenom Linuxu (kao i na većini modernih UNIX sustava) odgovor je nit: raspoređivač vidi niti kao osnovne jedinice izvršavanja i svakoj niti dodjeljuje procesorsko vrijeme neovisno o drugima. Razmislimo o značenju ovog podatka: ukoliko unutar svog procesa koristimo više niti, vjerojatno ćemo dobiti više procesorskog vremena u odnosu na programe koji imaju samo jedan tok izvršavanja — samo jednu nit. Još važnije: ako raspoređivač svaku nit promatra nezavisno, dobra je šansa da će se različite niti unutar našeg procesa izvršavati nezavisno na različitim procesorskim jezgrama (gotovo sva moderna računala imaju više procesorskih jezgri). Ovo osigurava istinski paralelizam, ali otvara i mogućnost da dvije (ili više) niti koje se istovremeno izvršavaju pristupe istom podatku u zajedničkoj memoriji — što je idealan scenarij za stanje trke (race condition), koji smo već spominjali u ranijim poglavljima skripte.
 
-Povijesno, situacija nije uvijek bila tako jednostavna. Postojali su sustavi gdje su sve niti procesa dijelile jednu "kvotu" procesorskog vremena (poznato kao *M:1 model* ili *user-level threads*), pa je raspoređivač na razini jezgre vidio samo proces, a raspoređivanje među nitima radila je biblioteka u korisničkom prostoru. Postojali su i sustavi s tzv. *hibridnim M:N modelom*. Ovi pristupi su uglavnom napušteni — moderni Linux koristi tzv. *1:1 model* gdje svaka nit u korisničkom prostoru odgovara jednoj niti jezgre. Praktična posljedica za nas je da niti dobivamo punu paralelnost na više jezgri i da raspoređivač donosi sve odluke o tome koja se nit kad izvršava.
+Što to znači za pisanje programa? Dva su važna zaključka. Prvo, **niti se izvršavaju paralelno**, ne sekvencijalno — kad pokrenemo deset niti, njihov međusobni redoslijed izvršavanja je nepredvidiv i može se mijenjati od pokretanja do pokretanja. Drugo, **raspoređivač može prekinuti bilo koju nit u bilo kojem trenutku** — i ne samo između "logičkih" instrukcija C koda nego doslovno između bilo koje dvije strojne instrukcije, što smo najbolje vidjeli na primjeru inkrementiranja cjelobrojne varijable (`i++`). To nas vodi u temu race conditiona, koju ćemo detaljno razraditi u nastavku.
 
-Što to znači za pisanje programa? Dva su važna zaključka. Prvo, **niti se izvršavaju paralelno**, ne sekvencijalno — kad pokrenemo deset niti, njihov međusobni redoslijed izvršavanja je nepredvidiv i može se mijenjati od pokretanja do pokretanja. Drugo, **raspoređivač može prekinuti bilo koju nit u bilo kojem trenutku** — i ne samo između "logičkih" instrukcija C koda nego doslovno između bilo koje dvije strojne instrukcije. To nas vodi u temu race conditiona, koju ćemo detaljno razraditi u nastavku.
+> **Povijesna napomena.** Današnji 1:1 model upravljanja nitima (svaka nit u korisničkom prostoru odgovara jednoj niti jezgre) nije oduvijek bio jedini pristup. Postojali su sustavi gdje su sve niti procesa dijelile jednu "kvotu" procesorskog vremena — tzv. *M:1* model ili *user-level threads*. Tu je raspoređivač na razini jezgre vidio samo proces, a raspoređivanje među nitima radila je biblioteka u korisničkom prostoru. Prednost takvog pristupa bila je u brzini stvaranja niti i prebacivanja konteksta među njima (sve se događalo u korisničkom prostoru, bez sistemskih poziva), ali uz veliki nedostatak: cijeli proces nije mogao iskoristiti više procesorskih jezgri jer je jezgri u stvari bio jedan tok izvršavanja. Postojali su i tzv. *hibridni M:N modeli* koji su pokušavali kombinirati prednosti oba pristupa. Današnji Linux koristi isključivo 1:1 model, čime je razvoj višenitnih programa znatno pojednostavljen — sve odluke o raspoređivanju donosi jezgra, a program ne mora razmišljati o tome u kakvom je odnosu njegova "logička" nit prema niti jezgre.
 
 ## POSIX niti — pthreads
 
@@ -45,7 +47,7 @@ POSIX standard definira sučelje za rad s nitima koje se naziva **POSIX threads*
 Za prevođenje programa koji koriste pthreads potrebno je linkanje s pthread bibliotekom:
 
 ```sh
-gcc program.c -o program -lpthread
+gcc program.c -lpthread -o program
 ```
 
 Neke distribucije i neki kompajleri preferiraju oblik `-pthread` (s crticom, bez `l`), koji uz linkanje s bibliotekom postavlja i potrebne predprocesorske makroe (`_REENTRANT` ili `_POSIX_C_SOURCE`). Oba oblika funkcioniraju za naše primjere.
@@ -53,34 +55,72 @@ Neke distribucije i neki kompajleri preferiraju oblik `-pthread` (s crticom, bez
 
 ## Stvaranje i terminiranje niti
 
-Osnovne funkcije za rad s nitima su `pthread_create` (stvaranje niti) i `pthread_join` (čekanje da nit završi i dohvaćanje njene povratne vrijednosti).
+Tri osnovne funkcije za rad s nitima su `pthread_create` (stvaranje niti), `pthread_exit` (eksplicitno terminiranje niti uz povratnu vrijednost) i `pthread_join` (čekanje da nit završi i dohvaćanje njene povratne vrijednosti). Sve tri deklarirane su u zaglavlju `<pthread.h>`. Sintaksu i način korištenja obradit ćemo u dvije cjeline: prvo stvaranje, a zatim par koji upravlja životnim ciklusom — terminiranje i prikupljanje rezultata.
+
+### Stvaranje niti — `pthread_create`
 
 ```c
 #include <pthread.h>
 
 int pthread_create(pthread_t *thread, const pthread_attr_t *attr,
                    void *(*start_routine)(void *), void *arg);
-int pthread_join(pthread_t thread, void **retval);
-int pthread_exit(void *retval);
 ```
 
-**Povratna vrijednost** za `pthread_create` i `pthread_join` je `0` u slučaju uspjeha; **u slučaju greške ne postavlja se `errno`** nego se vraća sam kod greške (npr. `EAGAIN` ako je sustav iscrpio resurse za stvaranje nove niti). Ovo je razlika u odnosu na uobičajeni UNIX stil i izvor čestih grešaka — provjera s `perror(...)` neće funkcionirati izravno na povratnoj vrijednosti pthreads funkcija; za ispis poruke o grešci treba koristiti `strerror(rezultat)`.
+**Povratna vrijednost:** `0` u slučaju uspjeha. U slučaju greške *ne postavlja se* `errno` nego se vraća sam kod greške (npr. `EAGAIN` ako je sustav iscrpio resurse za stvaranje nove niti). Ovo je razlika u odnosu na uobičajeni UNIX stil i izvor čestih grešaka — provjera s `perror(...)` neće funkcionirati izravno na povratnoj vrijednosti pthreads funkcija; za ispis poruke o grešci treba koristiti `strerror(rezultat)`, gdje je `rezultat` povratna vrijednost funkcije `pthread_create`.
 
 **Argumenti:**
 
 - **`thread`** — pokazivač na varijablu tipa `pthread_t` u koju će se upisati identifikator nove niti.
 - **`attr`** — atributi niti (veličina stoga, je li joinable ili detached, ...); ako predamo `NULL`, koriste se zadane vrijednosti.
 - **`start_routine`** — pokazivač na funkciju koja će biti polazna točka nove niti; mora imati potpis `void *(*)(void *)`, tj. prima jedan generički pokazivač kao argument i vraća jedan generički pokazivač kao rezultat.
-- **`arg`** — argument koji će biti predan polaznoj funkciji nove niti.
+- **`arg`** — pokazivač na argumente koji će biti predani polaznoj funkciji nove niti.
 
-Nova nit počinje izvršavanje pozivom `start_routine(arg)`. Završava na jedan od sljedećih načina:
+Nova nit počinje izvršavanje pozivom `start_routine(arg)`.
 
-- vraćanjem iz polazne funkcije (`return` s vrijednošću koja postaje "povratna vrijednost niti");
-- eksplicitnim pozivom `pthread_exit(rezultat)`;
-- otkazivanjem od strane druge niti (`pthread_cancel`);
-- ili završetkom cijelog procesa (npr. `exit` ili `return` iz `main`-a, što ubije sve niti, ili krhki rušaj zbog signala).
+### Terminiranje i prikupljanje rezultata niti — `pthread_exit` i `pthread_join`
 
-`pthread_join(nit, &rezultat)` blokira pozivajuću nit dok zadana nit ne završi, a zatim u `rezultat` upisuje vrijednost koju je ta nit vratila. Resursi pridruženi niti oslobađaju se nakon uspješnog `join`-a — analogno pokupljanju zombi procesa preko `wait()` u P05.
+Ove dvije funkcije čine logički par: jedna završava nit i ostavlja "iza sebe" povratnu vrijednost, druga čeka da nit završi i tu vrijednost pokupi.
+
+```c
+#include <pthread.h>
+
+void pthread_exit(void *retval);
+int  pthread_join(pthread_t thread, void **retval);
+```
+
+Nit može završiti na jedan od sljedećih načina:
+
+- vraćanjem iz polazne funkcije (`return` s vrijednošću koja postaje povratna vrijednost niti);
+- eksplicitnim pozivom `pthread_exit(retval)`;
+- na zahtjev druge niti (`pthread_cancel`, vidi niže);
+- ili završetkom cijelog procesa (npr. `exit` ili `return` iz `main`-a, što ubije sve niti, ili prekidom zbog signala).
+
+`pthread_exit` završava pozivajuću nit i nikad se ne vraća, pa joj je tip `void`. Resursi pridruženi niti (struktura u jezgri, stog niti, ...) ostaju u sustavu dok ih netko ne pokupi pozivom `pthread_join`. Analogija s procesima je gotovo izravna: `pthread_exit` je za nit ono što je `exit` za proces, a `pthread_join` je za nit ono što je `wait` za proces (P05).
+
+**Argument** za `pthread_exit`:
+
+- **`retval`** — pokazivač koji postaje povratna vrijednost niti. Valja voditi računa da pokazivač koji proslijedimo funkciji `pthread_exit` ne pokazuje na varijablu na stogu! Svaka nit ima vlastiti stog, koji nestaje kada nit završi pa pokazivač na bilo koju lokalnu varijablu nije validan. Ovo je uobičajena greška, a umjesto pokazivača na lokalnu varijablu, nit tipično vraća pokazivač na memoriju alociranu na hrpi (engl. *heap*), pozivom `malloc`.
+
+**Povratna vrijednost** za `pthread_join`: `0` u slučaju uspjeha, kod greške inače (ista konvencija kao kod `pthread_create`).
+
+**Argumenti** za `pthread_join`:
+
+- **`thread`** — identifikator niti koju čekamo (vrijednost koju nam je `pthread_create` ranije upisao u `pthread_t`).
+- **`retval`** — pokazivač na pokazivač u koji `pthread_join` upisuje povratnu vrijednost niti (onu koju je nit predala `pthread_exit`-u, ili koju je vratila kroz `return` iz polazne funkcije). Ako nas povratna vrijednost ne zanima, možemo predati `NULL`. Razlog zašto je argument *pokazivač na pokazivač* je taj što funkcija mora u našu varijablu upisati adresu koja je predana funkciji `pthread_exit`. Stoga moramo proslijediti pokazivač na pokazivač — tj. pokazivač na varijablu tipa pokazivač, u koju će nova adresa biti upisana.
+
+`pthread_join` blokira pozivajuću nit dok zadana nit ne završi. Nakon uspješnog poziva, sustav oslobađa sve resurse vezane za tu nit.
+
+### Otkazivanje niti — `pthread_cancel`
+
+Nit može poslati drugoj niti zahtjev za prekid izvršavanja pozivom `pthread_cancel`:
+
+```c
+#include <pthread.h>
+
+int pthread_cancel(pthread_t thread);
+```
+
+Bitno je naglasiti da `pthread_cancel` nije bezuvjetna naredba — ona šalje **zahtjev** za otkazivanje, a hoće li i kad ciljana nit zaista završiti ovisi o njenom stanju otkaznosti i o tome dolazi li do tzv. *cancellation pointa* (poziva neke od funkcija koje POSIX definira kao mjesta na kojima se zahtjev za otkazivanje obrađuje, npr. `sleep`, `read`, `pthread_cond_wait`). Po defaultu su niti otkazne i obrada zahtjeva događa se na prvom cancellation pointu. Otkazivanje niti je relativno složena tema o kojoj nećemo dublje govoriti — koristit ćemo je samo u jednom primjeru kasnije, gdje glavna nit prekida pozadinske radnike koji izvode beskonačnu petlju.
 
 ### Primjer: prva nit
 
