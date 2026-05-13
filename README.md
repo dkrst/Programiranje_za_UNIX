@@ -24,6 +24,7 @@ Svaki direktorij odgovara jednom poglavlju skripte:
 | [`P05-Okruzenje_procesa/`](P05-Okruzenje_procesa/) | Okruženje procesa |
 | [`P06-Signali/`](P06-Signali/) | Signali |
 | [`P07-Komunikacija_izmedju_procesa/`](P07-Komunikacija_izmedju_procesa/) | Komunikacija između procesa |
+| [`P08-Visenitno_programiranje/`](P08-Visenitno_programiranje/) | Višenitno programiranje |
 
 ### [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/)
 
@@ -52,6 +53,10 @@ Primjeri koji obrađuju signale — UNIX-ov primarni mehanizam za asinkronu komu
 ### [`P07-Komunikacija_izmedju_procesa/`](P07-Komunikacija_izmedju_procesa/)
 
 Mehanizmi međuprocesne komunikacije (IPC): anonimni i imenovani cjevovodi (`pipe`, FIFO), POSIX dijeljena memorija (`shm_open`, `mmap`), sinkronizacija pomoću semafora, POSIX redovi poruka, mapiranje datoteka u memoriju, te kratki uvod u System V IPC. Poglavlje uvodi i koncepte race condition-a i atomskih operacija u kontekstu paralelnog rada više procesa.
+
+### [`P08-Visenitno_programiranje/`](P08-Visenitno_programiranje/)
+
+Uvod u višenitno programiranje s POSIX nitima (pthreads). Pokriva odnos niti i procesa, raspoređivanje niti, stvaranje i terminiranje niti, joinable i detached niti, race condition u kontekstu niti, mutexe, kondicijske varijable s klasičnim primjerom proizvođač-potrošač, te specifičnosti rada sa signalima u višenitnom programu.
 
 ## Prevođenje i pokretanje
 
