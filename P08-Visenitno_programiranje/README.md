@@ -641,9 +641,11 @@ Ukupno (8 * 100000) = 800000
 Ukupno (8 * 100000) = 800000
 ```
 
-Uvijek točno 800000. Cijena mutexa je značajan pad performansi (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali u zamjenu dobivamo ispravan rezultat — kompromis koji u 99% slučajeva itekako vrijedi.
+Uvijek točno 800000. Cijena mutexa je pad performansi (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali u zamjenu dobivamo točan i (još važnije) predvidiv rezultat.
 
-> **Mutex oko same inkrementacije, ili oko cijele petlje?** Naš `broji2.c` mutex postavlja samo oko `count++` — sqrt petlja je *izvan* kritične sekcije. Promotrimo i alternativnu varijantu, u kojoj bismo `pthread_mutex_lock` postavili na sami početak vanjske petlje, a `pthread_mutex_unlock` na njen kraj:
+> **Gdje postaviti mutex?**
+>
+> Naš `broji2.c` mutex postavlja samo oko `count++` — sqrt petlja je *izvan* kritične sekcije. Promotrimo i alternativnu varijantu, u kojoj bismo `pthread_mutex_lock` postavili na sami početak vanjske petlje, a `pthread_mutex_unlock` na njen kraj:
 >
 > ```c
 > for (int k = 0; k < *c; k++) {
@@ -655,13 +657,13 @@ Uvijek točno 800000. Cijena mutexa je značajan pad performansi (svaki ulazak/i
 > }
 > ```
 >
-> Ovaj kod je također ispravan — brojač je i dalje zaštićen, krajnji rezultat je 800000. Ali ovdje smo unutar kritične sekcije zatvorili i račun korijena, koji uopće ne dira dijeljeni `count`. Posljedica je da dok jedna nit izvodi svojih 5000 sqrt operacija, sve ostale niti bespotrebno čekaju. Račun korijena niti su mogli raditi savršeno paralelno bez ikakve interferencije; ovakvim zaključavanjem ih nepotrebno serijaliziramo i izgubimo veliki dio prednosti višenitnog programa.
+> Ovaj kod je također ispravan — brojač je i dalje zaštićen, krajnji rezultat je 800000. Ali ovdje smo unutar kritične sekcije zatvorili i račun korijena, koji uopće ne dira zajedničku varijablu `count`. Posljedica je da dok jedna nit izvodi svojih 5000 sqrt operacija, sve ostale niti bespotrebno čekaju. Račun korijena niti su mogli raditi savršeno paralelno bez ikakve interferencije; ovakvim zaključavanjem ih nepotrebno serijaliziramo i izgubimo veliki dio prednosti višenitnog programa.
 >
 > **Pravilo dobre prakse**: mutex držimo zaključanim što kraće moguće. Zaključavamo ga neposredno prije pristupa dijeljenom resursu, otključavamo neposredno nakon. Sve što ne mijenja dijeljene podatke ostaje izvan kritične sekcije, kako bi druge niti mogle raditi svoj posao paralelno.
 
 ### Deadlock
 
-Mutexi rješavaju jedan problem ali otvaraju drugi — **deadlock** (engl. *zaglavljenje*, *uzajamna blokada*). Da bismo razumjeli kako nastaje, zamislimo program s dva mutexa, `M1` i `M2`, koji štite dva različita resursa (npr. dvije strukture podataka). Nit `A` u nekom dijelu koda treba pristup objema strukturama, pa zaključava prvo `M1`, a zatim `M2`:
+Mutexi rješavaju jedan problem ali otvaraju drugi — **deadlock** (zaglavljenje, uzajamna blokada). Da bismo razumjeli kako nastaje, zamislimo program s dva mutexa, `M1` i `M2`, koji štite dva različita resursa (npr. dvije strukture podataka). Nit `A` u nekom dijelu koda treba pristup objema strukturama, pa zaključava prvo `M1`, a zatim `M2`. U drugom dijelu koda, nit `B` također treba obje strukture — ali iz nekog razloga (možda je drugi programer pisao tu funkciju, ili je redoslijed dolazio iz drugačijeg konteksta) zaključava ih u obrnutom redoslijedu: prvo `M2`, pa `M1`.
 
 ```
 Nit A:                       Nit B:
@@ -672,9 +674,7 @@ Nit A:                       Nit B:
   pthread_mutex_unlock(&M1);  pthread_mutex_unlock(&M2);
 ```
 
-U drugom dijelu koda, nit `B` također treba obje strukture — ali iz nekog razloga (možda je drugi programer pisao tu funkciju, ili je redoslijed dolazio iz drugačijeg konteksta) zaključava ih u **obrnutom redoslijedu**: prvo `M2`, pa `M1`.
-
-Sve dok se `A` i `B` ne izvršavaju istovremeno, sve je u redu. Problem nastaje kad raspoređivač isprepleće dvije niti baš na neugodan način:
+Sve dok se `A` i `B` ne izvršavaju istovremeno, sve je u redu. Problem nastaje ukoliko obje niti dođu u kritični dio koda u isto vrijeme:
 
 1. Nit `A` zaključa `M1`.
 2. Raspoređivač prebaci kontrolu na nit `B` (ili ona ionako radi paralelno na drugoj jezgri).
@@ -684,9 +684,11 @@ Sve dok se `A` i `B` ne izvršavaju istovremeno, sve je u redu. Problem nastaje 
 
 Obje niti sad zauvijek čekaju jedna drugu. Nijedna ne može otpustiti svoj mutex jer ne može dovršiti svoj posao, a posao ne može dovršiti jer čeka onaj drugi mutex. Proces je živ ali se nikad više neće dogoditi ništa — to je deadlock.
 
-Klasična ilustracija ovog problema je *problem pet filozofa* (engl. *dining philosophers*): pet filozofa sjedi za okruglim stolom, između svaka dva filozofa nalazi se jedan štapić, a filozof treba *oba* štapića (lijevi i desni) da bi mogao jesti. Ako svi istovremeno uzmu lijevi štapić i čekaju desni, nijedan nikad neće početi jesti.
+Prethodni primjer, na kojem smo ilustrirali korištenje mutexa, je krajnje jednostavan i očigledan: dijeljenoj varijabli se pristupa na samo jednom mjestu u jednoj funkciji, pa se možda čini da ne možete napraviti ovako banalnu grešku. Međutim, u složenim višenitnim programima dijeljenim varijablama često pristupamo iz različitih dijelova koda, koji ponekad čak ne moraju biti funkcionalno povezani — bar ne na način koji je "na prvu" jasan. Autor iz vlastitog iskustva može posvjedočiti da je deadlock puno lakše napraviti nego što izgleda na ovakvom uvodnom primjeru. Što program postaje veći, što više mutexa ima i što su raspršeniji po kodu, to su prilike za nepažljivi obrnuti redoslijed zaključavanja češće.
 
-Najjednostavniji način izbjegavanja deadlocka u praksi je **konzistentan redoslijed zaključavanja**: ako se svi dijelovi koda koji trebaju oba mutexa dogovore da uvijek zaključavaju `M1` prije `M2` (recimo, prema adresama u memoriji, ili abecednom redu imena), deadlock je nemoguć. U većim programima ovo zahtijeva pažljiv dizajn — što su mutexi raspršeniji po kodu, to je teže jamčiti konzistentnost. Postoje i drugi pristupi (npr. `pthread_mutex_trylock` koji ne blokira nego odmah javlja neuspjeh, pa nit može otpustiti ono što već drži i pokušati ponovno), ali rasprava o njima nadilazi opseg ovog uvoda.
+Klasična ilustracija ovog problema je *problem pet filozofa* (engl. *dining philosophers*), koji je 1971. formulirao E. W. Dijkstra [4]: pet filozofa sjedi za okruglim stolom, između svaka dva filozofa nalazi se jedan štapić, a filozof treba *oba* štapića (lijevi i desni) da bi mogao jesti. Ako svi istovremeno uzmu lijevi štapić i čekaju desni, nijedan nikad neće početi jesti.
+
+Najjednostavniji način izbjegavanja deadlocka u praksi je konzistentan redoslijed zaključavanja: ako se svi dijelovi koda koji trebaju oba mutexa dogovore da uvijek zaključavaju `M1` prije `M2` (recimo, prema adresama u memoriji, ili abecednom redu imena), deadlock je nemoguć. U većim programima ovo zahtijeva pažljiv dizajn — što su mutexi raspršeniji po kodu, to je teže jamčiti konzistentnost. Postoje i drugi pristupi (npr. `pthread_mutex_trylock` koji ne blokira nego odmah javlja neuspjeh, pa nit može otpustiti ono što već drži i pokušati ponovno), ali rasprava o njima nadilazi opseg ovog uvoda.
 
 ## Kondicijske varijable
 
@@ -919,3 +921,5 @@ make clean        # čisti generirane datoteke
 [2] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
 
 [3] L. Budin, M. Golub, D. Jakobović, and L. Jelenković, *Operacijski sustavi*, 3. izd. Zagreb, Hrvatska: Element, 2013.
+
+[4] E. W. Dijkstra, "Hierarchical ordering of sequential processes," *Acta Informatica*, vol. 1, no. 2, pp. 115–138, 1971.
