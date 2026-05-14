@@ -1,20 +1,26 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS =
-TARGETS = nit_pozdrav nit_join nit_args nit_stog nit_race nit_mutex nit_cond nit_signal nit_detached
+TARGETS = pozdrav1 pozdrav2 pozdrav3 nit_join nit_args nit_stog nit_race nit_mutex nit_cond nit_signal nit_detached
 
 # pthreads zahtijevaju -lpthread (na nekim sustavima i -pthread za CFLAGS)
 LIBS_PTHREAD = -lpthread
 
-default: nit_pozdrav
+default: pozdrav1
 
 all: $(TARGETS)
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 
-nit_pozdrav: nit_pozdrav.o
-	$(CC) $(LDFLAGS) nit_pozdrav.o -o nit_pozdrav $(LIBS_PTHREAD)
+pozdrav1: pozdrav1.o
+	$(CC) $(LDFLAGS) pozdrav1.o -o pozdrav1 $(LIBS_PTHREAD)
+
+pozdrav2: pozdrav2.o
+	$(CC) $(LDFLAGS) pozdrav2.o -o pozdrav2 $(LIBS_PTHREAD)
+
+pozdrav3: pozdrav3.o
+	$(CC) $(LDFLAGS) pozdrav3.o -o pozdrav3 $(LIBS_PTHREAD)
 
 nit_join: nit_join.o
 	$(CC) $(LDFLAGS) nit_join.o -o nit_join $(LIBS_PTHREAD)

@@ -122,18 +122,20 @@ int pthread_cancel(pthread_t thread);
 
 Bitno je naglasiti da `pthread_cancel` nije bezuvjetna naredba — ona šalje **zahtjev** za otkazivanje, a hoće li i kad ciljana nit zaista završiti ovisi o njenom stanju otkaznosti i o tome dolazi li do tzv. *cancellation pointa* (poziva neke od funkcija koje POSIX definira kao mjesta na kojima se zahtjev za otkazivanje obrađuje, npr. `sleep`, `read`, `pthread_cond_wait`). Po defaultu su niti otkazne i obrada zahtjeva događa se na prvom cancellation pointu. Otkazivanje niti je relativno složena tema o kojoj nećemo dublje govoriti — koristit ćemo je samo u jednom primjeru kasnije, gdje glavna nit prekida pozadinske radnike koji izvode beskonačnu petlju.
 
-### Primjer: prva nit
+### Primjer: `pozdrav1`
 
-- [**`nit_pozdrav.c`**](nit_pozdrav.c) — najjednostavniji mogući primjer. Glavna nit stvara jednu pomoćnu nit koja ispiše poruku i odmah završi.
+- [**`pozdrav1.c`**](pozdrav1.c) — glavna nit (u kodu označena kao *prva nit*) stvara novu nit i ispisuje dvije svoje poruke prije izlaska iz `main`-a. Nova nit (*druga nit* u kodu) nakon kratke pauze ispisuje svoje dvije poruke.
 
   ```c
   #include <stdio.h>
   #include <stdlib.h>
+  #include <unistd.h>
   #include <pthread.h>
 
   void *pozdrav(void *arg) {
-      (void)arg;
-      printf("Pozdrav iz niti!\n");
+      sleep(1);
+      printf("Pozdrav iz druge niti!\n");
+      printf("Druga nit izlazi!\n");
       return NULL;
   }
 
@@ -145,9 +147,8 @@ Bitno je naglasiti da `pthread_cancel` nije bezuvjetna naredba — ona šalje **
           return 1;
       }
 
-      pthread_join(nit, NULL);
-
-      printf("Glavna nit zavrsava.\n");
+      printf("Pozdrav iz prve niti.\n");
+      printf("Prva nit nit izlazi!\n");
       return 0;
   }
   ```
@@ -155,60 +156,207 @@ Bitno je naglasiti da `pthread_cancel` nije bezuvjetna naredba — ona šalje **
   Ispis:
 
   ```
-  $ ./nit_pozdrav
-  Pozdrav iz niti!
-  Glavna nit zavrsava.
+  $ ./pozdrav1
+  Pozdrav iz prve niti.
+  Prva nit nit izlazi!
   ```
 
-  Da `pthread_join` nije bio pozvan, glavna nit bi mogla završiti prije nego što pomoćna stigne ispisati svoju poruku. Kad glavna nit (ona koja izvršava `main`) izađe pozivom `return` iz `main`-a, cijeli proces se gasi — uključujući sve preostale niti, neovisno o tome jesu li završile svoj posao. Ako nas to ne smeta (npr. pomoćne niti rade dijagnostiku koja smije nestati u trenutku izlaska), `pthread_join` možemo izostaviti. Inače je obavezan.
+  Iako bismo očekivali da se nakon pokretanja programa "jave" obje niti — prvo prva, a zatim, nakon kratke pauze, i druga — drugi pozdrav se nikada ne dogodi. Razlog ne bi smio biti prekid izvršavanja prve niti: sve niti unutar jednog procesa su, kao što smo ranije naveli, ravnopravne i predstavljaju nezavisne tokove izvršavanja unutar istog spremnika, pa završetak jedne niti ne povlači i završetak ostalih. Međutim, sjetimo se na trenutak značenja poziva `return` iz funkcije `main`: dok u svim drugim funkcijama u programu `return` znači povratak u funkciju pozivatelja, poziv `return` iz funkcije `main` po C standardu ekvivalentan je pozivu `exit` — prekidu izvršavanja procesa (više detalja vidjeti u poglavlju [P05 – Okruženje procesa, sekcija "Životni ciklus procesa"](../P05-Okruzenje_procesa/README.md#životni-ciklus-procesa)).
 
-### Primjer: povratna vrijednost niti
+  Isto značenje `return` ima i u našem primjeru: `return` iz funkcije `main` je `exit`, a `exit` terminira **cijeli proces**, uključujući sve preostale niti, neovisno o tome jesu li završile svoj posao ili nisu. U trenutku kad bi se druga nit probudila iz `sleep(1)`, proces više ne postoji.
 
-- [**`nit_join.c`**](nit_join.c) — pomoćna nit računa kvadrat broja i vraća rezultat glavnoj.
+  Postoje različiti načini da ovo popravimo. U sljedeća dva primjera vidjet ćemo dva pristupa.
+
+### Primjer: `pozdrav2`
+
+- [**`pozdrav2.c`**](pozdrav2.c) — najjednostavnije rješenje: prva nit prije izlaska iz `main`-a pozove `pthread_join(nit, NULL)` i tako čeka da druga nit završi. Kod se od `pozdrav1.c` razlikuje samo u jednom dodanom retku.
 
   ```c
-  void *kvadrat(void *arg) {
-      int x = *(int *)arg;
-      int *rezultat = malloc(sizeof(int));
-      if (rezultat == NULL) return NULL;
-      *rezultat = x * x;
-      return rezultat;
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <pthread.h>
+
+  void *pozdrav(void *arg) {
+      sleep(1);
+      printf("Pozdrav iz druge niti!\n");
+      printf("Druga nit izlazi!\n");
+      return NULL;
   }
 
   int main(void) {
       pthread_t nit;
-      int broj = 7;
-      void *povratna_vrijednost;
 
+      if (pthread_create(&nit, NULL, pozdrav, NULL) != 0) {
+          perror("pthread_create");
+          return 1;
+      }
+
+      printf("Pozdrav iz prve niti.\n");
+      pthread_join(nit, NULL);          /* novo: cekaj drugu nit prije izlaska */
+      printf("Prva nit nit izlazi!\n");
+      return 0;
+  }
+  ```
+
+  `pthread_join(nit, NULL)` blokira prvu nit dok druga ne završi. Tek kad druga ispiše obje svoje poruke i vrati se iz polazne funkcije, prva nit nastavlja s ispisom svoje druge poruke i poziva `return 0`. U tom trenutku `exit` terminira proces — ali sad je sve već odrađeno.
+
+  Ispis:
+
+  ```
+  $ ./pozdrav2
+  Pozdrav iz prve niti.
+  Pozdrav iz druge niti!
+  Druga nit izlazi!
+  Prva nit nit izlazi!
+  ```
+
+  Pažljivim pogledom na redoslijed vidimo da je prva nit zaista čekala drugu — između njezine prve i druge poruke ubacile su se obje poruke druge niti.
+
+### Primjer: `pozdrav3`
+
+Drugi primjer (`pozdrav2`) riješio je problem preuranjenog terminiranja procesa. U ovom primjeru, prva nit ostala je "glavna" — ona stvara novu nit, čeka na njezin završetak i završava proces. Na sljedećem primjeru pokazat ćemo da su niti zaista ravnopravne — ne postoji glavna nit koja stvara i povezuje (*join*) druge niti. Jednom kada se stvori nova nit, ili više njih, sve niti unutar jednog procesa su ravnopravne i bilo koja nit može povezati (*join*) bilo koju drugu.
+
+- [**`pozdrav3.c`**](pozdrav3.c) — uloge `pthread_join`-a sad su zamijenjene. Prva nit nakon stvaranja druge ispisuje svoje dvije poruke i poziva `pthread_exit(NULL)`. Druga nit, nakon vlastite prve poruke, poziva `pthread_join(glavna, NULL)` na *prvoj* niti, i tek tada ispiše svoju zadnju poruku i završi.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <pthread.h>
+
+  pthread_t glavna;
+
+  void *pozdrav(void *arg) {
+      sleep(1);
+      printf("Pozdrav iz druge niti!\n");
+      pthread_join(glavna, NULL);       /* druga nit ceka prvu */
+      printf("Druga nit izlazi!\n");
+      return NULL;
+  }
+
+  int main(void) {
+      pthread_t nit;
+
+      glavna = pthread_self();           /* spremi vlastiti ID u globalnu varijablu */
+      if (pthread_create(&nit, NULL, pozdrav, NULL) != 0) {
+          perror("pthread_create");
+          return 1;
+      }
+
+      printf("Pozdrav iz prve niti.\n");
+      printf("Prva nit nit izlazi!\n");
+      pthread_exit(NULL);                /* terminira samo prvu nit, NE proces */
+  }
+  ```
+
+  Dva su nova elementa u odnosu na prethodne primjere. Prvo, prva nit poziva `pthread_self()` da dohvati vlastiti identifikator i pohrani ga u globalnu varijablu `glavna`, vidljivu drugoj niti (sjetimo se da niti dijele cijeli adresni prostor procesa, uključujući globalne varijable). Funkcija `pthread_self` deklarirana je u `<pthread.h>`:
+
+  ```c
+  pthread_t pthread_self(void);
+  ```
+
+  Funkcija vraća identifikator niti koja ju je pozvala.
+
+  Drugo, prva nit umjesto `return 0` poziva `pthread_exit(NULL)`. Time se gasi samo nit koja je pozvala `pthread_exit`, a proces ostaje živ jer u njemu još uvijek postoji druga nit. Druga nit nakon ispisa pozdrava povezuje prvu. Ovdje vidimo još jednu ključnu razliku u odnosu na procese, kod kojih postoji jasna hijerarhija roditelj-dijete, a dijete ne može prikupiti izlazni status roditelja. Kod niti hijerarhije nema — kao što druga nit u našem primjeru bez problema čeka i povezuje prvu, tako bilo koja nit u procesu može čekati bilo koju drugu. Nakon povratka iz `pthread_join`, druga nit ispiše zadnju poruku i završi.
+
+  Ispis:
+
+  ```
+  $ ./pozdrav3
+  Pozdrav iz prve niti.
+  Prva nit nit izlazi!
+  Pozdrav iz druge niti!
+  Druga nit izlazi!
+  ```
+
+  Redoslijed ispisa je zanimljiv: prva nit ispiše svoje obje poruke i pozove `pthread_exit`; druga nit se u međuvremenu probudi iz `sleep(1)`, ispiše svoju prvu poruku, čeka prvu kroz `pthread_join` (koji u tom trenutku odmah uspijeva jer je prva već završila), pa ispiše svoju drugu poruku.
+
+  Ovaj primjer pokazuje nekoliko važnih stvari odjednom. **Niti su zaista ravnopravne** — druga nit poziva `pthread_join` na *prvoj* niti, što bi u svijetu procesa bilo nezamislivo. **Prva nit (ona koja izvršava `main`) nije "posebna"** osim po tome što počinje izvršavati `main` i što `return` iz `main`-a terminira proces; ako umjesto `return` koristimo `pthread_exit`, ponaša se kao bilo koja druga nit. I konačno — **proces živi sve dok mu živi barem jedna nit**.
+
+### Primjer: `kvadrat` — prijenos podataka u nit i natrag
+
+U prethodnim primjerima glavna nit i dalje je nešto "radila" — ispisivala pozdrav. Da bismo vidjeli kako se podaci stvarno predaju u nit i kako se rezultat vraća, napravit ćemo program koji od nove niti traži da izračuna kvadrat broja zadanog kao argument naredbenog retka. Niti koja računa kvadrat broj predajemo kao četvrti argument funkcije `pthread_create`, a rezultat se vraća kao argument funkcije `pthread_exit`. Nit pozivatelj povratnu vrijednost prima kao drugi argument `pthread_join`.
+
+- [**`kvadrat.c`**](kvadrat.c) — prvi pokušaj, s tipičnom početničkom pogreškom.
+
+  ```c
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <unistd.h>
+  #include <pthread.h>
+
+  void *kvadrat(void *arg) {
+      int broj = *(int*)arg;
+      int r = broj*broj;
+      pthread_exit((void*)&r);
+  }
+
+  int main(int argc, char **argv) {
+      pthread_t nit;
+      int broj;
+      int *retval;
+
+      if (argc < 2) {
+          printf("koristenje: %s <broj>\n", argv[0]);
+          return 0;
+      }
+
+      broj = atoi(argv[1]);
       if (pthread_create(&nit, NULL, kvadrat, &broj) != 0) {
           perror("pthread_create");
           return 1;
       }
 
-      pthread_join(nit, &povratna_vrijednost);
-
-      int *rezultat = (int *)povratna_vrijednost;
-      printf("%d^2 = %d\n", broj, *rezultat);
-      free(rezultat);
+      pthread_join(nit, (void**)&retval);
+      printf("%d^2 = %d\n", broj, *retval);
       return 0;
   }
   ```
 
-  Bitno je primijetiti da rezultat alociramo s `malloc`-om, a ne kao lokalnu varijablu unutar niti. Razlog je u sljedećem primjeru — lokalne varijable žive na stogu niti, a stog nestaje kad nit završi.
+  Glavna nit pretvara argument naredbenog retka u cijeli broj i predaje funkciji `pthread_create` pokazivač na njega (varijabla `broj` je u glavnoj niti i ostaje živa do kraja `main`-a, pa je sigurno proslijediti njezinu adresu). U funkciji niti rezultat se izračuna u lokalnoj varijabli `r`, čija se adresa predaje `pthread_exit`-u. Glavna nit zatim u `retval` dobiva tu adresu i ispisuje vrijednost.
 
-### Primjer: opasnost stoga
+  Pokrenimo program nekoliko puta:
 
-- [**`nit_stog.c`**](nit_stog.c) — demonstracija česte pogreške. Nit vraća pokazivač na svoju **lokalnu varijablu**, koja se nalazi na njenom stogu. Kad se nit terminira, njen stog se oslobađa, pa pristup kroz taj pokazivač iz druge niti čita nevažeću memoriju — *undefined behavior*.
+  ```
+  $ ./kvadrat 7
+  7^2 = -44044288
+  $ ./kvadrat 7
+  7^2 = -469766144
+  $ ./kvadrat 7
+  7^2 = -1574965248
+  ```
+
+  Rezultat je svaki put drugačiji i ni jednom točan. Razlog je upravo onaj koji smo spomenuli uz prototip `pthread_exit`-a: varijabla `r` živi na stogu niti koja računa kvadrat, a stog se oslobađa u trenutku kada nit završi. Kad glavna nit nakon povratka iz `pthread_join` dohvati `*retval`, čita iz područja memorije koje je nekad bilo stog te niti, ali sad sadrži nepoznat sadržaj.
+
+  Logično pitanje koje se može postaviti: zašto pristup kroz pokazivač u glavnoj niti ne uzrokuje grešku `SIGSEGV`? Sjetimo se da niti dijele isti adresni prostor procesa, a stog jedne niti nije "izvan" adresnog prostora — to je memorija unutar njega, alocirana za potrebe te niti pri njenom stvaranju. Kad nit završi, sustav tu memoriju vraća u svoj bazen slobodnih stranica, ali sa stajališta hardvera adresa i dalje pripada procesu i moguć je pristup. Operacijski sustav nema načina znati da ono što čitamo više "ne pripada" niti koja je davno završila — pristup je tehnički legalan, samo je sadržaj smeće.
+
+  Treba reći da povremeno možemo dobiti i `SIGSEGV` — primjerice ako sustav u međuvremenu vrati stranicu na kojoj je bio stog niti operacijskom sustavu, pa ona više nije mapirana u adresni prostor procesa. U ovom slučaju, pokušaj čitanja s adrese na koju pokazivač pokazuje izaziva segmentacijsku grešku, koja se manifestira na način da nam jezgra pošalje signal `SIGSEGV`.
+
+  Iako ovo zvuči kontraintuitivno, takav ishod je u nekom smislu sretniji: program javlja grešku i odmah znamo da nešto ne valja. Mnogo je opasnija upravo ova tiha varijanta koju vidimo u našem primjeru — program *naizgled radi*, prolazi sve trivijalne provjere, ali rezultat je svaki put kriv. Greške ovog tipa mogu ostati neprimijećene jako dugo, sve dok se okolnosti ne poklope da ih netko slučajno otkrije.
+
+  Ovo je važno pravilo koje vrijedi pamtiti: **nikad ne vraćajte iz niti pokazivač na lokalnu varijablu**. Isti princip vrijedi i za "obične" funkcije u C-u, ali se kod niti ova greška još teže otkriva jer ovisi o tome kad i kako sustav recklira memoriju oslobođenih stogova.
+
+- [**`kvadrat2.c`**](kvadrat2.c) — ispravljena verzija. Umjesto lokalne varijable na stogu, memoriju za rezultat alociramo na hrpi pozivom `malloc`-a. Hrpa je dio adresnog prostora procesa i memorija ondje ostaje validna sve dok je eksplicitno ne oslobodimo pozivom `free`.
 
   ```c
-  void *lose(void *arg) {
-      (void)arg;
-      int lokalna = 42;     /* na stogu ove niti! */
-      return &lokalna;      /* OPASNO: stog ce nestati */
+  void *kvadrat(void *arg) {
+      int broj = *(int*)arg;
+      int *r = (int*)malloc(sizeof(int));
+
+      *r = broj*broj;
+      pthread_exit((void*)r);
   }
   ```
 
-  Već nas i kompajler upozorava (`warning: function returns address of local variable`), što je signal da je nešto fundamentalno krivo. Na ovom konkretnom programu većina sustava pokazat će **segmentacijsku grešku** pri pristupu — što je sretan ishod, jer nas operacijski sustav glasno upozorava da nešto nije u redu. Mnogo opasniji slučajevi su oni gdje program *naizgled radi*, ali povremeno vraća pogrešne podatke jer memoriju koju je nekad zauzimao stog niti u međuvremenu zauzme nešto drugo. Pravilno rješenje vidjeli smo u prethodnom primjeru — alocirati memoriju na hrpi (`malloc`), koja preživi terminiranje niti.
+  Sve ostalo u programu je identično `kvadrat.c`-u. Sad rezultat radi pouzdano:
+
+  ```
+  $ ./kvadrat2 7
+  7^2 = 49
+  ```
+
+  Mali nedostatak ovog rješenja: glavna nit nakon ispisa rezultata trebala bi pozvati `free(retval)` da oslobodi alociranu memoriju. U našem trivijalnom programu to nije problem jer i tako odmah završavamo, ali u dugotrajnim programima izostavljen `free` znači curenje memorije. Iako smo navikli da memoriju alociranu s `malloc`-om oslobađamo s `free` u funkciji u kojoj je memorija alocirana (jer je pokazivač u kojem je pohranjena memorijska adresa najčešće lokalna varijabla), u ovom slučaju to nije moguće jer je funkcija u kojoj je memorija alocirana završila s izvršavanjem završetkom niti. U ovom slučaju, nit koja je primila rezultat drži pokazivač na memorijsku adresu, pa je njena odgovornost da istu i oslobodi.
 
 ### Primjer: više niti s različitim argumentima
 
