@@ -358,9 +358,11 @@ U prethodnim primjerima glavna nit i dalje je nešto "radila" — ispisivala poz
 
   Mali nedostatak ovog rješenja: glavna nit nakon ispisa rezultata trebala bi pozvati `free(retval)` da oslobodi alociranu memoriju. U našem trivijalnom programu to nije problem jer i tako odmah završavamo, ali u dugotrajnim programima izostavljen `free` znači curenje memorije. Iako smo navikli da memoriju alociranu s `malloc`-om oslobađamo s `free` u funkciji u kojoj je memorija alocirana (jer je pokazivač u kojem je pohranjena memorijska adresa najčešće lokalna varijabla), u ovom slučaju to nije moguće jer je funkcija u kojoj je memorija alocirana završila s izvršavanjem završetkom niti. U ovom slučaju, nit koja je primila rezultat drži pokazivač na memorijsku adresu, pa je njena odgovornost da istu i oslobodi.
 
-### Primjer: više niti s različitim argumentima
+### Primjer: `argumenti` — više niti s različitim argumentima
 
-- [**`nit_args.c`**](nit_args.c) — stvaramo pet niti odjednom, svakoj predajemo njezin redni broj.
+Često nam je potrebno stvoriti niz niti i svakoj predati različit argument (npr. njezin redni broj, ulazne podatke za obradu, ili index u nekom polju). U sljedećem primjeru stvorit ćemo pet niti i svakoj predati njezin redni broj kroz argument `pthread_create`-a. Cilj je da svaka nit ispiše broj 0, 1, 2, 3 i 4 — svaka svoj.
+
+- [**`argumenti.c`**](argumenti.c)
 
   ```c
   #define BROJ_NITI 5
@@ -375,26 +377,76 @@ U prethodnim primjerima glavna nit i dalje je nešto "radila" — ispisivala poz
 
   int main(void) {
       pthread_t niti[BROJ_NITI];
-      int       podaci[BROJ_NITI];
+      int       podaci;
+      int       i;
 
-      for (int i = 0; i < BROJ_NITI; i++) {
-          podaci[i] = i;
-          pthread_create(&niti[i], NULL, radnik, &podaci[i]);
+      for (i = 0; i < BROJ_NITI; i++) {
+          podaci = i;
+          if (pthread_create(&niti[i], NULL, radnik, &podaci) != 0) {
+              perror("pthread_create");
+              return 1;
+          }
       }
 
-      for (int i = 0; i < BROJ_NITI; i++)
+      for (i = 0; i < BROJ_NITI; i++)
           pthread_join(niti[i], NULL);
 
+      printf("Sve niti su zavrsile.\n");
       return 0;
   }
   ```
 
-  Pažnja na suptilnu zamku: svakoj niti predajemo pokazivač na **zaseban** element polja `podaci[]`, a ne pokazivač na varijablu petlje `i`. Da smo predali `&i`, sve niti bi gledale u istu varijablu, čija se vrijednost u međuvremenu mijenja — niti bi mogle pročitati `i` "kasno", kad smo već povećali brojač. To je tipičan obrazac početničke pogreške s nitima.
-
-  Ispis pokazuje važnu osobinu: **redoslijed izvršavanja niti nije unaprijed određen**. U jednom pokretanju dobivamo:
+  Logika je očita: u svakoj iteraciji petlje upišemo trenutnu vrijednost `i` u varijablu `podaci`, te niti predamo njezinu adresu kao argument. Pokrenimo program i pogledajmo što se događa:
 
   ```
-  $ ./nit_args
+  $ ./argumenti
+  Nit 3 pocinje rad
+  Nit 3 pocinje rad
+  Nit 3 pocinje rad
+  Nit 3 pocinje rad
+  Nit 4 pocinje rad
+  Nit 3 zavrsila
+  Nit 3 zavrsila
+  Nit 3 zavrsila
+  Nit 3 zavrsila
+  Nit 4 zavrsila
+  Sve niti su zavrsile.
+  ```
+
+  Umjesto očekivanih `0, 1, 2, 3, 4`, vidimo da nekoliko niti misli da im je `id` jednak `3` (ili neki drugi broj, ovisno o pokretanju). Što je pošlo po krivu?
+
+  Sjetimo se da nit, kad je stvorimo, ne počinje *odmah* izvršavati svoju polaznu funkciju — između poziva `pthread_create` i početka izvršavanja funkcije `radnik` može proći određeno vrijeme dok raspoređivač ne odluči pokrenuti novostvorenu nit. U međuvremenu, glavna nit nastavlja izvršavati petlju i u svakoj iteraciji **prepisuje vrijednost varijable `podaci`**. Sjetimo se da nitima prenosimo adresu varijable (pokazivač), ne njezinu vrijednost — u našem slučaju sve niti su dobile pokazivač na istu varijablu (istu adresu u memoriji), koju "glavna" nit mijenja u petlji. Kada niti pokušaju pročitati vrijednost s adrese koju su dobile kao argument, vide trenutnu vrijednost — posljednju upisanu, ili onu koja se u tom trenutku tamo zatekla.
+
+  Ovo je tipična zamka u radu s nitima: argument koji predajemo niti mora "preživjeti" do trenutka kad ga nit pročita i ne smije se u međuvremenu mijenjati. Ukoliko niti predamo pokazivač na varijablu koja se nakon poziva `pthread_create` mijenja — gotovo je sigurno da će barem neke od niti dobiti pogrešnu vrijednost.
+
+- [**`argumenti2.c`**](argumenti2.c) — ispravljena verzija. Umjesto jedne varijable koju u petlji prepisujemo, koristimo polje, gdje svaka nit dobiva pokazivač na *svoj* zasebni element. Tih pet elemenata polja zadržavaju svoje vrijednosti sve do kraja `main`-a, kad sve niti već odavno čitaju svoje argumente.
+
+  ```c
+  int main(void) {
+      pthread_t niti[BROJ_NITI];
+      int       podaci[BROJ_NITI];     /* zasebna kopija ID-a za svaku nit */
+      int       i;
+
+      for (i = 0; i < BROJ_NITI; i++) {
+          podaci[i] = i;
+          if (pthread_create(&niti[i], NULL, radnik, &podaci[i]) != 0) {
+              perror("pthread_create");
+              return 1;
+          }
+      }
+
+      for (i = 0; i < BROJ_NITI; i++)
+          pthread_join(niti[i], NULL);
+
+      printf("Sve niti su zavrsile.\n");
+      return 0;
+  }
+  ```
+
+  Funkcija `radnik` je identična kao u prethodnoj verziji. Razlika je samo u `main`-u: `podaci` je sad polje od `BROJ_NITI` elemenata, i `i`-toj niti predajemo `&podaci[i]` — pokazivač koji za nju ostaje stabilan jer nitko više ne dira upravo taj element polja.
+
+  ```
+  $ ./argumenti2
   Nit 0 pocinje rad
   Nit 1 pocinje rad
   Nit 2 pocinje rad
@@ -408,16 +460,7 @@ U prethodnim primjerima glavna nit i dalje je nešto "radila" — ispisivala poz
   Sve niti su zavrsile.
   ```
 
-  Niti su završile u drugačijem redoslijedu nego što su počele — što je tipično ponašanje. Sljedeće pokretanje moglo bi dati drugačiji raspored.
-
-## Odnos među nitima — nema "glavne"
-
-Kad smo govorili o procesima u P05, postojao je jasan odnos roditelj-dijete: proces `A` stvori dijete `B` pozivom `fork`, i samo `A` može pokupiti zombi `B`-a preko `wait`. Roditelj i dijete nisu simetrični.
-
-Kod niti, situacija je drugačija. **Sve niti unutar procesa su međusobno ravnopravne** — ne postoji formalni hijerarhijski odnos. Bilo koja nit može pozvati `pthread_join(nit_X, ...)` da pokupi rezultat bilo koje druge niti, neovisno o tome koja je koju stvorila. Glavna nit (ona koja izvršava `main`) nije ničim posebno povezana s nitima koje je stvorila — može završiti prije njih, može biti joinana od strane neke pomoćne niti, ili može jednostavno pozvati `pthread_exit()` da zavrsi sama, ostavljajući druge niti da nastave. Jedina razlika je da povratak iz `main`-a gasi cijeli proces zbog konvencije C-a, a ne zbog "posebnosti" glavne niti.
-
-Praktična posljedica: u pisanju višenitnih programa nema potrebe za centraliziranom strukturom gdje "neki nadređeni" čeka sve podređene. Niti se mogu organizirati u proizvoljne grafove ovisnosti — dvije pomoćne niti mogu čekati treću, jedna nit može joinati niz drugih, i tako dalje. Glavna nit je važna samo po konvenciji (jer je u njoj `main`) i jer njen povratak gasi proces.
-
+  Niti sad pravilno vide svoje brojeve. Usput primjećujemo i jednu zanimljivu osobinu: niti su završile u drugačijem redoslijedu nego što su počele. Ovo nije slučajno — **redoslijed izvršavanja niti nije unaprijed određen** i može se mijenjati od pokretanja do pokretanja, ovisno o tome kako se raspoređivač odluči ponašati u trenutku izvršavanja.
 
 ## Joinable i detached niti
 
@@ -429,6 +472,17 @@ Nit možemo napraviti detached na dva načina:
 
 1. **Pri stvaranju** — postavljanjem atributa `PTHREAD_CREATE_DETACHED` u `pthread_attr_t` strukturu koju predajemo `pthread_create`-u.
 2. **Naknadno** — pozivom `pthread_detach(nit)` u bilo kojem trenutku nakon stvaranja.
+
+Funkcije koje koristimo deklarirane su u `<pthread.h>`:
+
+```c
+int pthread_attr_init(pthread_attr_t *attr);
+int pthread_attr_setdetachstate(pthread_attr_t *attr, int detachstate);
+int pthread_attr_destroy(pthread_attr_t *attr);
+int pthread_detach(pthread_t thread);
+```
+
+`pthread_attr_init` inicijalizira strukturu atributa zadanim vrijednostima; `pthread_attr_setdetachstate` u toj strukturi postavlja stanje otkačenosti (`PTHREAD_CREATE_DETACHED` ili `PTHREAD_CREATE_JOINABLE`); `pthread_attr_destroy` oslobađa strukturu kad nam više nije potrebna. Sve tri vraćaju `0` u slučaju uspjeha, odnosno kod greške. `pthread_detach` je alternativni način — služi za odvajanje već stvorene niti, pa ga ne moramo koristiti ako smo nit stvorili kao detached već pri pozivu `pthread_create`.
 
 - [**`nit_detached.c`**](nit_detached.c) — primjer detached niti kao "ispali i zaboravi" zadataka.
 
