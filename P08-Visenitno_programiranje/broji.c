@@ -14,13 +14,12 @@ void *counter(void *arg) {
   double d;
   printf("c: %d\n", *c);
   for (int k=0; k<*c; k++) {
-    /* petlja koja umjetno usporava nit kako bi se race lakse uocio */
-    for (int j=0; j<50; j++)
+    /* petlja koja simulira "neki posao" */
+    for (int j=0; j<5000; j++)
       d = sqrt((double)j);
 
     count++;
   }
-  (void)d;
   pthread_exit(NULL);
 }
 

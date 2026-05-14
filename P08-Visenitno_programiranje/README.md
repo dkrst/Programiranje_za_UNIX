@@ -543,13 +543,12 @@ U P07 smo to demonstrirali na dva procesa koji preko dijeljene memorije pristupa
       double d;
       printf("c: %d\n", *c);
       for (int k = 0; k < *c; k++) {
-          /* petlja koja umjetno usporava nit kako bi se race lakse uocio */
-          for (int j = 0; j < 50; j++)
+          /* petlja koja simulira "neki posao" */
+          for (int j = 0; j < 5000; j++)
               d = sqrt((double)j);
 
           count++;
       }
-      (void)d;
       pthread_exit(NULL);
   }
 
@@ -569,7 +568,9 @@ U P07 smo to demonstrirali na dva procesa koji preko dijeljene memorije pristupa
   }
   ```
 
-  Unutar glavne petlje, prije svake inkrementacije brojača, umetnuli smo malu petlju koja računa korijene brojeva od 0 do 50. Ovaj račun ne mijenja `count` ni na koji način — postoji samo zato da nit provede malo vremena radeći "nešto" prije nego dođe do dijeljene varijable. To produžuje vrijeme provedeno u jednoj iteraciji, što povećava vjerojatnost da raspoređivač prebaci kontrolu drugoj niti baš u trenutku kada smo "u sredini" sekvence `mov / add / mov` koju kompajler generira za `count++`. Bez ovog usporavanja, sekvenca bi na modernim procesorima bila tako brza da bismo race teško uhvatili u demonstraciji.
+  Unutar glavne petlje, prije svake inkrementacije brojača, umetnuli smo malu petlju koja računa korijene brojeva od 0 do 4999. Ovaj račun ne mijenja `count` ni na koji način — postoji samo zato da nit provede malo vremena radeći "nešto" prije nego dođe do dijeljene varijable. To produžuje vrijeme provedeno u jednoj iteraciji, što povećava vjerojatnost da se niti međusobno ispreplete baš u trenutku kada smo "u sredini" sekvence `mov / add / mov` koju kompajler generira za `count++`. Bez ovog usporavanja, sekvenca bi na modernim procesorima bila tako brza da bismo race teško uhvatili u demonstraciji.
+
+  > **Napomena o kompajlerskom upozorenju.** Pri prevođenju ćemo dobiti upozorenje *"warning: variable 'd' set but not used"*. Razlog je očit: varijablu `d` u svakoj iteraciji unutarnje petlje samo postavljamo, nikad je ne čitamo niti ispisujemo. Za potrebe ovog primjera upozorenje slobodno zanemarite — `d` nam i ne treba, jer nas zanima samo to da unutarnja petlja oduzme niti malo vremena. Možemo ga ušutkati eksplicitnim "korištenjem" varijable (npr. `(void)d;` na kraju funkcije), ali u demonstracijskom kodu to nije neophodno.
 
   Pokrenimo program nekoliko puta:
 
@@ -614,18 +615,17 @@ Operacije nad mutexom:
       int *c = (int *)arg;
       double d;
       printf("c: %d\n", *c);
+
       for (int k = 0; k < *c; k++) {
-          /* petlja koja simulira "neki posao" -- NE radi se nad
-           * dijeljenom varijablom, pa ju drzimo IZVAN kriticne sekcije */
-          for (int j = 0; j < 50; j++)
+          /* petlja koja simulira "neki posao" */
+          for (int j = 0; j < 5000; j++)
               d = sqrt((double)j);
 
-          /* zakljucavamo mutex samo oko pristupa dijeljenoj varijabli */
           pthread_mutex_lock(&count_lock);
           count++;
           pthread_mutex_unlock(&count_lock);
       }
-      (void)d;
+
       pthread_exit(NULL);
   }
   ```
@@ -639,13 +639,23 @@ Operacije nad mutexom:
   Ukupno (8 * 100000) = 800000
   ```
 
-  Uvijek točno 800 000.
+  Uvijek točno 800 000. Cijena mutexa je značajan pad performansi (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali u zamjenu dobivamo ispravan rezultat — kompromis koji u 99% slučajeva itekako vrijedi.
 
-  Vrijedi razmisliti i o tome **gdje točno** postavljamo `lock` i `unlock`. Bilo bi tehnički ispravno staviti `pthread_mutex_lock` na sami početak vanjske petlje, a `pthread_mutex_unlock` na njen kraj — time bismo zaštitili i pristup brojaču i račun korijena. Ali to bi bilo izrazito loše po performanse: dok jedna nit izvodi svojih 50 sqrt operacija (koje uopće ne diraju zajedničku varijablu), sve ostale niti bi bespotrebno čekale. Račun korijena niti su mogli raditi paralelno bez ikakve interferencije; nepotrebno ih je serijalizirati.
-
-  **Pravilo dobre prakse: mutex držimo zaključanim što kraće moguće.** Zaključavamo ga neposredno prije pristupa dijeljenom resursu, otključavamo neposredno nakon. Sve što ne mijenja dijeljene podatke ostaje izvan kritične sekcije, kako bi druge niti mogle raditi svoj posao paralelno. U našem `broji2.c` upravo to i radimo: petlja sa sqrt-om je *izvan* `lock`/`unlock` para, jer radi nad lokalnom varijablom `d`, dok je sama inkrementacija brojača (jedina operacija nad dijeljenim `count`) unutar mutexa.
-
-  Cijena mutexa je značajan pad performansi (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali u zamjenu dobivamo ispravan rezultat — kompromis koji u 99% slučajeva itekako vrijedi.
+  > **Mutex oko same inkrementacije, ili oko cijele petlje?** Naš `broji2.c` mutex postavlja samo oko `count++` — sqrt petlja je *izvan* kritične sekcije. Promotrimo i alternativnu varijantu, u kojoj bismo `pthread_mutex_lock` postavili na sami početak vanjske petlje, a `pthread_mutex_unlock` na njen kraj:
+  >
+  > ```c
+  > for (int k = 0; k < *c; k++) {
+  >     pthread_mutex_lock(&count_lock);
+  >     for (int j = 0; j < 5000; j++)
+  >         d = sqrt((double)j);
+  >     count++;
+  >     pthread_mutex_unlock(&count_lock);
+  > }
+  > ```
+  >
+  > Ovaj kod je također ispravan — brojač je i dalje zaštićen, krajnji rezultat je 800 000. Ali ovdje smo unutar kritične sekcije zatvorili i račun korijena, koji uopće ne dira dijeljeni `count`. Posljedica je da dok jedna nit izvodi svojih 5000 sqrt operacija, sve ostale niti bespotrebno čekaju. Račun korijena niti su mogli raditi savršeno paralelno bez ikakve interferencije; ovakvim zaključavanjem ih nepotrebno serijaliziramo i izgubimo veliki dio prednosti višenitnog programa.
+  >
+  > **Pravilo dobre prakse**: mutex držimo zaključanim što kraće moguće. Zaključavamo ga neposredno prije pristupa dijeljenom resursu, otključavamo neposredno nakon. Sve što ne mijenja dijeljene podatke ostaje izvan kritične sekcije, kako bi druge niti mogle raditi svoj posao paralelno.
 
 ### Deadlock
 

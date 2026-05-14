@@ -8,26 +8,23 @@
 
 pthread_t thr_counter[NTHREADS];
 unsigned long count = 0;
-/* staticka inicijalizacija mutexa -- za globalne mutexe ne moramo
- * pozivati pthread_mutex_init ni pthread_mutex_destroy */
 pthread_mutex_t count_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void *counter(void *arg) {
   int *c = (int *)arg;
   double d;
   printf("c: %d\n", *c);
+
   for (int k=0; k<*c; k++) {
-    /* petlja koja simulira "neki posao" -- NE radi se nad
-     * dijeljenom varijablom, pa ju drzimo IZVAN kriticne sekcije */
-    for (int j=0; j<50; j++)
+    /* petlja koja simulira "neki posao" */
+    for (int j=0; j<5000; j++)
       d = sqrt((double)j);
 
-    /* zakljucavamo mutex samo oko pristupa dijeljenoj varijabli */
     pthread_mutex_lock(&count_lock);
     count++;
     pthread_mutex_unlock(&count_lock);
   }
-  (void)d;
+
   pthread_exit(NULL);
 }
 
