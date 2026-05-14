@@ -1,7 +1,7 @@
 CC = /usr/bin/gcc
 CFLAGS = -Wall
 LDFLAGS =
-TARGETS = pozdrav1 pozdrav2 pozdrav3 kvadrat kvadrat2 argumenti argumenti2 nit_race nit_mutex nit_cond nit_signal nit_detached
+TARGETS = pozdrav1 pozdrav2 pozdrav3 kvadrat kvadrat2 argumenti argumenti2 broji broji2 nit_cond nit_signal nit_detached
 
 # pthreads zahtijevaju -lpthread (na nekim sustavima i -pthread za CFLAGS)
 LIBS_PTHREAD = -lpthread
@@ -34,11 +34,11 @@ argumenti: argumenti.o
 argumenti2: argumenti2.o
 	$(CC) $(LDFLAGS) argumenti2.o -o argumenti2 $(LIBS_PTHREAD)
 
-nit_race: nit_race.o
-	$(CC) $(LDFLAGS) nit_race.o -o nit_race $(LIBS_PTHREAD)
+broji: broji.o
+	$(CC) $(LDFLAGS) broji.o -o broji $(LIBS_PTHREAD) -lm
 
-nit_mutex: nit_mutex.o
-	$(CC) $(LDFLAGS) nit_mutex.o -o nit_mutex $(LIBS_PTHREAD)
+broji2: broji2.o
+	$(CC) $(LDFLAGS) broji2.o -o broji2 $(LIBS_PTHREAD) -lm
 
 nit_cond: nit_cond.o
 	$(CC) $(LDFLAGS) nit_cond.o -o nit_cond $(LIBS_PTHREAD)

@@ -524,48 +524,71 @@ Vratimo se na problem iz P07. U sekciji o semaforima smo objasnili da operacija 
 
 U P07 smo to demonstrirali na dva procesa koji preko dijeljene memorije pristupaju zajedničkom brojaču. Ovdje radimo isto, samo s nitima jednog procesa. Bitna razlika: kod niti **dijeljenje memorije dolazi automatski**, jer sve niti dijele cijeli adresni prostor svog procesa. Obična globalna varijabla je istovremeno vidljiva svim nitima, bez potrebe za `shm_open` i `mmap`.
 
-- [**`nit_race.c`**](nit_race.c) — više niti istovremeno inkrementira zajedničku globalnu varijablu.
+- [**`broji.c`**](broji.c) — osam niti istovremeno inkrementira zajedničku globalnu varijablu `count`. Svaka nit u petlji povećava brojač sto tisuća puta, pa očekujemo konačnu vrijednost `8 × 100 000 = 800 000`.
 
   ```c
-  #define BROJ_NITI 4
-  #define ITERACIJA 100000
+  #include <stdlib.h>
+  #include <pthread.h>
+  #include <stdio.h>
+  #include <unistd.h>
+  #include <math.h>
 
-  static long brojac = 0;
+  #define NTHREADS 8
 
-  void *radnik(void *arg) {
-      (void)arg;
-      for (int i = 0; i < ITERACIJA; i++) {
-          long temp = brojac;       /* 1. ucitaj iz memorije */
-          sched_yield();             /* pustimo drugu nit da nas pretekne */
-          temp = temp + 1;           /* 2. povecaj */
-          brojac = temp;             /* 3. vrati u memoriju */
+  pthread_t thr_counter[NTHREADS];
+  unsigned long count = 0;
+
+  void *counter(void *arg) {
+      int *c = (int *)arg;
+      double d;
+      printf("c: %d\n", *c);
+      for (int k = 0; k < *c; k++) {
+          /* petlja koja umjetno usporava nit kako bi se race lakse uocio */
+          for (int j = 0; j < 50; j++)
+              d = sqrt((double)j);
+
+          count++;
       }
-      return NULL;
+      (void)d;
+      pthread_exit(NULL);
+  }
+
+  int main() {
+      int cnt = 100000, k;
+
+      for (k = 0; k < NTHREADS; k++) {
+          pthread_create(&thr_counter[k], NULL, counter, (void *)&cnt);
+      }
+
+      for (k = 0; k < NTHREADS; k++) {
+          pthread_join(thr_counter[k], NULL);
+      }
+
+      printf("Ukupno (%d * %d) = %lu\n", NTHREADS, cnt, count);
+      return 0;
   }
   ```
 
-  Da bi race bio jasno vidljiv, eksplicitno razlažemo inkrementaciju u tri koraka i između prvog i posljednjeg ubacujemo `sched_yield()` koji raspoređivaču nudi mogućnost da promijeni aktivnu nit. Bez toga, sekvenca `mov / add / mov` na modernim procesorima izvršava se tako brzo da je teško uloviti race u realnoj demonstraciji — ali u stvarnim programima sa složenijim kritičnim sekcijama race se pojavljuje sasvim sam, i upravo zato je opasan.
+  Unutar glavne petlje, prije svake inkrementacije brojača, umetnuli smo malu petlju koja računa korijene brojeva od 0 do 50. Ovaj račun ne mijenja `count` ni na koji način — postoji samo zato da nit provede malo vremena radeći "nešto" prije nego dođe do dijeljene varijable. To produžuje vrijeme provedeno u jednoj iteraciji, što povećava vjerojatnost da raspoređivač prebaci kontrolu drugoj niti baš u trenutku kada smo "u sredini" sekvence `mov / add / mov` koju kompajler generira za `count++`. Bez ovog usporavanja, sekvenca bi na modernim procesorima bila tako brza da bismo race teško uhvatili u demonstraciji.
 
-  Rezultat:
+  Pokrenimo program nekoliko puta:
 
   ```
-  $ for i in 1 2 3 4 5; do ./nit_race; done
-  Brojac = 100001  (ocekivano: 400000)
-  Brojac = 100000  (ocekivano: 400000)
-  Brojac = 100000  (ocekivano: 400000)
-  Brojac = 100000  (ocekivano: 400000)
-  Brojac = 100001  (ocekivano: 400000)
+  $ for i in 1 2 3; do ./broji 2>/dev/null | grep Ukupno; done
+  Ukupno (8 * 100000) = 743521
+  Ukupno (8 * 100000) = 698104
+  Ukupno (8 * 100000) = 776892
   ```
 
-  Gotovo sve inkrementacije iz triju niti su izgubljene — krajnji rezultat je oko 100 000 umjesto 400 000. Ovo je gotovo isti race koji smo vidjeli u P07, samo unutar jednog procesa.
+  Konačna vrijednost `count`-a nije 800 000 i nije ista u svakom pokretanju. Niti su se preplitale "na različitim mjestima", pa je broj izgubljenih inkrementacija svaki put drugačiji. Ovisno o broju jezgri vašeg računala i opterećenju sustava, rezultat može biti puno bliži očekivanom (ako je preplitanje rijetko) ili puno dalji od njega — ali samo iznimno ćemo dobiti točno 800 000. Ovaj nedeterminizam upravo je ono što race condition čini opasnim: program može raditi savršeno tisuću puta, a tisuću prvi put dati pogrešan rezultat.
 
 ## Mutex
 
-Rješenje race conditiona kod niti je **mutex** (engl. *mutual exclusion lock*). Konceptualno je identičan binarnom semaforu iz P07 — sinkronizacijska primitiva koja osigurava da samo jedna nit u danom trenutku može izvršavati zaštićeni dio koda (**kritičnu sekciju**). Razlika je u tome što je mutex optimiziran za niti unutar istog procesa — implementacija je u korisničkom prostoru kad nema sporova (samo atomski test-and-set u memoriji), pa je znatno brža od POSIX semafora.
+Rješenje race conditiona kod niti je **mutex** (engl. *mutual exclusion lock*). Konceptualno je identičan binarnom semaforu iz P07 — sinkronizacijska primitiva koja osigurava da samo jedna nit u danom trenutku može izvršavati zaštićeni dio koda (kritičnu sekciju). Razlika je u tome što je mutex optimiziran za niti unutar istog procesa — implementacija je u korisničkom prostoru kad nema sporova (samo atomski test-and-set u memoriji), pa je znatno brža od POSIX semafora.
+
+Funkcije za rad s mutexima deklarirane su u `<pthread.h>`:
 
 ```c
-#include <pthread.h>
-
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;     /* staticka inicijalizacija */
 
 int pthread_mutex_init(pthread_mutex_t *mutex,
@@ -577,47 +600,81 @@ int pthread_mutex_destroy(pthread_mutex_t *mutex);
 
 Statički alocirani mutex (npr. globalna varijabla) inicijalizira se makro vrijednošću `PTHREAD_MUTEX_INITIALIZER`. Mutex alocirani dinamički (na hrpi) treba inicijalizirati pozivom `pthread_mutex_init` i kasnije osloboditi pozivom `pthread_mutex_destroy`.
 
-Operacije:
+Operacije nad mutexom:
 
 - **`pthread_mutex_lock`** — pokušava zaključati mutex. Ako je već zaključan od strane druge niti, blokira pozivajuću nit dok mutex ne postane slobodan.
 - **`pthread_mutex_unlock`** — otpušta mutex. Smije ga otpustiti samo nit koja ga drži (ovisno o tipu mutexa — postoji više varijanti, ali za naše potrebe zadani tip je dovoljan).
 
-- [**`nit_mutex.c`**](nit_mutex.c) — rješenje race conditiona iz `nit_race.c` korištenjem mutexa.
+- [**`broji2.c`**](broji2.c) — rješenje race conditiona iz `broji.c` korištenjem mutexa. Struktura programa je gotovo identična, samo je inkrementacija brojača sad omeđena s `pthread_mutex_lock` i `pthread_mutex_unlock`.
 
   ```c
-  static long              brojac = 0;
-  static pthread_mutex_t  mutex  = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_t count_lock = PTHREAD_MUTEX_INITIALIZER;
 
-  void *radnik(void *arg) {
-      (void)arg;
-      for (int i = 0; i < ITERACIJA; i++) {
-          pthread_mutex_lock(&mutex);     /* udji u kriticnu sekciju */
-          long temp = brojac;
-          sched_yield();                   /* dok smo unutra, nitko drugi nece uci */
-          temp = temp + 1;
-          brojac = temp;
-          pthread_mutex_unlock(&mutex);   /* izadji iz kriticne sekcije */
+  void *counter(void *arg) {
+      int *c = (int *)arg;
+      double d;
+      printf("c: %d\n", *c);
+      for (int k = 0; k < *c; k++) {
+          /* petlja koja simulira "neki posao" -- NE radi se nad
+           * dijeljenom varijablom, pa ju drzimo IZVAN kriticne sekcije */
+          for (int j = 0; j < 50; j++)
+              d = sqrt((double)j);
+
+          /* zakljucavamo mutex samo oko pristupa dijeljenoj varijabli */
+          pthread_mutex_lock(&count_lock);
+          count++;
+          pthread_mutex_unlock(&count_lock);
       }
-      return NULL;
+      (void)d;
+      pthread_exit(NULL);
   }
   ```
 
-  Struktura niti je gotovo identična kao u `nit_race.c` — ista razložena inkrementacija s `sched_yield`, samo sad sve unutar kritične sekcije omeđene s `lock`/`unlock`. Rezultat:
+  Rezultat:
 
   ```
-  $ for i in 1 2 3; do ./nit_mutex; done
-  Brojac = 400000  (ocekivano: 400000)
-  Brojac = 400000  (ocekivano: 400000)
-  Brojac = 400000  (ocekivano: 400000)
+  $ for i in 1 2 3; do ./broji2 2>/dev/null | grep Ukupno; done
+  Ukupno (8 * 100000) = 800000
+  Ukupno (8 * 100000) = 800000
+  Ukupno (8 * 100000) = 800000
   ```
 
-  Uvijek točno. Cijena je značajan pad performansi (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali u zamjenu dobivamo ispravan rezultat — kompromis koji u 99% slučajeva itekako vrijedi.
+  Uvijek točno 800 000.
+
+  Vrijedi razmisliti i o tome **gdje točno** postavljamo `lock` i `unlock`. Bilo bi tehnički ispravno staviti `pthread_mutex_lock` na sami početak vanjske petlje, a `pthread_mutex_unlock` na njen kraj — time bismo zaštitili i pristup brojaču i račun korijena. Ali to bi bilo izrazito loše po performanse: dok jedna nit izvodi svojih 50 sqrt operacija (koje uopće ne diraju zajedničku varijablu), sve ostale niti bi bespotrebno čekale. Račun korijena niti su mogli raditi paralelno bez ikakve interferencije; nepotrebno ih je serijalizirati.
+
+  **Pravilo dobre prakse: mutex držimo zaključanim što kraće moguće.** Zaključavamo ga neposredno prije pristupa dijeljenom resursu, otključavamo neposredno nakon. Sve što ne mijenja dijeljene podatke ostaje izvan kritične sekcije, kako bi druge niti mogle raditi svoj posao paralelno. U našem `broji2.c` upravo to i radimo: petlja sa sqrt-om je *izvan* `lock`/`unlock` para, jer radi nad lokalnom varijablom `d`, dok je sama inkrementacija brojača (jedina operacija nad dijeljenim `count`) unutar mutexa.
+
+  Cijena mutexa je značajan pad performansi (svaki ulazak/izlazak iz kritične sekcije ima trošak), ali u zamjenu dobivamo ispravan rezultat — kompromis koji u 99% slučajeva itekako vrijedi.
 
 ### Deadlock
 
-Mutexi rješavaju jedan problem ali otvaraju drugi — **deadlock** (engl. *zaglavljenje*, *uzajamna blokada*). Klasičan scenarij: nit `A` drži mutex `M1` i pokušava zaključati mutex `M2`; istovremeno nit `B` drži `M2` i pokušava zaključati `M1`. Obje niti čekaju onu drugu — nijedna nikad neće završiti.
+Mutexi rješavaju jedan problem ali otvaraju drugi — **deadlock** (engl. *zaglavljenje*, *uzajamna blokada*). Da bismo razumjeli kako nastaje, zamislimo program s dva mutexa, `M1` i `M2`, koji štite dva različita resursa (npr. dvije strukture podataka). Nit `A` u nekom dijelu koda treba pristup objema strukturama, pa zaključava prvo `M1`, a zatim `M2`:
 
-Najjednostavniji način izbjegavanja deadlocka je **konzistentan redoslijed zaključavanja**: ako svi dijelovi koda koji trebaju oba mutexa uvijek zaključavaju `M1` prije `M2`, deadlock je nemoguć. U većim programima ovo zahtjeva pažljiv dizajn. Za detaljniju obradu deadlockova i drugih sinkronizacijskih problema, čitatelj se može obratiti specijaliziranoj literaturi o paralelnom programiranju.
+```
+Nit A:                       Nit B:
+  pthread_mutex_lock(&M1);    pthread_mutex_lock(&M2);
+  pthread_mutex_lock(&M2);    pthread_mutex_lock(&M1);
+  ...                          ...
+  pthread_mutex_unlock(&M2);  pthread_mutex_unlock(&M1);
+  pthread_mutex_unlock(&M1);  pthread_mutex_unlock(&M2);
+```
+
+U drugom dijelu koda, nit `B` također treba obje strukture — ali iz nekog razloga (možda je drugi programer pisao tu funkciju, ili je redoslijed dolazio iz drugačijeg konteksta) zaključava ih u **obrnutom redoslijedu**: prvo `M2`, pa `M1`.
+
+Sve dok se `A` i `B` ne izvršavaju istovremeno, sve je u redu. Problem nastaje kad raspoređivač isprepleće dvije niti baš na neugodan način:
+
+1. Nit `A` zaključa `M1`.
+2. Raspoređivač prebaci kontrolu na nit `B` (ili ona ionako radi paralelno na drugoj jezgri).
+3. Nit `B` zaključa `M2`.
+4. Nit `B` pokušava zaključati `M1` — blokira jer ga drži `A`.
+5. Nit `A` pokušava zaključati `M2` — blokira jer ga drži `B`.
+
+Obje niti sad zauvijek čekaju jedna drugu. Nijedna ne može otpustiti svoj mutex jer ne može dovršiti svoj posao, a posao ne može dovršiti jer čeka onaj drugi mutex. Proces je živ ali se nikad više neće dogoditi ništa — to je deadlock.
+
+Klasična ilustracija ovog problema je *problem pet filozofa* (engl. *dining philosophers*): pet filozofa sjedi za okruglim stolom, između svaka dva filozofa nalazi se jedan štapić, a filozof treba *oba* štapića (lijevi i desni) da bi mogao jesti. Ako svi istovremeno uzmu lijevi štapić i čekaju desni, nijedan nikad neće početi jesti.
+
+Najjednostavniji način izbjegavanja deadlocka u praksi je **konzistentan redoslijed zaključavanja**: ako se svi dijelovi koda koji trebaju oba mutexa dogovore da uvijek zaključavaju `M1` prije `M2` (recimo, prema adresama u memoriji, ili abecednom redu imena), deadlock je nemoguć. U većim programima ovo zahtijeva pažljiv dizajn — što su mutexi raspršeniji po kodu, to je teže jamčiti konzistentnost. Postoje i drugi pristupi (npr. `pthread_mutex_trylock` koji ne blokira nego odmah javlja neuspjeh, pa nit može otpustiti ono što već drži i pokušati ponovno), ali rasprava o njima nadilazi opseg ovog uvoda.
 
 ## Kondicijske varijable
 
