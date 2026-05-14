@@ -1,7 +1,7 @@
 /* Klasicni problem proizvodjac-potrosac (engl. producer-consumer).
  *
- * Jedan proizvodjac stavlja podatke u ograniceni medjuspremnik
- * (kruzni red), jedan potrosac ih vadi i obradjuje.
+ * Jedan proizvodjac stavlja podatke u ograniceni cirkularni
+ * medjuspremnik (kruzni red), jedan potrosac ih vadi i obradjuje.
  *
  * Problem koji rjesavamo:
  *   - kako potrosac da "ceka" kad je medjuspremnik prazan?
@@ -27,20 +27,26 @@
  * wakeups" - sustavi mogu probuditi nit i bez signala. */
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <pthread.h>
 
 #define VEL_BUFFERA 4        /* kruzni red duljine 4 */
-#define BROJ_STAVKI 12       /* koliko stavki proizvodjac proizvodi */
+#define BROJ_STAVKI 120      /* koliko stavki proizvodjac proizvodi */
 
 static int             buffer[VEL_BUFFERA];
-static int             upis_idx = 0;  /* slijedeca pozicija za upis */
-static int             cit_idx  = 0;   /* slijedeca pozicija za citanje */
-static int             punjenje = 0;   /* broj stavki trenutno u buferu */
+static int             upis_idx   = 0;  /* slijedeca pozicija za upis */
+static int             cit_idx    = 0;  /* slijedeca pozicija za citanje */
+static int             buff_items = 0;  /* broj stavki trenutno u buferu */
 
-static pthread_mutex_t mutex     = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex      = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  ima_mjesta = PTHREAD_COND_INITIALIZER;   /* signal: ima slobodnog mjesta */
-static pthread_cond_t  ima_robe  = PTHREAD_COND_INITIALIZER;   /* signal: ima cega za citati */
+static pthread_cond_t  ima_robe   = PTHREAD_COND_INITIALIZER;   /* signal: ima cega za citati */
+
+/* nasumicna pauza izmedju 10 i 200 milisekundi */
+static void slucajna_pauza(void) {
+  usleep((rand() % 191 + 10) * 1000);
+}
 
 void *proizvodjac(void *arg) {
   (void)arg;
@@ -48,19 +54,19 @@ void *proizvodjac(void *arg) {
     pthread_mutex_lock(&mutex);
 
     /* dok je buffer pun, cekaj signal "ima mjesta" */
-    while (punjenje == VEL_BUFFERA)
+    while (buff_items == VEL_BUFFERA)
       pthread_cond_wait(&ima_mjesta, &mutex);
 
     buffer[upis_idx] = i;
     upis_idx = (upis_idx + 1) % VEL_BUFFERA;
-    punjenje++;
-    printf("Proizvodjac: stavio %d (punjenje %d)\n", i, punjenje);
+    buff_items++;
+    printf("Proizvodjac: stavio %d (buff_items %d)\n", i, buff_items);
 
     /* obavijesti potrosaca da ima novih podataka */
     pthread_cond_signal(&ima_robe);
     pthread_mutex_unlock(&mutex);
 
-    usleep(50000);    /* simulira vrijeme proizvodnje */
+    slucajna_pauza();   /* nasumicno vrijeme proizvodnje */
   }
   return NULL;
 }
@@ -71,26 +77,28 @@ void *potrosac(void *arg) {
     pthread_mutex_lock(&mutex);
 
     /* dok je buffer prazan, cekaj signal "ima robe" */
-    while (punjenje == 0)
+    while (buff_items == 0)
       pthread_cond_wait(&ima_robe, &mutex);
 
     int vrijednost = buffer[cit_idx];
     cit_idx = (cit_idx + 1) % VEL_BUFFERA;
-    punjenje--;
-    printf("                                Potrosac: uzeo %d (punjenje %d)\n",
-           vrijednost, punjenje);
+    buff_items--;
+    printf("                                Potrosac: uzeo %d (buff_items %d)\n",
+           vrijednost, buff_items);
 
     /* obavijesti proizvodjaca da je oslobodjeno mjesto */
     pthread_cond_signal(&ima_mjesta);
     pthread_mutex_unlock(&mutex);
 
-    usleep(120000);   /* potrosac sporiji od proizvodjaca */
+    slucajna_pauza();   /* nasumicno vrijeme obrade */
   }
   return NULL;
 }
 
 int main(void) {
   pthread_t nit_p, nit_c;
+
+  srand((unsigned)time(NULL));
 
   pthread_create(&nit_p, NULL, proizvodjac, NULL);
   pthread_create(&nit_c, NULL, potrosac, NULL);

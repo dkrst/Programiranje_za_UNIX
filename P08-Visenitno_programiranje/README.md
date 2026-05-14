@@ -692,14 +692,14 @@ Najjednostavniji način izbjegavanja deadlocka u praksi je konzistentan redoslij
 
 ## Kondicijske varijable
 
-Mutex rješava problem isključivog pristupa, ali postoji i druga klasa problema — **čekanje na uvjet**. Razmotrimo klasični problem **proizvođač-potrošač** (engl. *producer-consumer*): jedna nit proizvodi podatke i stavlja ih u ograničeni međuspremnik, druga ih vadi i obrađuje. Pitanja koja se postavljaju:
+Mutex rješava problem isključivog pristupa, ali postoji i druga klasa problema — **čekanje na uvjet**. Razmotrimo klasični problem **proizvođač-potrošač** (engl. *producer-consumer*): jedna nit proizvodi podatke i zapisuje ih u ograničeni cirkularni međuspremnik, druga ih iz međuspremnika čita i obrađuje. Razmotrimo dvije situacije:
 
-- Što kad je međuspremnik **prazan**? Potrošač mora čekati da netko nešto stavi.
-- Što kad je međuspremnik **pun**? Proizvođač mora čekati da netko nešto izvadi.
+- Što kad je međuspremnik **prazan**? Potrošač mora čekati, uvjet da može nastaviti je da druga nit doda najmanje jedan podatak u međuspremnik.
+- Što kad je međuspremnik **pun**? Proizvođač mora čekati, uvjet da može nastaviti je da druga nit preuzme najmanje jedan podatak iz međuspremnika (oslobodi mjesto u međuspremniku).
 
-Naivno rješenje bi bilo aktivno čekanje (engl. *busy wait*) u petlji — *"provjeravaj uvjet svaki put, dok ne bude istinit"*. Ali to troši procesorsko vrijeme bez stvarnog napretka. Trebamo mehanizam da nit "zaspi" dok netko drugi ne signalizira promjenu stanja.
+Naivno rješenje bi bilo aktivno čekanje (engl. *busy wait*) u petlji — *"provjeravaj uvjet svaki put, dok ne bude istinit"*. Neiskusni programeri često će posegnuti za aktivnim čekanjem, ali ovaj pristup iznimno iscrpljuje resurse procesora i troši procesorsko vrijeme. Puno bolje rješenje bilo bi ukoliko nit koja ne može nastaviti dok se određeni uvjet ne ispuni jednostavno "zaspi", sve dok joj netko drugi ne signalizira promjenu stanja.
 
-Taj mehanizam je **kondicijska varijabla** (engl. *condition variable*). Nit može pozivom `pthread_cond_wait` zaspati cekajući signal, a druga nit pozivom `pthread_cond_signal` (ili `pthread_cond_broadcast`) može probuditi jednu (ili sve) niti koje čekaju.
+Takav mehanizam osiguravaju nam **kondicijske varijable** (engl. *condition variable*). Nit može pozivom `pthread_cond_wait` zaspati cekajući signal, a druga nit pozivom `pthread_cond_signal` (ili `pthread_cond_broadcast`) može probuditi jednu (ili sve) niti koje čekaju.
 
 ```c
 #include <pthread.h>
@@ -713,49 +713,56 @@ int pthread_cond_broadcast(pthread_cond_t *cond);
 int pthread_cond_destroy(pthread_cond_t *cond);
 ```
 
-Najvažnija funkcija je `pthread_cond_wait`. Ona prima dva argumenta — kondicijsku varijablu i **mutex koji pozivajuća nit drži zaključan**. `cond_wait` atomski **otpušta mutex i uspava nit**; kad neka druga nit signalom probudi ovu, mutex se opet zaključa prije povratka iz funkcije. Atomatičnost otpuštanja i uspavanja je ključna — bez nje bi nit mogla biti prekinuta upravo između tih dvaju koraka, i propustila bi signal koji je u međuvremenu poslan.
-
-Standardni obrazac korištenja:
+Standardni obrazac korištenja kondicijske varijable je:
 
 ```c
 pthread_mutex_lock(&mutex);
 while (!uvjet)                          /* UVIJEK while, ne if! */
     pthread_cond_wait(&cv, &mutex);     /* atomski: otpusti mutex + cekaj */
-/* sad smo budni, mutex je opet zakljucan, uvjet je istinit */
+/* sad smo budni, mutex smo zakljucali mi, uvjet je istinit */
 ... napravi posao ...
 pthread_mutex_unlock(&mutex);
 ```
 
-`while` umjesto `if` je važno zbog tzv. **spurious wakeups** — sustav može probuditi nit i bez signala (zbog implementacijskih detalja jezgre, signala procesu, ...). Provjera uvjeta nakon buđenja štiti nas od ovih lažnih buđenja.
+Pogledajmo kako ovaj obrazac funkcionira. Prije nego nit uopće provjeri uvjet, mora zaključati mutex — i to ne bilo koji mutex, nego onaj koji štiti varijable o kojima uvjet ovisi (u našem primjeru proizvođač-potrošač to je `mutex` koji štiti brojač podataka u međuspremniku `buff_items` i sam međuspremnik, tj. polja za pohranu vrijednosti u njemu). Jednom kada nit drži mutex, može pročitati stanje uvjeta, s obzirom da ne postoji mogućnost da bilo koja druga nit stanje promijeni. Ako uvjet *nije* zadovoljen, nit poziva `pthread_cond_wait`, koja je središnja funkcija ovog mehanizma.
 
-- [**`nit_cond.c`**](nit_cond.c) — proizvođač-potrošač s ograničenim međuspremnikom.
+`pthread_cond_wait` prima dva argumenta — kondicijsku varijablu i **mutex koji pozivajuća nit drži zaključan**. Funkcija atomski **otpušta mutex i uspava nit**. Atomičnost otpuštanja i uspavanja je ključna — bez nje bi nit mogla biti prekinuta upravo između tih dvaju koraka, i propustila bi signal koji je u međuvremenu poslao netko drugi. Druge niti sad mogu zaključati mutex, promijeniti stanje (i signalizirati uvjet kroz `pthread_cond_signal`), pa otpustiti mutex. Kad netko od njih probudi našu nit signalom, `pthread_cond_wait` **automatski opet zaključa mutex** za nas i tek tada se vraća. Zato u komentaru gornjeg obrasca piše *"mutex smo zakljucali mi"* — iako mi sami nismo eksplicitno pozvali `pthread_mutex_lock`, nakon povratka iz `cond_wait`-a mutex je zaključan, kao da smo ga maločas zaključali.
 
-  Ovdje koristimo dva kondicijske varijable: jednu za "ima mjesta u međuspremniku" (proizvođač čeka na nju kad je pun) i jednu za "ima robe u međuspremniku" (potrošač čeka na nju kad je prazan).
+Ostaje samo provjera zašto je uvjet u petlji `while`, a ne u uvjetnoj naredbi `if`. Razlog su tzv. **spurious wakeups** — sustav može probuditi nit i bez ijednog signala (zbog implementacijskih detalja jezgre, signala procesu, prekida i sličnih razloga). Drugim riječima, povratak iz `pthread_cond_wait`-a *ne garantira* da je uvjet zadovoljen; garantira samo da je nit prestala spavati. Pošteni programer zato uvijek nakon buđenja iznova provjeri uvjet, i ako još uvijek nije zadovoljen, ponovo se uspava.
+
+- [**`nit_cond.c`**](nit_cond.c) — proizvođač-potrošač s ograničenim cirkularnim međuspremnikom.
+
+  Ovdje koristimo dvije kondicijske varijable: jednu za "ima mjesta u međuspremniku" (proizvođač čeka na nju kad je pun) i jednu za "ima robe u međuspremniku" (potrošač čeka na nju kad je prazan).
 
   ```c
   #define VEL_BUFFERA 4
-  #define BROJ_STAVKI 12
+  #define BROJ_STAVKI 120
 
   static int             buffer[VEL_BUFFERA];
-  static int             upis_idx = 0, cit_idx = 0, punjenje = 0;
+  static int             upis_idx = 0, cit_idx = 0, buff_items = 0;
 
   static pthread_mutex_t mutex      = PTHREAD_MUTEX_INITIALIZER;
   static pthread_cond_t  ima_mjesta = PTHREAD_COND_INITIALIZER;
   static pthread_cond_t  ima_robe   = PTHREAD_COND_INITIALIZER;
 
+  /* nasumicna pauza izmedju 10 i 200 milisekundi */
+  static void slucajna_pauza(void) {
+      usleep((rand() % 191 + 10) * 1000);
+  }
+
   void *proizvodjac(void *arg) {
       for (int i = 0; i < BROJ_STAVKI; i++) {
           pthread_mutex_lock(&mutex);
-          while (punjenje == VEL_BUFFERA)
+          while (buff_items == VEL_BUFFERA)
               pthread_cond_wait(&ima_mjesta, &mutex);
 
           buffer[upis_idx] = i;
           upis_idx = (upis_idx + 1) % VEL_BUFFERA;
-          punjenje++;
+          buff_items++;
 
           pthread_cond_signal(&ima_robe);
           pthread_mutex_unlock(&mutex);
-          usleep(50000);
+          slucajna_pauza();
       }
       return NULL;
   }
@@ -763,37 +770,39 @@ pthread_mutex_unlock(&mutex);
   void *potrosac(void *arg) {
       for (int i = 0; i < BROJ_STAVKI; i++) {
           pthread_mutex_lock(&mutex);
-          while (punjenje == 0)
+          while (buff_items == 0)
               pthread_cond_wait(&ima_robe, &mutex);
 
           int v = buffer[cit_idx];
           cit_idx = (cit_idx + 1) % VEL_BUFFERA;
-          punjenje--;
+          buff_items--;
 
           pthread_cond_signal(&ima_mjesta);
           pthread_mutex_unlock(&mutex);
-          usleep(120000);    /* potrosac sporiji */
+          slucajna_pauza();
       }
       return NULL;
   }
   ```
 
-  Pošto proizvođač u primjeru radi brže od potrošača (50 ms naspram 120 ms po stavki), međuspremnik se postupno puni — vidi se u ispisu:
+  Proizvođač i potrošač između iteracija "rade" nasumično dugo (10–200 ms), pa ne možemo unaprijed znati hoće li se međuspremnik brže puniti ili prazniti — to je upravo razlog zašto trebamo *dvije* kondicijske varijable. U jednom trenutku proizvođač može biti brži pa se međuspremnik puni dok ne dosegne maksimum (4 stavke), nakon čega proizvođač blokira na `ima_mjesta`. U drugom trenutku, potrošač može biti brži pa međuspremnik ostaje prazan, a potrošač blokira na `ima_robe`. Kondicijske varijable osiguravaju da nijedna nit ne troši procesorsko vrijeme u aktivnom čekanju i da niti uvijek ispravno reagiraju na promjene stanja međuspremnika.
+
+  Primjer ispisa (prvih nekoliko redaka):
 
   ```
   $ ./nit_cond
-  Proizvodjac: stavio 0 (punjenje 1)
-                                  Potrosac: uzeo 0 (punjenje 0)
-  Proizvodjac: stavio 1 (punjenje 1)
-  Proizvodjac: stavio 2 (punjenje 2)
-                                  Potrosac: uzeo 1 (punjenje 1)
-  Proizvodjac: stavio 3 (punjenje 2)
-  Proizvodjac: stavio 4 (punjenje 3)
-                                  Potrosac: uzeo 2 (punjenje 2)
+  Proizvodjac: stavio 0 (buff_items 1)
+                                  Potrosac: uzeo 0 (buff_items 0)
+  Proizvodjac: stavio 1 (buff_items 1)
+                                  Potrosac: uzeo 1 (buff_items 0)
+  Proizvodjac: stavio 2 (buff_items 1)
+  Proizvodjac: stavio 3 (buff_items 2)
+                                  Potrosac: uzeo 2 (buff_items 1)
   ...
   ```
 
-  Kad punjenje dosegne maksimum (4), proizvođač automatski blokira u `cond_wait(&ima_mjesta, ...)` i tako čeka dok potrošač ne izvadi nešto. Nakon nekoliko ciklusa, proizvođač je gotov sa svojim 12 stavkama, a potrošač ih sve uzima.
+  Svako pokretanje dat će drugačiji raspored, ali međuspremnik nikad neće prijeći iznos `VEL_BUFFERA` ni pasti ispod nule — invarijanta koju garantira kombinacija mutexa i dviju kondicijskih varijabli.
+
 
 
 ## Signali i niti
@@ -901,6 +910,12 @@ Najvažnije lekcije ovog poglavlja:
 - Pthreads sučelje je relativno jednostavno — nekoliko desetaka funkcija, ali bogato semantikom.
 - **Sinkronizacija je teža od izvršavanja**. Pisanje koda koji se izvršava u više niti je relativno jednostavno; pisanje koda koji *točno* radi je gdje nastaju stvarni izazovi. Mutex za isključivost pristupa i kondicijske varijable za čekanje na uvjet pokrivaju ogromnu većinu sinkronizacijskih potreba.
 - Klasični algoritmi (proizvođač-potrošač, čitatelji-pisci, ...) pojavljuju se iznova i iznova u stvarnom kodu. Vrijedi ih poznavati.
+
+Završimo s dvije misli koje je vrijedi ponijeti iz ovog poglavlja, neovisno o specifičnostima pthreads sučelja:
+
+> **Kada razmišljamo o nitima i projektiramo višenitne arhitekture, važno je razmišljati o podacima, ne o kodu.** Pitanje *"što ova nit radi?"* manje je važno od pitanja *"koje podatke ova nit dira i tko ih još dira?"*. Niti koje rade nad disjunktnim skupovima podataka mogu raditi paralelno bez ijednog mutexa; niti koje dijele podatke moraju biti pažljivo sinkronizirane bez obzira na to koliko im je kod sličan ili različit. Pravilna identifikacija dijeljenih podataka i njihove razgranatosti kroz program prvi je korak svake suvislo dizajnirane višenitne arhitekture.
+
+> **Sinkronizacijski problemi rješavaju se olovkom i papirom, ne na računalu.** Tek kada smo dobro promislili i razradili sve moguće scenarije pristupa dijeljenim podacima, te osmislili efikasan mehanizam sinkronizacije između niti i zaštite dijeljenih podataka, pristupamo kodiranju. Kodiranje je zadnji korak, a "pravi posao" događa se prije, na papiru. Pokušaj otklanjanja deadlocka *ad hoc*, mijenjajući kod dok program nekako počne raditi, gotovo uvijek završi u programu koji *uglavnom radi* — sve dok se okolnosti ne poklope, što se može dogoditi i kod kupca godinu dana kasnije.
 
 Tema koje smo se *namjerno klonili* uključuju otkazivanje niti (engl. *cancellation*) s pridruženim *cancellation points*, lokalnu pohranu niti (TLS — `pthread_key_create`), spin lockove i read-write lockove (`pthread_rwlock_*`), barijere (`pthread_barrier_*`), te razne atribute niti (prioriteti, policy raspoređivanja, veličina stoga). Sve to je dio pthreads-a, ali se rjeđe koristi u tipičnim programima — čitatelj koji nadje potrebu za tim će ih lako proučiti kad mu zatrebaju.
 
