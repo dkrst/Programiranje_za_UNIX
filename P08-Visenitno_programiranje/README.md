@@ -908,31 +908,33 @@ U prethodnom primjeru obradili smo situaciju u kojoj postoji samo jedan proizvo�
 
 ## Signali i niti
 
-Signali iz P06 i niti su dvije neovisno razvijene apstrakcije UNIX-a, i njihova interakcija dolazi s nizom specifičnosti koje treba poznavati. Najvažnije pravilo je:
+UNIX signali, o kojima smo pisali u poglavlju P06, i niti su dvije neovisno razvijene apstrakcije UNIX-a, a njihova interakcija dolazi s nizom specifičnosti koje treba poznavati i o njima pažljivo voditi računa. Najvažnije pravilo je:
 
 > Kad signal dolazi procesu, jezgra ga može dostaviti **bilo kojoj niti tog procesa koja taj signal trenutno ne blokira**. Sve dok ne specificiramo drugačije, ne možemo predvidjeti kojoj će niti signal stići.
 
 Tablica rukovatelja signala je **dijeljena** među svim nitima procesa — ne postoji "moj rukovatelj `SIGINT`-a u nití `A`" različit od "rukovatelja `SIGINT`-a u niti `B`". Ali **maska blokiranih signala je privatna za svaku nit**. To znači da svaka nit može neovisno odrediti koje signale želi primati, a koje blokirati.
 
-Funkcija `pthread_sigmask` je za niti ekvivalent `sigprocmask`-a iz P06:
+Funkcija `pthread_sigmask` je za nit ekvivalent funkcije `sigprocmask` za proces:
 
 ```c
 int pthread_sigmask(int how, const sigset_t *set, sigset_t *oldset);
 ```
 
-Argumenti su isti kao kod `sigprocmask`-a: `how` je `SIG_BLOCK`, `SIG_UNBLOCK` ili `SIG_SETMASK`; `set` je maska signala; `oldset` izlazni argument za staru masku. **Bitno: u višenitnom programu treba koristiti `pthread_sigmask`, a ne `sigprocmask`** — ovaj drugi ima nedefinirano ponašanje u prisutnosti niti.
+Argumenti su isti kao kod `sigprocmask`: `how` je `SIG_BLOCK`, `SIG_UNBLOCK` ili `SIG_SETMASK`; `set` je maska signala; `oldset` je izlazni argument u koji funkcija pohrani staru masku. Važno je naglasiti da u višenitnim programima obavezno treba koristiti `pthread_sigmask` umjesto `sigprocmask` — druga varijanta ima nedefinirano ponašanje u višenitnom okruženju.
 
 ### Standardni obrazac: jedna nit obrađuje signale
 
 U većini višenitnih programa najbolji pristup je centralizirati obradu signala u **jednoj niti**, dok sve ostale niti blokiraju signale. Tako izbjegavamo nepredvidivost koja nit primi signal. Obrazac:
 
-1. Glavna nit prije stvaranja pomoćnih niti blokira sve signale koje želi obrađivati (npr. `SIGINT`).
-2. Stvara pomoćne niti — one **naslijeđuju masku blokiranih signala** od glavne, pa i one blokiraju iste signale.
-3. Glavna nit (ili posebna "signal nit") sinkrono čeka signale pozivom `sigwait`, i obrađuje ih.
+1. Glavna (izvorna) nit prije stvaranja novih niti blokira sve signale koje želi obrađivati.
+2. Stvaranje dodatnih niti — nove niti naslijeđuju masku blokiranih signala od izvorne pa i one blokiraju iste signale.
+3. Jedna od niti (glavna ili dedicirana nit za obradu signala) sinkrono čeka signale pozivom `sigwait`, i obrađuje ih.
 
-`sigwait` je inverzna operacija od rukovatelja signala — umjesto asinkronog poziva funkcije, sinkrono čeka da signal stigne i vraća njegov broj. Time se izbjegavaju sve poteškoće pisanja "async-signal-safe" koda u rukovatelju (problem detaljno obrađen u P06).
+Podsjetimo se: termin "glavna nit" u osnovi znači "izvorna" ili "prva pokrenuta" nit — ona koja izvršava `main`. Sve niti unutar procesa su međusobno ravnopravne, kao što smo pokazali na primjeru `pozdrav3.c`.
 
-- [**`nit_signal.c`**](nit_signal.c) — demonstracija obrasca.
+`sigwait` funkcionira potpuno drugačije od rukovatelja signala — umjesto registracije funkcije za obradu signala i asinkronog poziva kada signal stigne, `sigwait` sinkrono (blokirajući) čeka da neki od signala iz maske stigne te vraća njegov broj. Ako je u maski više signala, funkcija blokira sve dok ne stigne *bilo koji* od njih. Time se izbjegava kompleksnost pisanja *async-signal-safe* koda u rukovatelju (problem je detaljnije obrađen u poglavlju o signalima).
+
+- [**`nit_signal.c`**](nit_signal.c) — primjer višenitnog programa koji u dediciranoj niti očekuje `SIGINT` (korisnik je stisnuo `Ctrl+C` na tipkovnici).
 
   ```c
   #define BROJ_NITI 3
@@ -977,11 +979,15 @@ U većini višenitnih programa najbolji pristup je centralizirati obradu signala
   }
   ```
 
-  Pomoćne niti rade beskonačnu petlju ispisa. Kad korisnik pritisne `Ctrl+C`, signal `SIGINT` dolazi procesu — ali sve niti ga blokiraju osim implicitno glavna kroz `sigwait`. `sigwait` se vraća, glavna nit otkazuje pomoćne preko `pthread_cancel`, pokupi ih `pthread_join`-om i izlazi.
+  Niti radnici jednom u sekundi ispisuju poruku. Kad korisnik pritisne `Ctrl+C`, signal `SIGINT` dolazi procesu — ali sve niti ga blokiraju osim glavne koja na njega čeka kroz `sigwait`. `sigwait` se vraća, a glavna nit radnicima šalje zahtjev za prekidom (engl. *cancellation request*) korištenjem funkcije `pthread_cancel`, pokupi ih `pthread_join`-om i izlazi.
+
+  Vrijedi se na trenutak osvrnuti na to kako pozivi `pthread_cancel` zaista uspijevaju zaustaviti niti koje su u beskonačnoj `while (1)` petlji. U sekciji o otkazivanju niti spomenuli smo da `pthread_cancel` šalje *zahtjev* za prekid, koji se obrađuje tek kad nit dođe do **točke otkazivanja** (engl. *cancellation point*) — POSIX-om definirane funkcije pri čijem pozivu sustav provjerava postoji li čekajući zahtjev za otkazivanjem. U našoj radničkoj niti upravo `sleep(1)` igra tu ulogu: `sleep` je jedna od standardno definiranih točaka otkazivanja, pa nit pri ulasku u `sleep` provjeri zahtjev, vidi da je `pthread_cancel` pozvan i sama se terminira. Bez ijednog cancellation pointa u petlji, nit bi ignorirala sve zahtjeve za otkazivanjem i nastavila zauvijek raditi — što je važan detalj kojeg programer mora biti svjestan kad piše dugotrajne radničke petlje.
 
 ### Slanje signala specifičnoj niti
 
-Za slanje signala procesu koristi se `kill(pid, sig)` iz P06. Za slanje signala specifičnoj niti unutar procesa postoji `pthread_kill`:
+U dosadašnjim primjerima fokusirali smo se na obradu signala koji dolaze procesu izvana (npr. `SIGINT` od korisnika). Ponekad, međutim, želimo iz jednog dijela vlastitog programa eksplicitno signalizirati nešto određenoj niti tog istog procesa — na primjer, glavna nit može poslati prekidni signal jednoj specifičnoj radničkoj niti dok ostale nastavljaju rad. Za to nije dovoljan običan `kill` koji signal šalje cijelom procesu (a jezgra ga zatim dostavlja nekoj od niti, po svom izboru), nego nam treba način da signal ciljano usmjerimo na pojedinu nit.
+
+Za slanje signala procesu koristi se `kill(pid, sig)`. Za slanje signala specifičnoj niti unutar procesa postoji `pthread_kill`:
 
 ```c
 int pthread_kill(pthread_t thread, int sig);
@@ -991,13 +997,15 @@ Ovo se rijetko koristi u praksi — kad imamo višenitni program, signali su ugl
 
 ## Thread-safe i reentrant funkcije
 
-Završna napomena koja je važna za pisanje stvarnih višenitnih programa. Mnoge funkcije iz standardne C biblioteke i POSIX-a nisu izvorno dizajnirane s nitima na umu — pretpostavljaju da unutar procesa postoji samo jedan tok izvršavanja. Kad ih pozovemo iz više niti istovremeno, mogu se dogoditi suptilni problemi.
+Prilikom pisanja višenitnih programa potrebno je voditi računa o još jednom važnom detalju. Mnoge funkcije iz standardne C biblioteke i POSIX-a nisu izvorno dizajnirane s nitima na umu — pretpostavljaju da unutar procesa postoji samo jedan tok izvršavanja. Kad ih pozovemo iz više niti istovremeno, mogu se dogoditi neočekivani problemi.
 
-Funkcija je **thread-safe** ako se može sigurno pozivati iz više niti istovremeno. Mnoge moderne implementacije pthreads-a su pažljivo dorađene da budu thread-safe — npr. `malloc` interno koristi mutexe da osigura ispravnost. Ali postoje i klasične "anti-primjeri":
+Funkcija je **thread-safe** ako se može sigurno pozivati iz više niti istovremeno. POSIX.1 definira skupinu thread-safe funkcija koje se mogu pozivati iz više niti istovremeno; većina standardnih funkcija ima ovo svojstvo, uz manju listu eksplicitno izuzetih. Pored toga, moderne implementacije C biblioteke pažljivo su dorađene da budu thread-safe — npr. `malloc` interno koristi mutexe kako bi osigurao ispravnost. Evo nekoliko primjera sigurnih i nesigurnih funkcija:
 
-- **`strtok`** — koristi internu statičku varijablu za pamćenje pozicije. Dvije niti koje istovremeno parsiraju različite stringove međusobno se "zarazu". Sigurna alternativa je **`strtok_r`** (sufiks `_r` od *reentrant*), kojem se eksplicitno predaje pointer za stanje.
+- **`strtok`** — tokenizira string, koristi internu statičku varijablu za pamćenje pozicije. Dvije niti koje istovremeno parsiraju različite stringove međusobno utječu jedna na drugu — jedan od čestih uzroka pogrešaka (engl. *bugs*) u višenitnim programima. Sigurna alternativa je **`strtok_r`** (sufiks `_r` od *reentrant*).
 - **`localtime`, `gmtime`, `asctime`** — vraćaju pokazivač na internu statičku strukturu, koja se prepisuje pri sljedećem pozivu. Sigurne alternative su **`localtime_r`**, **`gmtime_r`**, **`asctime_r`**.
-- **`errno`** — bio bi problem da je obična globalna varijabla. Moderne implementacije čine ga *thread-local* (kao da svaka nit ima svoj `errno`) baš zbog ovog razloga, pa s njim u nitima radimo bez briga.
+- **`errno`** — u starijim implementacijama `errno` je obična globalna varijabla, što ga čini nesigurnim za korištenje u višenitnom kodu. Moderne implementacije koriste *thread-local* `errno`, tako da svaka nit ima vlastiti `errno` pa ga u svom višenitnom kodu možemo koristiti bez brige.
+
+Vrijedi razjasniti razliku između termina **thread-safe** i **reentrant**, jer se često brkaju. *Thread-safe* funkcija je ona koja se može sigurno pozivati iz više niti istovremeno — često se implementira korištenjem mutexa kojim funkcija interno štiti svoje dijeljeno stanje, pa pozivi iz različitih niti čekaju jedan na drugi. *Reentrant* funkcija je stroži pojam: ona se može sigurno pozvati ponovo i dok prethodni poziv te iste funkcije još nije završio — npr. iz rukovatelja signala koji je prekinuo izvršavanje funkcije, ili rekurzivno. Reentrant funkcija ne smije imati nikakvog internog (statičkog) stanja niti koristiti mutexe (jer bi zaglavila samu sebe ako se pozove dok već drži mutex). Sve reentrant funkcije su thread-safe, ali ne i obrnuto — funkcija koja koristi interni mutex može biti thread-safe ali nije reentrant, jer bi ponovni poziv iste funkcije dok prethodni još nije završen (npr. iz dvije niti, ili iz rukovatelja signala) mogao stvoriti deadlock.
 
 Kad pišete višenitni program, **provjerite man stranice funkcija koje koristite** — sekcija "ATTRIBUTES" navodi je li funkcija thread-safe, a ako nije, obično ukazuje na `_r` varijantu ili alternativu.
 
@@ -1007,18 +1015,18 @@ Niti su, uz signale i IPC, jedan od stupova suvremenog UNIX programiranja. Razum
 
 Najvažnije lekcije ovog poglavlja:
 
-- Niti dijele adresni prostor procesa — to je istovremeno njihova najveća snaga (jednostavna komunikacija) i najveća opasnost (race conditioni).
-- Pthreads sučelje je relativno jednostavno — nekoliko desetaka funkcija, ali bogato semantikom.
-- **Sinkronizacija je teža od izvršavanja**. Pisanje koda koji se izvršava u više niti je relativno jednostavno; pisanje koda koji *točno* radi je gdje nastaju stvarni izazovi. Mutex za isključivost pristupa i kondicijske varijable za čekanje na uvjet pokrivaju ogromnu većinu sinkronizacijskih potreba.
-- Klasični algoritmi (proizvođač-potrošač, čitatelji-pisci, ...) pojavljuju se iznova i iznova u stvarnom kodu. Vrijedi ih poznavati.
+- Niti dijele adresni prostor procesa — to je istovremeno njihova najveća snaga (jednostavna komunikacija) i najveća opasnost (race condition).
+- Pthreads sučelje je relativno jednostavno — nekoliko desetaka funkcija (u ovoj skripti obradili smo samo najznačajnije), ali bogato semantikom.
+- Pisanje višenitnog koda zahtijeva eksplicitnu sinkronizaciju pristupa dijeljenim varijablama. Mutexi i kondicijske varijable glavni su alati koji pokrivaju veliku većinu potreba za sinkronizacijom.
+- Razumijevanje klasičnih problema (proizvođač-potrošač, deadlock, ...) ključno je za razumijevanje višenitnog programiranja.
 
 Završimo s dvije misli koje je vrijedi ponijeti iz ovog poglavlja, neovisno o specifičnostima pthreads sučelja:
 
-> **Kada razmišljamo o nitima i projektiramo višenitne arhitekture, važno je razmišljati o podacima, ne o kodu.** Pitanje *"što ova nit radi?"* manje je važno od pitanja *"koje podatke ova nit dira i tko ih još dira?"*. Niti koje rade nad disjunktnim skupovima podataka mogu raditi paralelno bez ijednog mutexa; niti koje dijele podatke moraju biti pažljivo sinkronizirane bez obzira na to koliko im je kod sličan ili različit. Pravilna identifikacija dijeljenih podataka i njihove razgranatosti kroz program prvi je korak svake suvislo dizajnirane višenitne arhitekture.
+> **Kada razmišljamo o nitima i projektiramo višenitne arhitekture, važno je razmišljati o podacima, ne o kodu:** pitanje *"kako ova nit radi?"* manje je važno od pitanja *"koje podatke ova nit dira i tko ih još dira?"*. Niti koje rade nad disjunktnim skupovima podataka mogu raditi paralelno bez ijednog mutexa; niti koje dijele podatke moraju biti pažljivo sinkronizirane bez obzira na to koliko im je kod sličan ili različit. Pravilna identifikacija dijeljenih podataka i njihove razgranatosti kroz program prvi je korak svake suvislo dizajnirane višenitne arhitekture.
 
-> **Sinkronizacijski problemi rješavaju se olovkom i papirom, ne na računalu.** Tek kada smo dobro promislili i razradili sve moguće scenarije pristupa dijeljenim podacima, te osmislili efikasan mehanizam sinkronizacije između niti i zaštite dijeljenih podataka, pristupamo kodiranju. Kodiranje je zadnji korak, a "pravi posao" događa se prije, na papiru. Pokušaj otklanjanja deadlocka *ad hoc*, mijenjajući kod dok program nekako počne raditi, gotovo uvijek završi u programu koji *uglavnom radi* — sve dok se okolnosti ne poklope, što se može dogoditi i kod kupca godinu dana kasnije.
+> **Sinkronizacijski problemi rješavaju se olovkom i papirom, ne na računalu:** tek kada smo dobro promislili i razradili sve moguće scenarije pristupa dijeljenim podacima, te osmislili efikasan mehanizam sinkronizacije između niti i zaštite dijeljenih podataka, pristupamo kodiranju. Kodiranje je zadnji korak, a "pravi posao" događa se prije, na papiru. Pokušaj otklanjanja deadlocka *ad hoc*, mijenjajući kod dok program nekako ne proradi, gotovo uvijek završi programom koji *uglavnom radi* — sve dok se okolnosti ne poklope. Murphyev zakon, jedan od važnijih inženjerskih postulata uopće, uči nas da će se ovo dogoditi možda i godinama kasnije, u produkciji, upravo u onom trenutku kada greška u našem kodu može prouzročiti nuklearnu katastrofu, treći svjetski rat, pad aviona, ili neku sličnu benignu posljedicu.
 
-Tema koje smo se *namjerno klonili* uključuju otkazivanje niti (engl. *cancellation*) s pridruženim *cancellation points*, lokalnu pohranu niti (TLS — `pthread_key_create`), spin lockove i read-write lockove (`pthread_rwlock_*`), barijere (`pthread_barrier_*`), te razne atribute niti (prioriteti, policy raspoređivanja, veličina stoga). Sve to je dio pthreads-a, ali se rjeđe koristi u tipičnim programima — čitatelj koji nadje potrebu za tim će ih lako proučiti kad mu zatrebaju.
+U neke od tema nismo dublje ulazili, ili smo ih samo usputno spomenuli: otkazivanje niti (engl. *cancellation*) i pridružene točke otkazivanja koje smo dotaknuli u primjeru `nit_signal.c`, lokalnu pohranu niti (TLS — `pthread_key_create`), specijalizirane oblike zaključavanja kao što su spin lockovi i read-write lockovi (`pthread_rwlock_*`), barijere (`pthread_barrier_*`), te razne atribute niti (prioriteti, *policy* raspoređivanja, veličina stoga). Svi ovi mehanizmi dio su pthreads biblioteke, ali se u tipičnim programima koriste nešto rjeđe i nisu ključni za razumijevanje višenitnosti. Radoznali čitatelj ili programer kojem ovi mehanizmi zatrebaju može ih pronaći u dodatnoj literaturi [1], [2].
 
 ## Prevođenje
 
