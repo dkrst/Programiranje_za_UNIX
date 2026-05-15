@@ -32,7 +32,7 @@
 #include <pthread.h>
 
 #define VEL_BUFFERA 4        /* kruzni red duljine 4 */
-#define BROJ_STAVKI 120      /* koliko stavki proizvodjac proizvodi */
+#define BROJ_STAVKI 30      /* koliko stavki proizvodjac proizvodi */
 
 static int             buffer[VEL_BUFFERA];
 static int             upis_idx   = 0;  /* slijedeca pozicija za upis */
@@ -62,11 +62,11 @@ void *proizvodjac(void *arg) {
     buff_items++;
     printf("Proizvodjac: stavio %d (buff_items %d)\n", i, buff_items);
 
-    /* obavijesti potrosaca da ima novih podataka */
+    /* Obavijesti potrosaca da ima novih podataka */
     pthread_cond_signal(&ima_robe);
     pthread_mutex_unlock(&mutex);
 
-    slucajna_pauza();   /* nasumicno vrijeme proizvodnje */
+    slucajna_pauza();  
   }
   return NULL;
 }
@@ -83,10 +83,10 @@ void *potrosac(void *arg) {
     int vrijednost = buffer[cit_idx];
     cit_idx = (cit_idx + 1) % VEL_BUFFERA;
     buff_items--;
-    printf("                                Potrosac: uzeo %d (buff_items %d)\n",
+    printf("\t\t Potrosac: uzeo %d (buff_items %d)\n",
            vrijednost, buff_items);
 
-    /* obavijesti proizvodjaca da je oslobodjeno mjesto */
+    /* Obavijesti proizvodjaca da je oslobodjeno mjesto */
     pthread_cond_signal(&ima_mjesta);
     pthread_mutex_unlock(&mutex);
 

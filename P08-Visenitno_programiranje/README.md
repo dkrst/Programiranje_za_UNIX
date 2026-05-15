@@ -724,11 +724,17 @@ while (!uvjet)                          /* UVIJEK while, ne if! */
 pthread_mutex_unlock(&mutex);
 ```
 
-Pogledajmo kako ovaj obrazac funkcionira. Prije nego nit uopće provjeri uvjet, mora zaključati mutex — i to ne bilo koji mutex, nego onaj koji štiti varijable o kojima uvjet ovisi (u našem primjeru proizvođač-potrošač to je `mutex` koji štiti brojač podataka u međuspremniku `buff_items` i sam međuspremnik, tj. polja za pohranu vrijednosti u njemu). Jednom kada nit drži mutex, može pročitati stanje uvjeta, s obzirom da ne postoji mogućnost da bilo koja druga nit stanje promijeni. Ako uvjet *nije* zadovoljen, nit poziva `pthread_cond_wait`, koja je središnja funkcija ovog mehanizma.
+Pogledajmo kako ovaj obrazac funkcionira. Prije nego nit uopće provjeri uvjet, mora zaključati mutex koji štiti varijable o kojima uvjet ovisi — u našem primjeru to su brojač podataka u međuspremniku `buff_items` i sam međuspremnik. Jednom kada nit drži mutex, može pročitati stanje uvjeta, s obzirom da ne postoji mogućnost da bilo koja druga nit stanje promijeni za vrijeme ove provjere. Ako uvjet *nije* zadovoljen, nit poziva `pthread_cond_wait`, koja je središnja funkcija ovog mehanizma.
 
-`pthread_cond_wait` prima dva argumenta — kondicijsku varijablu i **mutex koji pozivajuća nit drži zaključan**. Funkcija atomski **otpušta mutex i uspava nit**. Atomičnost otpuštanja i uspavanja je ključna — bez nje bi nit mogla biti prekinuta upravo između tih dvaju koraka, i propustila bi signal koji je u međuvremenu poslao netko drugi. Druge niti sad mogu zaključati mutex, promijeniti stanje (i signalizirati uvjet kroz `pthread_cond_signal`), pa otpustiti mutex. Kad netko od njih probudi našu nit signalom, `pthread_cond_wait` **automatski opet zaključa mutex** za nas i tek tada se vraća. Zato u komentaru gornjeg obrasca piše *"mutex smo zakljucali mi"* — iako mi sami nismo eksplicitno pozvali `pthread_mutex_lock`, nakon povratka iz `cond_wait`-a mutex je zaključan, kao da smo ga maločas zaključali.
+`pthread_cond_wait` prima dva argumenta — kondicijsku varijablu i **mutex koji pozivajuća nit drži zaključan**. Funkcija atomski otpušta mutex i stavlja nit u stanje spavanja (čekanja). U ovom trenutku, mutex je slobodan i može ga uzeti bilo koja druga nit koja to zatraži funkcijom `pthread_mutex_lock`. Kada druga nit dobije mutex, mijenja stanje štićenih varijabli, nakon čega funkcijom `pthread_cond_signal` šalje signal niti koja na uvjet čeka te otključava mutex.
 
-Ostaje samo provjera zašto je uvjet u petlji `while`, a ne u uvjetnoj naredbi `if`. Razlog su tzv. **spurious wakeups** — sustav može probuditi nit i bez ijednog signala (zbog implementacijskih detalja jezgre, signala procesu, prekida i sličnih razloga). Drugim riječima, povratak iz `pthread_cond_wait`-a *ne garantira* da je uvjet zadovoljen; garantira samo da je nit prestala spavati. Pošteni programer zato uvijek nakon buđenja iznova provjeri uvjet, i ako još uvijek nije zadovoljen, ponovo se uspava.
+Nit probuđena signalom atomski zaključava mutex te radi ponovnu provjeru uvjeta (u petlji `while`). Ukoliko je uvjet zadovoljen (tj. uvjet u `while` vrati `false`), mutex ostaje zaključan, a nit na siguran način pristupa štićenim varijablama. U slučaju da uvjet i dalje nije zadovoljen, ponavlja se raniji scenarij: u atomskoj operaciji nit oslobađa mutex i ide u stanje spavanja do ponovnog primanja signala.
+
+Obratite pažnju da se uvjet provjerava u petlji `while`. Pažljiv čitatelj mogao bi zaključiti da se umjesto `while` može koristiti i `if`: ukoliko uvjet nije zadovoljen, nit oslobađa mutex i ide u stanje spavanja, a kada dobije signal da je uvjet zadovoljen (iz druge niti), nastavlja s obradom. Međutim, može se dogoditi da, bez obzira na promjenu stanja varijabli od strane druge niti i slanje signala za buđenje, uvjet i dalje ne bude zadovoljen (npr. u složenom okruženju s više od dvije niti). Pored ovog, postoji i mogućnost tzv. lažnih buđenja (engl. *spurious wakeups*) — sustav ponekad može probuditi uspavanu nit i bez signala za buđenje, uslijed raznih prekida, signala procesu i drugih implementacijskih detalja jezgre. Drugim riječima, povratak iz `pthread_cond_wait` ne garantira da je uvjet zadovoljen. Jedino što znamo je da je "nešto" probudilo uspavanu nit koja je čekala na uvjet, ali prije nastavka nužno moramo ponovo provjeriti je li uvjet zadovoljen. Upravo zato koristimo `while`: postoji mogućnost da ćemo nekoliko puta biti probuđeni prije nego što uvjet na koji čekamo bude stvarno zadovoljen.
+
+> **Terminologija:** Kada govorimo o "signalima" koje niti šalju jedna drugoj kroz `pthread_cond_signal`, *ne govorimo o klasičnim UNIX signalima* iz prethodnog poglavlja (SIGINT, SIGTERM, SIGCHLD i tako dalje). Iako je terminologija slična i može odvesti čitatelja u krivom smjeru, ovo su dva potpuno različita mehanizma. UNIX signali su asinkrone obavijesti procesu, koje obrađuje rukovatelj signala (engl. *signal handler*) ili sustav zadanim ponašanjem. Signali kondicijskih varijabli su sinkroni mehanizam unutar pthreads biblioteke, isključivo za buđenje niti koje su pozvale `pthread_cond_wait` na istoj kondicijskoj varijabli. Niti ne komuniciraju kroz UNIX signale (osim u graničnim slučajevima, vidi sljedeću sekciju), nego kroz pthreads sinkronizacijske primitive — `pthread_cond_signal` je jedna od njih.
+>
+> **Atomske operacije:** Ključ ispravnog rada cijelog mehanizma jest atomičnost otpuštanja mutexa i ulaska u stanje spavanja u `pthread_cond_wait`-u. Da te dvije operacije nisu atomske, nit bi nakon otpuštanja mutexa, a prije nego što stigne zaspati, mogla biti prekinuta — i upravo u tom trenutku druga nit bi mogla promijeniti stanje i poslati signal koji bi naša nit propustila, jer još uvijek ne spava. Atomičnost garantira da do takvog "izgubljenog signala" ne može doći. Isti princip vrijedi i u obrnutom smjeru, pri buđenju niti: kad signal stigne, `pthread_cond_wait` atomski budi nit i zaključava mutex za nju, kao jednu nedjeljivu operaciju. Da nije tako, druga nit bi između buđenja i zaključavanja mogla "ugrabiti" mutex i opet promijeniti stanje varijabli prije nego što naša probuđena nit dođe na red — što bi nas dovelo u situaciju da nakon povratka iz `cond_wait`-a stanje više nije ono koje smo očekivali.
 
 - [**`nit_cond.c`**](nit_cond.c) — proizvođač-potrošač s ograničenim cirkularnim međuspremnikom.
 
@@ -736,7 +742,7 @@ Ostaje samo provjera zašto je uvjet u petlji `while`, a ne u uvjetnoj naredbi `
 
   ```c
   #define VEL_BUFFERA 4
-  #define BROJ_STAVKI 120
+  #define BROJ_STAVKI 30
 
   static int             buffer[VEL_BUFFERA];
   static int             upis_idx = 0, cit_idx = 0, buff_items = 0;
@@ -792,16 +798,111 @@ Ostaje samo provjera zašto je uvjet u petlji `while`, a ne u uvjetnoj naredbi `
   ```
   $ ./nit_cond
   Proizvodjac: stavio 0 (buff_items 1)
-                                  Potrosac: uzeo 0 (buff_items 0)
+                Potrosac: uzeo 0 (buff_items 0)
   Proizvodjac: stavio 1 (buff_items 1)
-                                  Potrosac: uzeo 1 (buff_items 0)
+                Potrosac: uzeo 1 (buff_items 0)
   Proizvodjac: stavio 2 (buff_items 1)
-  Proizvodjac: stavio 3 (buff_items 2)
-                                  Potrosac: uzeo 2 (buff_items 1)
+                Potrosac: uzeo 2 (buff_items 0)
+  Proizvodjac: stavio 3 (buff_items 1)
+  Proizvodjac: stavio 4 (buff_items 2)
+                Potrosac: uzeo 3 (buff_items 1)
   ...
   ```
 
   Svako pokretanje dat će drugačiji raspored, ali međuspremnik nikad neće prijeći iznos `VEL_BUFFERA` ni pasti ispod nule — invarijanta koju garantira kombinacija mutexa i dviju kondicijskih varijabli.
+
+### Više proizvođača i potrošača
+
+U prethodnom primjeru obradili smo situaciju u kojoj postoji samo jedan proizvođač i jedan potrošač. U stvarnim produkcijskim sustavima često imamo situaciju u kojoj više proizvođača istovremeno dodaje podatke u međuspremnik i više potrošača koji ih iz spremnika istovremeno preuzimaju. Iako ova situacija na prvu može izgledati kaotična i složena za obraditi, princip je isti, sve su ostalo nijanse.
+
+- [**`nit_cond2.c`**](nit_cond2.c) — proširenje primjera `nit_cond.c` na **3 proizvođača i 3 potrošača**. Svaki proizvođač proizvodi po 10 stavki, dok istovremeno svaki potrošač preuzima 10 stavki, pa kroz međuspremnik prolazi ukupno 30 stavki, podjednako podijeljenih među nitima.
+
+  Da bismo razlikovali što je tko proizveo, svaki proizvođač generira stavke u obliku `id * 100 + i`, gdje je `id` njegov redni broj (0, 1 ili 2), a `i` redni broj stavke u njegovom proizvodnom ciklusu. Proizvođač 0 dakle generira `0, 1, 2, ... 9`, proizvođač 1 generira `100, 101, ... 109`, proizvođač 2 generira `200, 201, ... 209`. Funkcija polazne niti `proizvodjac` i `potrosac` sad primaju `id` kao argument (po istom obrascu kao u `argumenti2.c` — polje s ID-jevima čiji elementi ostaju stabilni).
+
+  ```c
+  #define VEL_BUFFERA      4
+  #define N_PROIZ          3       /* broj niti proizvodjaca */
+  #define N_POTR           3       /* broj niti potrosaca */
+  #define STAVKI_PO_NITI  10       /* svaka nit proizvede/potrosi ovoliko */
+
+  static int             buffer[VEL_BUFFERA];
+  static int             upis_idx = 0, cit_idx = 0, buff_items = 0;
+
+  static pthread_mutex_t mutex      = PTHREAD_MUTEX_INITIALIZER;
+  static pthread_cond_t  ima_mjesta = PTHREAD_COND_INITIALIZER;
+  static pthread_cond_t  ima_robe   = PTHREAD_COND_INITIALIZER;
+
+  void *proizvodjac(void *arg) {
+      int id = *(int *)arg;
+      for (int i = 0; i < STAVKI_PO_NITI; i++) {
+          int stavka = id * 100 + i;     /* Razlikujemo tko je sto proizveo */
+
+          pthread_mutex_lock(&mutex);
+          while (buff_items == VEL_BUFFERA)
+              pthread_cond_wait(&ima_mjesta, &mutex);
+
+          buffer[upis_idx] = stavka;
+          upis_idx = (upis_idx + 1) % VEL_BUFFERA;
+          buff_items++;
+
+          pthread_cond_broadcast(&ima_robe);    /* Probudimo sve potrosace */
+          pthread_mutex_unlock(&mutex);
+          slucajna_pauza();
+      }
+      return NULL;
+  }
+
+  void *potrosac(void *arg) {
+      int id = *(int *)arg;
+      for (int i = 0; i < STAVKI_PO_NITI; i++) {
+          pthread_mutex_lock(&mutex);
+          while (buff_items == 0)
+              pthread_cond_wait(&ima_robe, &mutex);
+
+          int v = buffer[cit_idx];
+          cit_idx = (cit_idx + 1) % VEL_BUFFERA;
+          buff_items--;
+
+          pthread_cond_broadcast(&ima_mjesta);  /* Probudimo sve proizvodjace */
+          pthread_mutex_unlock(&mutex);
+          slucajna_pauza();
+      }
+      return NULL;
+  }
+  ```
+
+  Dvije bitne razlike u odnosu na `nit_cond.c`. Prvo, umjesto `pthread_cond_signal` koristimo **`pthread_cond_broadcast`**:
+
+  ```c
+  pthread_cond_broadcast(&ima_robe);    /* Probudimo sve potrosace */
+  ```
+
+  Razlog je suptilan. S jednim potrošačem, znamo da signalom budimo upravo njega. S više potrošača, `pthread_cond_signal` budi *bilo kojeg* — implementacija sama bira. Ovaj pristup nije nužno pogrešan i radit će sasvim dobro u jednostavnijim slučajevima. Međutim, u složenijim scenarijima različite niti mogu čekati različite uvjete pa korištenje `pthread_cond_signal` umjesto `pthread_cond_broadcast` može dovesti do situacije u kojoj se budi "kriva" nit — ona koja još uvijek ne može nastaviti jer uvjet na koji ona čeka nije zadovoljen. Ova situacija potencijalno vodi u deadlock, jer nit koja bi mogla nastaviti nije dobila signal i ostaje u stanju spavanja. Nasuprot ovome, `pthread_cond_broadcast` budi sve niti koje čekaju, pa svaka od njih iznova provjerava uvjet, a s izvršavanjem može nastaviti samo ona za koju je uvjet zadovoljen. Ostale jednostavno opet zaspu.
+
+  Sada je potpuno jasno zašto moramo koristiti petlju `while` oko `pthread_cond_wait`: kada npr. proizvođač pošalje `pthread_cond_broadcast` i probudi sve potrošače, samo jedan od njih će uspjeti uzeti podatak prije nego buffer opet postane prazan. Ostale probuđene niti, kad konačno dobiju mutex, vidjet će da je `buff_items == 0` i vratiti se u stanje spavanja — do idućeg buđenja.
+
+  Ispis programa:
+
+  ```
+  $ ./nit_cond2
+  Proizvodjac 0: stavio 0 (buff_items 1)
+  Proizvodjac 1: stavio 100 (buff_items 2)
+  Proizvodjac 2: stavio 200 (buff_items 3)
+                Potrosac 0: uzeo 0 (buff_items 2)
+                Potrosac 1: uzeo 100 (buff_items 1)
+                Potrosac 2: uzeo 200 (buff_items 0)
+  Proizvodjac 1: stavio 101 (buff_items 1)
+                Potrosac 0: uzeo 101 (buff_items 0)
+  Proizvodjac 0: stavio 1 (buff_items 1)
+                Potrosac 1: uzeo 1 (buff_items 0)
+  ...
+  ```
+
+  Po stavkama vidimo tko je što proizveo i tko je što uzeo. Redoslijed javljanja proizvođača i potrošača je svaki put drugačiji, ali ključne stavke ostaju nepromijenjene:
+
+  - vrijednost brojača stavki u međuspremniku uvijek je u dopuštenim granicama: `0 ≤ buff_items ≤ VEL_BUFFERA`;
+  - ukupan broj proizvedenih stavki jednak je ukupnom broju potrošenih i iznosi 30;
+  - nijedna stavka se ne gubi niti se duplicira.
 
 
 
