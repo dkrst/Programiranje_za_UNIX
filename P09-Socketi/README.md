@@ -1,19 +1,19 @@
 # Socketi
 
-U svim prethodnim poglavljima procesi i niti komuniciraju unutar jednog računala — kroz datoteke (P03), preko zajedničke memorije, redova poruka i semafora (P07), ili dijeljenjem adresnog prostora između niti (P08). Svi ti mehanizmi imaju jednu zajedničku osobinu: traže da sudionici budu na *istom* stroju.
+U svim primjerima do sada, procesi i niti međusobno su komunicirali unutar jednog računala — putem datoteka, cjevovoda, zajedničke memorije, redova poruka, signala ili semafora.
 
-Velika većina današnjih programa, međutim, mora komunicirati i preko mreže — web preglednik s web serverom, baza podataka s aplikacijom, mikroservisi međusobno. UNIX nudi jedinstveno sučelje za ovu vrstu komunikacije, koje se zove **socket**. Lijepo svojstvo socket sučelja jest da se *iste funkcije* mogu koristiti i za lokalnu komunikaciju i za komunikaciju preko mreže — promijeni se samo "domena" u kojoj socket živi.
+Velika većina današnjih programa, međutim, mora komunicirati i preko mreže — web preglednik s web serverom, baza podataka s aplikacijom, mikroservisi međusobno. Sučelje kojim se to radi u UNIX-u zove se **socket**, a definirano je 1983. godine u sklopu sustava 4.2BSD UNIX, kao dio integracije TCP/IP protokola u jezgru. Tim Billa Joya na Sveučilištu California, Berkeley osmislio ga je kao prirodno proširenje UNIX filozofije *"sve je datoteka"* — socket je u biti deskriptor datoteke nad kojim radimo `read` i `write`, samo što ga drugačije stvaramo i povezujemo s drugom stranom. Sučelje je gotovo bez izmjena preuzeto u POSIX standard, a danas je dio svakog modernog operacijskog sustava: Linux, *BSD, macOS, Solaris, čak i Windows (gdje je `Winsock` API gotovo identičan kopiji BSD socketa). Drugim riječima, sve što ovdje učimo o UNIX socketima vrijedi praktički univerzalno. Po tome socketi nisu posebnost — UNIX, započet u Bell Labs-u 1969., izvor je iznenađujuće velikog broja koncepata koje danas smatramo univerzalnima u računarstvu (npr. hijerarhijski datotečni sustav), od kojih su neki stari više od pola stoljeća!
 
-U ovom poglavlju ćemo obraditi dvije domene:
+U ovom poglavlju ćemo obraditi dvije domene socketa:
 
 - **UNIX domain sockets** (`AF_UNIX`) — komunikacija između procesa na istom računalu, gdje "adresu" čini putanja u datotečnom sustavu.
 - **Network sockets** (`AF_INET`) — TCP/IP komunikacija preko mreže (ili lokalno preko `127.0.0.1`), gdje adresu čine IP adresa i port.
 
-Cilj nije iscrpno pokriti mrežno programiranje (to je tema cijelih knjiga), nego dati čitatelju osnovni okvir kroz koji može razumjeti i nastaviti učiti.
+Cilj nije iscrpno pokriti mrežno programiranje. Mrežno programiranje tema je dovoljno široka i opsežna za cijelu knjigu i daleko premašuje opseg ove skripte. U ovom poglavlju dati ćemo okvir za razumijevanje koncepta socketa i poticaj čitatelju da nastavi učiti i istraživati mehanizme mrežne komunikacije, koji su postali temelj modernog društva koje praktički počiva na ideji potpune povezanosti.
 
 ## Socket kao deskriptor
 
-Najljepša stvar kod socketa jest da je on, kao i sve drugo u UNIX-u, **deskriptor datoteke**. Funkcija `socket()` vraća `int` — isti tip kao i `open()` u P03. Nad njim možemo zvati `read()`, `write()` i `close()` baš kao na običnoj datoteci. Sve što smo naučili o deskriptorima u P03 vrijedi i ovdje.
+Prije nego dublje zaronimo u svijet adresa, portova i paketa, važno je reći da socket nije ništa drugo nego deskriptor datoteke — što je zapravo i logično ako znamo da je na UNIX-u sve datoteka. Funkcija `socket()` vraća `int` — isti tip podatka koji dobijemo kada s `open()` otvorimo datoteku, ili s `pipe()` stvorimo cjevovod. Nad njim možemo zvati `read()`, `write()` i `close()` baš kao na običnoj datoteci. Sve što smo naučili o deskriptorima u P03 vrijedi i ovdje.
 
 Razlika je samo u tome *kako* deskriptor stvaramo i kako ga povezujemo s drugom stranom komunikacije. Umjesto `open(putanja, ...)`, koristimo niz funkcija:
 
