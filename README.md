@@ -2,7 +2,7 @@
 
 Skripta s primjerima iz kolegija **Programiranje za UNIX** (Damir Krstinić, Maja Braović, travanj 2026.), Sveučilište u Splitu, Fakultet elektrotehnike, strojarstva i brodogradnje (FESB).
 
-Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa i signala. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja. Na kraju svakog poglavlja dana je bibliografija s referencama na dodatnu literaturu — knjige, sveučilišne udžbenike i online vodiče, kako na engleskom tako i na hrvatskom jeziku. Iako se uglavnom koristi istih nekoliko naslova, bibliografija je ciljano dana zasebno za svaku cjelinu kako bi je čitatelj lakše pratio uz odgovarajuću temu.
+Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa, signala, niti i mrežnog programiranja. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali, niti, socketi) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja. Na kraju svakog poglavlja dana je bibliografija s referencama na dodatnu literaturu — knjige, sveučilišne udžbenike i online vodiče, kako na engleskom tako i na hrvatskom jeziku. Iako se uglavnom koristi istih nekoliko naslova, bibliografija je ciljano dana zasebno za svaku cjelinu kako bi je čitatelj lakše pratio uz odgovarajuću temu.
 
 ## Preduvjeti
 
@@ -25,6 +25,7 @@ Svaki direktorij odgovara jednom poglavlju skripte:
 | [`P06-Signali/`](P06-Signali/) | Signali |
 | [`P07-Komunikacija_izmedju_procesa/`](P07-Komunikacija_izmedju_procesa/) | Komunikacija između procesa |
 | [`P08-Visenitno_programiranje/`](P08-Visenitno_programiranje/) | Višenitno programiranje |
+| [`P09-Socketi/`](P09-Socketi/) | Socketi |
 
 ### [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/)
 
@@ -57,6 +58,10 @@ Mehanizmi međuprocesne komunikacije (IPC): anonimni i imenovani cjevovodi (`pip
 ### [`P08-Visenitno_programiranje/`](P08-Visenitno_programiranje/)
 
 Uvod u višenitno programiranje s POSIX nitima (pthreads). Pokriva odnos niti i procesa, raspoređivanje niti, stvaranje i terminiranje niti, joinable i detached niti, race condition u kontekstu niti, mutexe, kondicijske varijable s klasičnim primjerom proizvođač-potrošač, te specifičnosti rada sa signalima u višenitnom programu.
+
+### [`P09-Socketi/`](P09-Socketi/)
+
+Mrežno i lokalno komuniciranje između procesa kroz socket sučelje. Pokriva UNIX domain sockete (komunikacija na istom računalu kroz putanju u datotečnom sustavu) i mrežne TCP/IP sockete (preko mreže ili lokalno kroz `127.0.0.1`), tijek `socket`/`bind`/`listen`/`accept` na serverskoj strani i `socket`/`connect` na klijentskoj, network byte order, te obrazac opsluživanja više klijenata istovremeno kroz `fork`.
 
 ## Prevođenje i pokretanje
 
