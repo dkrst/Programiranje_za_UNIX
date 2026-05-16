@@ -2,7 +2,7 @@
 
 U svim primjerima do sada, procesi i niti međusobno su komunicirali unutar jednog računala — putem datoteka, cjevovoda, zajedničke memorije, redova poruka, signala ili semafora.
 
-Velika većina današnjih programa, međutim, mora komunicirati i preko mreže — web preglednik s web serverom, baza podataka s aplikacijom, mikroservisi međusobno. Sučelje kojim se to radi u UNIX-u zove se **socket**, a definirano je 1983. godine u sklopu sustava 4.2BSD UNIX, kao dio integracije TCP/IP protokola u jezgru. Tim Billa Joya na Sveučilištu California, Berkeley osmislio ga je kao prirodno proširenje UNIX filozofije *"sve je datoteka"* — socket je u biti deskriptor datoteke nad kojim radimo `read` i `write`, samo što ga drugačije stvaramo i povezujemo s drugom stranom. Sučelje je gotovo bez izmjena preuzeto u POSIX standard, a danas je dio svakog modernog operacijskog sustava: Linux, *BSD, macOS, Solaris, čak i Windows (gdje je `Winsock` API gotovo identičan kopiji BSD socketa). Drugim riječima, sve što ovdje učimo o UNIX socketima vrijedi praktički univerzalno. Po tome socketi nisu posebnost — UNIX, započet u Bell Labs-u 1969., izvor je iznenađujuće velikog broja koncepata koje danas smatramo univerzalnima u računarstvu (npr. hijerarhijski datotečni sustav), od kojih su neki stari više od pola stoljeća!
+Velika većina današnjih programa, međutim, mora komunicirati i preko mreže — web preglednik s web serverom, baza podataka s aplikacijom, mikroservisi međusobno. Sučelje kojim se to radi u UNIX-u zove se **socket**, a definirano je 1983. godine u sklopu sustava 4.2BSD UNIX [2], kao dio integracije TCP/IP protokola u jezgru. Tim Billa Joya na Sveučilištu California, Berkeley osmislio ga je kao prirodno proširenje UNIX filozofije *"sve je datoteka"* — socket je u biti deskriptor datoteke nad kojim radimo `read` i `write`, samo što ga stvaramo posebnim sistemskim pozivom, a s druge strane veze se, u ovom slučaju, nalazi drugi proces na udaljenom računalu. Sučelje je gotovo bez izmjena preuzeto u POSIX standard, a danas je dio svakog modernog operacijskog sustava: Linux, *BSD, macOS, Solaris, čak i Windows (gdje je `Winsock` API gotovo identičan kopiji BSD socketa). Drugim riječima, sve što ovdje učimo o UNIX socketima vrijedi praktički univerzalno. Po tome socketi nisu posebnost — UNIX, započet u Bell Labs-u 1969., izvor je iznenađujuće velikog broja koncepata koje danas smatramo univerzalnima u računarstvu (npr. hijerarhijski datotečni sustav), od kojih su neki stari više od pola stoljeća!
 
 U ovom poglavlju ćemo obraditi dvije domene socketa:
 
@@ -13,7 +13,7 @@ Cilj nije iscrpno pokriti mrežno programiranje. Mrežno programiranje tema je d
 
 ## Socket kao deskriptor
 
-Prije nego dublje zaronimo u svijet adresa, portova i paketa, važno je reći da socket nije ništa drugo nego deskriptor datoteke — što je zapravo i logično ako znamo da je na UNIX-u sve datoteka. Funkcija `socket()` vraća `int` — isti tip podatka koji dobijemo kada s `open()` otvorimo datoteku, ili s `pipe()` stvorimo cjevovod. Nad njim možemo zvati `read()`, `write()` i `close()` baš kao na običnoj datoteci. Sve što smo naučili o deskriptorima u P03 vrijedi i ovdje.
+Prije nego dublje zaronimo u svijet adresa, portova i paketa, podsjetimo se još jednom da socket nije ništa drugo nego deskriptor datoteke — što je zapravo i logično ako znamo da je na UNIX-u sve datoteka. Funkcija `socket()` vraća `int` — isti tip podatka koji dobijemo kada s `open()` otvorimo datoteku, ili s `pipe()` stvorimo cjevovod. Nad njim možemo zvati `read()`, `write()` i `close()` baš kao na običnoj datoteci. Sve što smo do sada naučili o deskriptorima vrijedi i ovdje.
 
 Razlika je samo u tome *kako* deskriptor stvaramo i kako ga povezujemo s drugom stranom komunikacije. Umjesto `open(putanja, ...)`, koristimo niz funkcija:
 
@@ -26,7 +26,7 @@ int connect(int fd, const struct sockaddr *addr, socklen_t len);
 int close(int fd);
 ```
 
-Tipičan tijek razgovora između dvije strane je sljedeći:
+Odgodimo na kratko detaljan opis argumenata i povratnih vrijednosti funkcija i promotrimo tipičan tijek razgovora između dvije strane:
 
 ```
 SERVER                          KLIJENT
@@ -41,13 +41,46 @@ write() --- read() ------>      read()
 close()                         close()
 ```
 
-Server "otvara dućan" pozivima `socket`/`bind`/`listen`/`accept`, dok klijent samo `socket`/`connect`. Kad se veza uspostavi, obje strane razgovaraju kroz svoje deskriptore istim funkcijama `read` i `write` koje već poznajemo.
+Server "otvara dućan" pozivima `socket`/`bind`/`listen`/`accept`, dok klijent samo poziva `socket`/`connect` i spaja se na otvorenu konekciju na kojoj server čeka klijente. Nakon što se veza jednom uspostavi, obje strane imaju deskriptor datoteke putem kojeg mogu "razgovarati" `read` i `write` funkcijama koje već dobro poznajemo.
 
-Argumenti `socket`-a su:
+Pogledajmo sad detaljnije svaku od ovih funkcija.
 
-- **domena** — `AF_UNIX` za lokalne sockete ili `AF_INET` za TCP/IP nad IPv4 (postoji i `AF_INET6` za IPv6).
-- **tip** — najčešće `SOCK_STREAM` (pouzdana, tokom-orijentirana komunikacija, kao TCP) ili `SOCK_DGRAM` (paketi, kao UDP). U ovoj skripti koristit ćemo isključivo `SOCK_STREAM`.
-- **protokol** — gotovo uvijek `0`, što znači "izaberi zadani protokol za ovu kombinaciju domene i tipa".
+**`socket`** — stvara novi socket. Argumenti su:
+
+- **`domena`** — `AF_UNIX` za lokalne sockete ili `AF_INET` za TCP/IP nad IPv4 (postoji i `AF_INET6` za IPv6).
+- **`tip`** — najčešće `SOCK_STREAM` (pouzdana, tokom-orijentirana komunikacija, kao TCP) ili `SOCK_DGRAM` (paketi, kao UDP). U ovoj skripti koristit ćemo isključivo `SOCK_STREAM`.
+- **`protokol`** — gotovo uvijek `0`, što znači "izaberi zadani protokol za ovu kombinaciju domene i tipa".
+
+Povratna vrijednost je deskriptor datoteke (`int >= 0`) za novostvoreni socket, ili `-1` uz postavljen `errno` u slučaju greške.
+
+**`bind`** — vezuje socket za konkretnu adresu. Koristi ga server da kaže "Ja sam taj koji sluša na ovoj adresi". Argumenti su:
+
+- **`fd`** — deskriptor socketa kojeg vežemo (dobiven prethodnim pozivom `socket`-a).
+- **`addr`** — pokazivač na strukturu adrese. Konkretni tip strukture ovisi o domeni (`struct sockaddr_un` za `AF_UNIX`, `struct sockaddr_in` za `AF_INET`), a prilikom samog poziva tip se uvijek postavlja (cast operator) na `struct sockaddr *`.
+- **`len`** — veličina strukture adrese u bajtovima, najčešće `sizeof(adresa)`.
+
+Povratna vrijednost je `0` u slučaju uspjeha, `-1` u slučaju greške.
+
+**`listen`** — označava socket kao "slušajući", odnosno spreman primati dolazne veze. Argumenti su:
+
+- **`fd`** — deskriptor socketa (server-side).
+- **`backlog`** — koliko klijenata sustav smije držati u redu čekanja prije nego što ih server prihvati pozivom `accept`. Tipično 5 do 128.
+
+Povratna vrijednost je `0` u slučaju uspjeha, `-1` u slučaju greške.
+
+**`accept`** — prihvaća sljedećeg klijenta iz reda čekanja. **Blokira** pozivajuću nit (ili proces) dok klijent ne stigne. Argumenti su:
+
+- **`fd`** — deskriptor slušajućeg socketa.
+- **`addr`** — izlazni argument, pokazivač na strukturu u koju funkcija upiše adresu klijenta koji se spojio (ili `NULL` ako nas to ne zanima).
+- **`len`** — ulazno-izlazni argument: na ulazu mu predajemo veličinu strukture `addr`, na izlazu funkcija u njega upiše stvarnu veličinu zapisane adrese.
+
+Povratna vrijednost je *novi* deskriptor — onaj kojim će server razgovarati s tim konkretnim klijentom. Slušajući `fd` ostaje otvoren i možemo ga ponovo pozivati `accept`-om za nove klijente. Nepogrešivo važan detalj jer je upravo na tome zasnovan sav rad servera koji opslužuje više klijenata.
+
+**`connect`** — koristi ga klijent da se spoji na server. Argumenti su isti kao kod `bind`-a: `fd` socketa, `addr` adresa servera, `len` njena veličina. Povratna vrijednost: `0` u slučaju uspjeha (veza uspostavljena), `-1` u slučaju greške (npr. server ne sluša na toj adresi).
+
+**`close`** — zatvara socket. Ako je u tijeku razgovor, druga strana će dobiti EOF (`read` vraća `0`) i znat će da je veza prekinuta.
+
+Nakon ovog pregleda, krenimo s konkretnim primjerima.
 
 ## UNIX domain socketi
 
@@ -424,6 +457,8 @@ Sve ovo i mnogo više obrađeno je u referencama navedenim niže.
 
 [1] W. R. Stevens, B. Fenner, and A. M. Rudoff, *UNIX Network Programming, Volume 1: The Sockets Networking API*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2003.
 
-[2] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
+[2] S. J. Leffler, R. S. Fabry, and W. N. Joy, "A 4.2BSD Interprocess Communication Primer," Tech. Rep. UCB/CSD-83-145, EECS Department, University of California, Berkeley, July 1983.
 
-[3] B. Hall, *Beej's Guide to Network Programming*. Dostupno online: https://beej.us/guide/bgnet/
+[3] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
+
+[4] B. Hall, *Beej's Guide to Network Programming*. Dostupno online: https://beej.us/guide/bgnet/
