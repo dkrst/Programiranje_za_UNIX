@@ -252,7 +252,7 @@ Za pretvaranje između lokalnog i mrežnog poretka koriste se funkcije:
 
 Za port (16 bita) koristimo `htons`, za IP adresu (32 bita kod IPv4) `htonl`. Ako ovo zaboravimo, na little-endian računalu (kakvi su praktički svi danas) socket će raditi "obrnuto" — bind na port 9000 zapravo će obuhvatiti potpuno drugačiji broj.
 
-Ove funkcije uputno je koristiti **uvijek**, čak i kad pišemo kod na sustavu na kojem pretvaranje slučajno ne radi ništa (na big-endian sustavu, gdje su lokalni i mrežni poredak isti, `htons`/`htonl` su zapravo no-op i broj prolazi neizmijenjen). Pozivom ovih funkcija u svakom slučaju jamčimo da se adresa uvijek pretvori na ispravan način, neovisno o tome koji byte order koristi naš sustav, čime osiguravamo prenosivost koda na proizvoljnu arhitekturu.
+Ove funkcije uputno je koristiti **uvijek**, čak i kad znamo da radimo kod na sustavu za koji znamo da je lokalni i mrežni poredak značajnih znamenki isti, a `htons`/`htonl` pretvaranje ne radi ništa (na big-endian sustavu, gdje su lokalni i mrežni poredak isti, `htons`/`htonl` su zapravo no-op i broj prolazi neizmijenjen). Pozivom ovih funkcija u svakom slučaju jamčimo da se adresa uvijek pretvori na ispravan način, neovisno o tome koji byte order koristi naš sustav, čime osiguravamo prenosivost koda na proizvoljnu arhitekturu.
 
 Za pretvaranje IP adrese iz teksta (`"127.0.0.1"`) u binarni oblik koristi se funkcija `inet_pton`, a za obrnuti smjer `inet_ntop`.
 
