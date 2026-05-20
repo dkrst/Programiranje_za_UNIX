@@ -201,9 +201,9 @@ Jednostavan klijent/server primjer korištenja UNIX domain socketa.
 
   ```
   Terminal A:                          Terminal B:
-  $ ./uds_server                       $ ./uds_klijent "Bok!"
+  $ ./uds_server                       $ ./uds_klijent "Pozdrav!"
   Server slusa na /tmp/uds_primjer     $ ./uds_klijent "Kako si?"
-  Primljeno: Bok!                      $ ./uds_klijent "KRAJ"
+  Primljeno: Pozdrav!                  $ ./uds_klijent "KRAJ"
   Primljeno: Kako si?
   Primljeno: KRAJ
   Server izlazi.
@@ -359,9 +359,9 @@ Echo server vraća klijentu točno ono što je primio.
   ```
   Terminal A:                              Terminal B:
   $ ./tcp_server                           $ ./tcp_klijent
-  Echo server slusa na portu 9000          Spojen na 127.0.0.1:9000. Upisi poruku: bok!
-  Klijent spojen: 127.0.0.1:55776          Odgovor: bok!
-  Primljeno: bok!
+  Echo server slusa na portu 9000          Spojen na 127.0.0.1:9000. Upisi poruku: Pozdrav!
+  Klijent spojen: 127.0.0.1:55776          Odgovor: Pozdrav!
+  Primljeno: Pozdrav!
   ```
 
   Ako pokrenemo klijent na drugom računalu u istoj mreži, predamo mu IP adresu servera kao argument: `./tcp_klijent 192.168.1.42`.
