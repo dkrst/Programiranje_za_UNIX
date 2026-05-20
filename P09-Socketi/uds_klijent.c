@@ -5,6 +5,7 @@
  *
  * Pokretanje:
  *   ./uds_klijent "Pozdrav serveru!"
+ *   ./uds_klijent "KRAJ"     (zaustavlja server)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +22,7 @@ int main(int argc, char *argv[]) {
   const char        *poruka;
 
   if (argc != 2) {
-    fprintf(stderr, "Uporaba: %s \"poruka\"\n", argv[0]);
+    fprintf(stderr, "Koristenje: %s \"poruka\"  (KRAJ za prekid izvrsavanja servera)\n", argv[0]);
     exit(EXIT_FAILURE);
   }
   poruka = argv[1];

@@ -1,8 +1,8 @@
 /* Najjednostavniji UNIX Domain Socket server.
  *
  * Klijenti se spajaju, posalju jednu poruku, server ju ispise
- * i prekine vezu. Server se vrti u beskonacnoj petlji, opsluzuje
- * jednog po jednog klijenta.
+ * i prekine vezu. Server se vrti u petlji i opsluzuje jednog
+ * po jednog klijenta. Kada primi poruku "KRAJ", izlazi.
  *
  * UNIX domain socketi koriste putanju u datotecnom sustavu
  * kao "adresu" -- kod nas /tmp/uds_primjer. */
@@ -22,6 +22,7 @@ int main(void) {
   struct sockaddr_un adresa;
   char               buffer[256];
   ssize_t            n;
+  int                kraj = 0;
 
   setbuf(stdout, NULL);   /* iskljuci buffering kad nismo na terminalu */
 
@@ -32,7 +33,7 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
-  /* Ako je od prosli put ostala datoteka socketa, makni ju */
+  /* Brisemo datoteku (socket) ako vec postoji */
   unlink(PUTANJA);
 
   /* Pripremi adresu i vezi socket */
@@ -55,8 +56,9 @@ int main(void) {
 
   printf("Server slusa na %s\n", PUTANJA);
 
-  /* Beskonacna petlja: prihvati klijenta, procitaj poruku, zatvori */
-  while (1) {
+  /* Petlja: prihvati klijenta, procitaj poruku, zatvori.
+   * Petlja se prekida kad stigne poruka "KRAJ". */
+  while (!kraj) {
     fd_klijent = accept(fd_server, NULL, NULL);
     if (fd_klijent < 0) {
       perror("accept");
@@ -67,12 +69,14 @@ int main(void) {
     if (n > 0) {
       buffer[n] = '\0';
       printf("Primljeno: %s\n", buffer);
+      if (strncmp(buffer, "KRAJ", 4) == 0)
+        kraj = 1;
     }
 
     close(fd_klijent);
   }
 
-  /* nikad ne dolazimo dovde, ali za potpunost: */
+  printf("Server izlazi.\n");
   close(fd_server);
   unlink(PUTANJA);
   return 0;

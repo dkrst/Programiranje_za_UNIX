@@ -74,17 +74,29 @@ Povratna vrijednost je `0` u slučaju uspjeha, `-1` u slučaju greške.
 - **`addr`** — izlazni argument, pokazivač na strukturu u koju funkcija upiše adresu klijenta koji se spojio (ili `NULL` ako nas to ne zanima).
 - **`len`** — ulazno-izlazni argument: na ulazu mu predajemo veličinu strukture `addr`, na izlazu funkcija u njega upiše stvarnu veličinu zapisane adrese.
 
-Povratna vrijednost je *novi* deskriptor — onaj kojim će server razgovarati s tim konkretnim klijentom. Slušajući `fd` ostaje otvoren i možemo ga ponovo pozivati `accept`-om za nove klijente. Nepogrešivo važan detalj jer je upravo na tome zasnovan sav rad servera koji opslužuje više klijenata.
+**Važno**: povratna vrijednost funkcije `accept` je novi deskriptor datoteke — onaj koji će server koristiti za "razgovor" s klijentom. Deskriptor `fd`, koji je argument funkcije, ostaje i dalje otvoren i možemo ga ponovo koristiti u sljedećem pozivu `accept` za prihvaćanje novog klijenta. Ovaj detalj je ključan za razumijevanje logike rada servera koji "osluškuje" dolazne pozive na socketu, osobito ukoliko server opslužuje više klijenata.
 
-**`connect`** — koristi ga klijent da se spoji na server. Argumenti su isti kao kod `bind`-a: `fd` socketa, `addr` adresa servera, `len` njena veličina. Povratna vrijednost: `0` u slučaju uspjeha (veza uspostavljena), `-1` u slučaju greške (npr. server ne sluša na toj adresi).
+**`connect`** — koristi ga klijent da se spoji na server. Argumenti su isti kao kod `bind`-a: `fd` socketa, `addr` adresa servera, `len` njena veličina. Povratna vrijednost: `0` u slučaju uspjeha (veza uspostavljena), `-1` u slučaju greške (npr. ukoliko s druge strane ne postoji server koji na toj adresi očekuje dolazne veze).
 
 **`close`** — zatvara socket. Ako je u tijeku razgovor, druga strana će dobiti EOF (`read` vraća `0`) i znat će da je veza prekinuta.
 
-Nakon ovog pregleda, krenimo s konkretnim primjerima.
+Ilustrirajmo korištenje opisanih funkcija na konkretnim primjerima.
 
 ## UNIX domain socketi
 
-UNIX domain socketi (engl. *UNIX domain sockets*, kraće UDS) služe za komunikaciju između procesa **na istom računalu**. Adresa socketa je putanja u datotečnom sustavu — kad server pozove `bind()`, na disku se stvara posebna datoteka (tip *socket*, sjećamo se iz P04), preko koje klijenti mogu pronaći server.
+UNIX domain socketi (engl. *UNIX domain sockets*, kraće UDS) služe za komunikaciju između procesa **na istom računalu**. Adresa socketa je putanja u datotečnom sustavu — kad server pozove `bind()`, na disku se stvara posebna datoteka, preko koje klijenti mogu pronaći server. Tip datoteke je *socket*, jedan od sedam tipova datoteka o kojima smo već pisali u ranijim poglavljima. Tipičan izlist datoteke socket s `ls -l` izgleda ovako:
+
+```
+$ ls -l /tmp/uds_primjer
+srwxr-xr-x 1 user user 0 May 20 08:54 /tmp/uds_primjer
+```
+
+Prvi znak ispisa, slovo `s`, govori nam da se radi o datoteci tipa socket. Veličina je `0` jer se u socketu podaci zapravo nikada stvarno ne pohranjuju — datoteka služi samo kao "imenovani" završetak komunikacije, a sav promet ide kroz interne strukture jezgre. Naredba `file` također će prepoznati i ispisati tip datoteke:
+
+```
+$ file /tmp/uds_primjer
+/tmp/uds_primjer: socket
+```
 
 UDS su brži i jednostavniji od TCP/IP socketa za lokalnu komunikaciju jer ne idu kroz mrežni stog jezgre — sva razmjena ide kroz interne strukture jezgre. Mnogi sistemski servisi (X11, Docker, PostgreSQL) ih koriste za lokalnu komunikaciju klijenata s lokalnim serverom.
 
@@ -97,11 +109,13 @@ struct sockaddr_un {
 };
 ```
 
+> **Zašto baš 108 znakova?** Veličina od 108 znakova povijesno je naslijeđe iz 4.2BSD-a (1983.) i zadržana je radi binarne kompatibilnosti. POSIX standard ne propisuje točnu veličinu — samo da mora biti barem 92 znaka — pa različite implementacije variraju (Linux/macOS/FreeBSD koriste 108, neki UNIX sustavi minimalnih 92). U praksi je tipična putanja dovoljno kratka da ovo nije ograničenje, ali u nekim modernim okolnostima (npr. duboke putanje u Dockerima ili Kubernetesima) ovo zna biti izvor problema.
+
 ### Primjer: `uds_server` i `uds_klijent`
 
-Najjednostavniji par koji ilustrira sve potrebne pozive.
+Jednostavan klijent/server primjer korištenja UNIX domain socketa.
 
-- [**`uds_server.c`**](uds_server.c) — slušatelj na `/tmp/uds_primjer`. Prima jednu poruku od svakog klijenta, ispiše ju, i prekine vezu. U beskonačnoj petlji opslužuje jednog po jednog klijenta.
+- [**`uds_server.c`**](uds_server.c) — slušatelj na `/tmp/uds_primjer`. Prima jednu poruku od svakog klijenta, ispiše ju, i prekine vezu. U petlji opslužuje jednog po jednog klijenta. Kad primi poruku `"KRAJ"`, izlazi.
 
   ```c
   #define PUTANJA "/tmp/uds_primjer"
@@ -112,11 +126,14 @@ Najjednostavniji par koji ilustrira sve potrebne pozive.
       struct sockaddr_un adresa;
       char               buffer[256];
       ssize_t            n;
+      int                kraj = 0;
 
       setbuf(stdout, NULL);
 
       fd_server = socket(AF_UNIX, SOCK_STREAM, 0);
-      unlink(PUTANJA);   /* ako je od prosli put ostala datoteka socketa, makni ju */
+
+      /* Brisemo datoteku (socket) ako vec postoji */
+      unlink(PUTANJA);
 
       memset(&adresa, 0, sizeof(adresa));
       adresa.sun_family = AF_UNIX;
@@ -127,15 +144,21 @@ Najjednostavniji par koji ilustrira sve potrebne pozive.
 
       printf("Server slusa na %s\n", PUTANJA);
 
-      while (1) {
+      while (!kraj) {
           fd_klijent = accept(fd_server, NULL, NULL);
           n = read(fd_klijent, buffer, sizeof(buffer) - 1);
           if (n > 0) {
               buffer[n] = '\0';
               printf("Primljeno: %s\n", buffer);
+              if (strncmp(buffer, "KRAJ", 4) == 0)
+                  kraj = 1;
           }
           close(fd_klijent);
       }
+
+      printf("Server izlazi.\n");
+      close(fd_server);
+      unlink(PUTANJA);
       return 0;
   }
   ```
@@ -144,7 +167,7 @@ Najjednostavniji par koji ilustrira sve potrebne pozive.
 
   Bitno je razumjeti razliku između `fd_server` i `fd_klijent`. `fd_server` je *slušajući* socket — koristimo ga samo za `accept`-anje novih veza, ne za razgovor. `fd_klijent` je *konektirani* socket s konkretnim klijentom, kroz njega ide read/write razgovor. Server može tako simultano držati otvorene mnoge `fd_klijent`-e ako tako organizira opslugu.
 
-  `unlink(PUTANJA)` na početku radi sljedeće: ako je prethodno pokretanje servera ostavilo socket datoteku za sobom (npr. zato što smo proces nasilno terminirali Ctrl+C), nova bi instanca dobila grešku *"Address already in use"* pri `bind`-u. Obrišemo staru datoteku da bismo mogli krenuti svježe.
+  Petlja se prekida kada `strncmp(buffer, "KRAJ", 4) == 0` — dakle kad nam stigne poruka koja počinje znakovima `KRAJ`. Nakon izlaska iz petlje, zatvaramo slušajući socket i `unlink`-om brišemo socket datoteku, ostavljajući datotečni sustav čistim.
 
 - [**`uds_klijent.c`**](uds_klijent.c) — spaja se, šalje poruku zadanu kao argument, izlazi.
 
@@ -154,7 +177,7 @@ Najjednostavniji par koji ilustrira sve potrebne pozive.
       struct sockaddr_un adresa;
 
       if (argc != 2) {
-          fprintf(stderr, "Uporaba: %s \"poruka\"\n", argv[0]);
+          fprintf(stderr, "Koristenje: %s \"poruka\"  (KRAJ za prekid izvrsavanja servera)\n", argv[0]);
           exit(EXIT_FAILURE);
       }
 
@@ -180,9 +203,28 @@ Najjednostavniji par koji ilustrira sve potrebne pozive.
   Terminal A:                          Terminal B:
   $ ./uds_server                       $ ./uds_klijent "Bok!"
   Server slusa na /tmp/uds_primjer     $ ./uds_klijent "Kako si?"
-  Primljeno: Bok!
+  Primljeno: Bok!                      $ ./uds_klijent "KRAJ"
   Primljeno: Kako si?
+  Primljeno: KRAJ
+  Server izlazi.
   ```
+
+Na primjeru se otvara nekoliko zanimljivih pitanja oko životnog vijeka socket datoteke. Razmotrimo ih sad detaljnije.
+
+**Može li socket datoteka u datotečnom sustavu postojati prije nego što naš server pokrene `bind()`?** Odgovor je da može — sistemski poziv `mknod(2)` može stvoriti praznu datoteku tipa socket s odgovarajućim modom (`S_IFSOCK`). Takva datoteka, međutim, **nije povezana ni s jednim procesom**, što ima dvije važne posljedice. Prvo, nitko ne sluša na njoj, pa pokušaj klijenta da se na nju spoji neće uspjeti. Drugo — što je važnije za naš primjer — naš server **ne može jednostavno "preuzeti" tu postojeću datoteku za slušanje**. Ako server pokuša pozvati `bind()` na adresu na kojoj već postoji bilo kakva datoteka (uključujući i tu praznu socket datoteku), `bind()` vraća grešku `EADDRINUSE` ("Address already in use"). Jezgra ne razlikuje "živu" socket datoteku stvorenu prethodnim `bind`-om od one stvorene `mknod`-om — za nju je svaka postojeća datoteka prepreka.
+
+**Briše li server svoju socket datoteku kad završi?** U našem primjeru, da — u posljednjim redcima server poziva `close(fd_server)` te nakon toga `unlink(PUTANJA)`. To je dobra programerska praksa: na kraju korištenja, nakon što nam socket više nije potreban, server ga obriše iza sebe. Međutim, postoji mogućnost i da server prekine izvršavanje i bez "urednog" izlaska, npr. u slučaju prekida signalom, ili ukoliko teta čistačica zatreba slobodnu utičnicu za usisač pa naš server (računalo) jednostavno isključi iz struje. U svim tim slučajevima `unlink` se nikad ne pozove i socket datoteka ostaje u datotečnom sustavu, kao "siroče". Sljedeće pokretanje servera tada ne bi moglo proći `bind()`. Upravo zato u našem kodu na **početku** servera, prije `bind`-a, pozivamo `unlink(PUTANJA)` — kao osiguranje od bilo kakvog zaostatka iz prethodnih pokretanja, neovisno o tome jesu li završila uredno ili ne.
+
+**Možemo li, umjesto našeg `uds_klijent`-a, koristiti neki standardni alat ljuske da se spojimo na socket i pošaljemo serveru poruku?** Pitanje nije samo akademsko: u stvarnim sustavima često je potrebno projektirati i implementirati serversku aplikaciju koja će opsluživati različite klijente, koje mogu razviti drugi programeri prema specifikaciji serverskog API-a (engl. *Application Programming Interface*) — sučelja putem kojeg definiramo kako komunicirati s našim serverom. S našim serverom možemo komunicirati putem bilo kojeg alata koji zna otvoriti socket i poslati u njega poruku. U sljedećem primjeru koristimo `nc` (engl. *netcat*) sa zastavicom `-U` koja `nc`-u govori da ciljna adresa nije TCP host/port nego UDS putanja:
+
+```
+$ echo "Pozdrav iz netcata!" | nc -U /tmp/uds_primjer
+$ echo "KRAJ" | nc -U /tmp/uds_primjer
+```
+
+Server će obraditi obje poruke kao da su stigle iz našeg `uds_klijent`-a, i nakon druge će izaći. Slično tome se može koristiti i moćniji alat `socat`.
+
+Pokušajte pokrenuti server te mu nakon toga iz različitih terminala pokušajte slati poruke iz našeg klijenta, iz `nc`-a, eventualno i drugih alata — i sami isprobajte kako se ponaša, koje su mu granice, što se događa ako ga dva klijenta gađaju u isto vrijeme. Ovo je odličan način da se konkretno uvjerite u sve što smo dosad opisali i da napravite vlastite zaključke o ponašanju UDS-a.
 
 ## Network socketi (TCP/IP)
 
