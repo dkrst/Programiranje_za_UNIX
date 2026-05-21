@@ -115,7 +115,7 @@ struct sockaddr_un {
 
 Jednostavan klijent/server primjer korištenja UNIX domain socketa.
 
-- [**`uds_server.c`**](uds_server.c) — slušatelj na `/tmp/uds_primjer`. Prima jednu poruku od svakog klijenta, ispiše ju, i prekine vezu. U petlji opslužuje jednog po jednog klijenta. Kad primi poruku `"KRAJ"`, izlazi.
+- [**`uds_server.c`**](uds_server.c) — slušatelj na `/tmp/uds_primjer`. Prima jednu poruku od svakog klijenta, ispiše ju i vrati klijentu (echo), pa prekine vezu. Iznimka: kad primi `"KRAJ"`, umjesto echoa odgovori `"U REDU -- IZLAZIM!"` i izlazi.
 
   ```c
   #define PUTANJA "/tmp/uds_primjer"
@@ -127,6 +127,7 @@ Jednostavan klijent/server primjer korištenja UNIX domain socketa.
       char               buffer[256];
       ssize_t            n;
       int                kraj = 0;
+      const char        *poruka_kraja = "U REDU -- IZLAZIM!";
 
       setbuf(stdout, NULL);
 
@@ -150,8 +151,13 @@ Jednostavan klijent/server primjer korištenja UNIX domain socketa.
           if (n > 0) {
               buffer[n] = '\0';
               printf("Primljeno: %s\n", buffer);
-              if (strncmp(buffer, "KRAJ", 4) == 0)
+
+              if (strncmp(buffer, "KRAJ", 4) == 0) {
+                  write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
                   kraj = 1;
+              } else {
+                  write(fd_klijent, buffer, n);   /* echo natrag */
+              }
           }
           close(fd_klijent);
       }
@@ -169,12 +175,14 @@ Jednostavan klijent/server primjer korištenja UNIX domain socketa.
 
   Petlja se prekida kada `strncmp(buffer, "KRAJ", 4) == 0` — dakle kad nam stigne poruka koja počinje znakovima `KRAJ`. Nakon izlaska iz petlje, zatvaramo slušajući socket i `unlink`-om brišemo socket datoteku, ostavljajući datotečni sustav čistim.
 
-- [**`uds_klijent.c`**](uds_klijent.c) — spaja se, šalje poruku zadanu kao argument, izlazi.
+- [**`uds_klijent.c`**](uds_klijent.c) — spaja se, šalje poruku zadanu kao argument, čita odgovor servera i ispisuje ga.
 
   ```c
   int main(int argc, char *argv[]) {
       int                fd;
       struct sockaddr_un adresa;
+      char               buffer[256];
+      ssize_t            n;
 
       if (argc != 2) {
           fprintf(stderr, "Koristenje: %s \"poruka\"  (KRAJ za prekid izvrsavanja servera)\n", argv[0]);
@@ -190,6 +198,13 @@ Jednostavan klijent/server primjer korištenja UNIX domain socketa.
       connect(fd, (struct sockaddr *)&adresa, sizeof(adresa));
       write(fd, argv[1], strlen(argv[1]));
 
+      /* Procitaj odgovor servera */
+      n = read(fd, buffer, sizeof(buffer) - 1);
+      if (n > 0) {
+          buffer[n] = '\0';
+          printf("Odgovor: %s\n", buffer);
+      }
+
       close(fd);
       return 0;
   }
@@ -202,18 +217,18 @@ Jednostavan klijent/server primjer korištenja UNIX domain socketa.
   ```
   Terminal A:                          Terminal B:
   $ ./uds_server                       $ ./uds_klijent "Pozdrav!"
-  Server slusa na /tmp/uds_primjer     $ ./uds_klijent "Kako si?"
-  Primljeno: Pozdrav!                  $ ./uds_klijent "KRAJ"
-  Primljeno: Kako si?
-  Primljeno: KRAJ
-  Server izlazi.
+  Server slusa na /tmp/uds_primjer     Odgovor: Pozdrav!
+  Primljeno: Pozdrav!                  $ ./uds_klijent "Kako si?"
+  Primljeno: Kako si?                  Odgovor: Kako si?
+  Primljeno: KRAJ                      $ ./uds_klijent "KRAJ"
+  Server izlazi.                       Odgovor: U REDU -- IZLAZIM!
   ```
 
 Na primjeru se otvara nekoliko zanimljivih pitanja oko životnog vijeka socket datoteke. Razmotrimo ih sad detaljnije.
 
-**Može li socket datoteka u datotečnom sustavu postojati prije nego što naš server pokrene `bind()`?** Odgovor je da može — sistemski poziv `mknod(2)` može stvoriti praznu datoteku tipa socket s odgovarajućim modom (`S_IFSOCK`). Takva datoteka, međutim, **nije povezana ni s jednim procesom**, što ima dvije važne posljedice. Prvo, nitko ne sluša na njoj, pa pokušaj klijenta da se na nju spoji neće uspjeti. Drugo — što je važnije za naš primjer — naš server **ne može jednostavno "preuzeti" tu postojeću datoteku za slušanje**. Ako server pokuša pozvati `bind()` na adresu na kojoj već postoji bilo kakva datoteka (uključujući i tu praznu socket datoteku), `bind()` vraća grešku `EADDRINUSE` ("Address already in use"). Jezgra ne razlikuje "živu" socket datoteku stvorenu prethodnim `bind`-om od one stvorene `mknod`-om — za nju je svaka postojeća datoteka prepreka.
+**Može li socket datoteka u datotečnom sustavu postojati prije nego što naš server pozove `bind()`?** Odgovor je da može — sistemski poziv `mknod(2)` može stvoriti praznu datoteku tipa socket s odgovarajućim modom (`S_IFSOCK`). Takva datoteka, međutim, **nije povezana ni s jednim procesom**, što ima dvije važne posljedice. Prvo, nitko ne sluša na njoj, pa pokušaj klijenta da se na nju spoji neće uspjeti. Drugo — što je važnije za naš primjer — naš server **ne može jednostavno "preuzeti" tu postojeću datoteku za slušanje**. Ako server pokuša pozvati `bind()` na adresu na kojoj već postoji bilo kakva datoteka (uključujući i tu praznu socket datoteku), `bind()` vraća grešku `EADDRINUSE` ("Address already in use"). Jezgra ne razlikuje "živu" socket datoteku stvorenu prethodnim `bind`-om od one stvorene `mknod`-om — za nju je svaka postojeća datoteka prepreka.
 
-**Briše li server svoju socket datoteku kad završi?** Upravo iz ovog razloga dobra je programerska praksa da na kraju korištenja, nakon što nam socket više nije potreban, server obriše socket koji je koristio. Ovo radimo i u našem primjeru: u posljednjim redcima server poziva `close(fd_server)` te nakon toga `unlink(PUTANJA)`. Međutim, postoji mogućnost i da server prekine izvršavanje i bez "urednog" izlaska, npr. u slučaju prekida signalom, ili ukoliko teta čistačica zatreba slobodnu utičnicu za usisač pa naš server (računalo) jednostavno isključi iz struje. U svim tim slučajevima `unlink` se nikad ne pozove i socket datoteka ostaje u datotečnom sustavu, kao "siroče". Sljedeće pokretanje servera tada ne bi moglo proći `bind()`. Upravo zato u našem kodu na **početku** servera, prije `bind`-a, pozivamo `unlink(PUTANJA)` — kao osiguranje od bilo kakvog zaostatka iz prethodnih pokretanja, neovisno o tome jesu li završila uredno ili ne.
+Upravo iz ovog razloga dobra je programerska praksa da na kraju korištenja, nakon što nam socket više nije potreban, server obriše socket koji je koristio. Ovo radimo i u našem primjeru: u posljednjim redcima server poziva `close(fd_server)` te nakon toga `unlink(PUTANJA)`. Međutim, postoji mogućnost i da server prekine izvršavanje i bez "urednog" izlaska, npr. u slučaju prekida signalom, ili ukoliko teta čistačica zatreba slobodnu utičnicu za usisač pa naš server (računalo) jednostavno isključi iz struje. U svim tim slučajevima `unlink` se nikad ne pozove i socket datoteka ostaje u datotečnom sustavu, kao "siroče". Sljedeće pokretanje servera tada ne bi moglo proći `bind()`. Upravo zato u našem kodu na **početku** servera, prije `bind`-a, pozivamo `unlink(PUTANJA)` — kao osiguranje od bilo kakvog zaostatka iz prethodnih pokretanja, neovisno o tome jesu li završila uredno ili ne.
 
 **Možemo li, umjesto našeg `uds_klijent`-a, koristiti neki drugi alat da se spojimo na socket i pošaljemo serveru poruku?** Pitanje nije samo akademsko: u stvarnim sustavima često je potrebno projektirati i implementirati serversku aplikaciju koja će opsluživati različite klijente, koje mogu razviti drugi programeri prema specifikaciji serverskog API-a (engl. *Application Programming Interface*) — sučelja putem kojeg definiramo kako komunicirati s našim serverom. S našim serverom možemo komunicirati putem bilo kojeg alata koji zna otvoriti socket i poslati u njega poruku. U sljedećem primjeru koristimo `nc` (engl. *netcat*) sa zastavicom `-U` koja `nc`-u govori da ciljna adresa nije TCP host/port nego UDS putanja:
 
@@ -242,7 +257,7 @@ struct sockaddr_in {
 
 ### Network byte order
 
-Različita računala mogu interno predstavljati višebajtne cijele brojeve na različite načine — neki kao *little-endian* (najmanje značajan bajt prvi), drugi kao *big-endian* (najznačajniji bajt prvi). Da bi komunikacija među računalima radila, TCP/IP propisuje da se brojevi u mrežnim zaglavljima uvijek šalju u *network byte order*-u (što je big-endian).
+Različita računala mogu interno predstavljati višebajtne cijele brojeve na različite načine — neki kao *little-endian* (najmanje značajan bajt prvi), drugi kao *big-endian* (najznačajniji bajt prvi). Danas u svjetskom računarstvu dominira little-endian (svi Intel i AMD procesori, većina ARM-a u uobičajenoj konfiguraciji), dok je big-endian zadržan u manjini sustava i u nekim mrežnim protokolima. Da bi komunikacija među računalima različite arhitekture radila, TCP/IP propisuje da se brojevi u mrežnim zaglavljima uvijek šalju u *network byte order*-u (što je big-endian) — pod tim nazivom misli se upravo na poredak koji se koristi *na mreži*, dogovoren standardom, neovisno o arhitekturi pošiljatelja i primatelja.
 
 Za pretvaranje između lokalnog i mrežnog poretka koriste se funkcije:
 
@@ -252,15 +267,33 @@ Za pretvaranje između lokalnog i mrežnog poretka koriste se funkcije:
 
 Za port (16 bita) koristimo `htons`, za IP adresu (32 bita kod IPv4) `htonl`. Ako ovo zaboravimo, na little-endian računalu (kakvi su praktički svi danas) socket će raditi "obrnuto" — bind na port 9000 zapravo će obuhvatiti potpuno drugačiji broj.
 
-Ove funkcije uputno je koristiti **uvijek**, čak i kad znamo da radimo kod na sustavu za koji znamo da je lokalni i mrežni poredak značajnih znamenki isti, a `htons`/`htonl` pretvaranje ne radi ništa (na big-endian sustavu, gdje su lokalni i mrežni poredak isti, `htons`/`htonl` su zapravo no-op i broj prolazi neizmijenjen). Pozivom ovih funkcija u svakom slučaju jamčimo da se adresa uvijek pretvori na ispravan način, neovisno o tome koji byte order koristi naš sustav, čime osiguravamo prenosivost koda na proizvoljnu arhitekturu.
+Ove funkcije uputno je koristiti **uvijek**, čak i kad znamo da radimo kod na sustavu na kojem je lokalni i mrežni poredak značajnih znamenki isti, a `htons`/`htonl` pretvaranje ne radi ništa (na big-endian sustavu, gdje su lokalni i mrežni poredak isti, `htons`/`htonl` su zapravo no-op i broj prolazi neizmijenjen). Pozivom ovih funkcija u svakom slučaju jamčimo da se adresa uvijek pretvori na ispravan način, neovisno o tome koji byte order koristi naš sustav, čime osiguravamo prenosivost koda na proizvoljnu arhitekturu.
 
-Za pretvaranje IP adrese iz teksta (`"127.0.0.1"`) u binarni oblik koristi se funkcija `inet_pton`, a za obrnuti smjer `inet_ntop`.
+Prije nego napišemo primjer, uvedimo još dvije pomoćne funkcije koje će nam trebati. Za pretvaranje IP adrese iz teksta u binarni oblik koristi se `inet_pton`, a za obrnuti smjer `inet_ntop`:
 
-### Primjer: `tcp_server` i `tcp_klijent` (echo)
+```c
+int inet_pton(int af, const char *src, void *dst);
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+```
 
-Echo server vraća klijentu točno ono što je primio.
+- `af` je adresna familija — kod nas uvijek `AF_INET` za IPv4.
+- `src` je izvor (string kod `inet_pton`, binarna struktura `in_addr` kod `inet_ntop`).
+- `dst` je odredište (obrnuto od `src`).
+- `size` (samo kod `inet_ntop`) je veličina odredišnog buffera. Za IPv4 dovoljan je `INET_ADDRSTRLEN` (16 bajtova).
 
-- [**`tcp_server.c`**](tcp_server.c) — slušatelj na portu 9000. Za svakog klijenta pročita jednu poruku i pošalje istu natrag.
+Treća pomoćna funkcija je `setsockopt`, kojom postavljamo razne opcije nad socketom:
+
+```c
+int setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen);
+```
+
+U primjeru ćemo ju koristiti s opcijom `SO_REUSEADDR` na razini `SOL_SOCKET`, koja serveru dopušta odmah ponovno vezanje na port nakon zatvaranja — bez nje bi sustav držao port zauzetim još otprilike minutu (zbog TCP-ovog stanja `TIME_WAIT`), pa bismo prilikom restarta dobivali "Address already in use" grešku.
+
+### Primjer: `tcp_server` i `tcp_klijent`
+
+Strukturno identičan UDS primjeru, samo koristi mrežnu domenu umjesto UNIX domain.
+
+- [**`tcp_server.c`**](tcp_server.c) — slušatelj na portu 9000. Prima jednu poruku od svakog klijenta, ispiše ju i vrati klijentu (echo), pa prekine vezu. Iznimka: kad primi `"KRAJ"`, umjesto echoa odgovori `"U REDU -- IZLAZIM!"` i izlazi.
 
   ```c
   #define PORT    9000
@@ -269,84 +302,96 @@ Echo server vraća klijentu točno ono što je primio.
   int main(void) {
       int                fd_server, fd_klijent;
       struct sockaddr_in adresa;
-      char               buffer[1024];
+      char               buffer[256];
       ssize_t            n;
+      int                kraj = 0;
+      const char        *poruka_kraja = "U REDU -- IZLAZIM!";
 
       setbuf(stdout, NULL);
 
+      /* Stvori socket: AF_INET = IPv4, SOCK_STREAM = TCP */
       fd_server = socket(AF_INET, SOCK_STREAM, 0);
 
-      /* Dopusti ponovno koristenje porta odmah nakon zatvaranja
-       * (inace bismo cekali ~minutu zbog TIME_WAIT stanja TCP-a) */
+      /* Dopusti ponovno koristenje porta odmah nakon zatvaranja */
       int opt = 1;
       setsockopt(fd_server, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
+      /* Pripremi adresu: slusaj na svim mreznim sucjeljima, port 9000 */
       memset(&adresa, 0, sizeof(adresa));
       adresa.sin_family      = AF_INET;
-      adresa.sin_addr.s_addr = htonl(INADDR_ANY);     /* slusaj na svim sucjeljima */
+      adresa.sin_addr.s_addr = htonl(INADDR_ANY);
       adresa.sin_port        = htons(PORT);
 
       bind(fd_server, (struct sockaddr *)&adresa, sizeof(adresa));
       listen(fd_server, BACKLOG);
 
-      printf("Echo server slusa na portu %d\n", PORT);
+      printf("Server slusa na portu %d\n", PORT);
 
-      while (1) {
-          struct sockaddr_in adresa_klijenta;
-          socklen_t          len = sizeof(adresa_klijenta);
-          char               ip_str[INET_ADDRSTRLEN];
-
-          fd_klijent = accept(fd_server, (struct sockaddr *)&adresa_klijenta, &len);
-
-          inet_ntop(AF_INET, &adresa_klijenta.sin_addr, ip_str, sizeof(ip_str));
-          printf("Klijent spojen: %s:%d\n", ip_str, ntohs(adresa_klijenta.sin_port));
-
+      while (!kraj) {
+          fd_klijent = accept(fd_server, NULL, NULL);
           n = read(fd_klijent, buffer, sizeof(buffer) - 1);
           if (n > 0) {
               buffer[n] = '\0';
-              printf("Primljeno: %s", buffer);
-              write(fd_klijent, buffer, n);   /* echo */
+              printf("Primljeno: %s\n", buffer);
+
+              if (strncmp(buffer, "KRAJ", 4) == 0) {
+                  write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
+                  kraj = 1;
+              } else {
+                  write(fd_klijent, buffer, n);   /* echo natrag */
+              }
           }
           close(fd_klijent);
       }
+
+      printf("Server izlazi.\n");
+      close(fd_server);
       return 0;
   }
   ```
 
-  Sve je strukturalno identično `uds_server`-u, mijenja se samo tip strukture adrese i nekoliko detalja vezanih za mrežni byte order. Dvije nove sitnice koje se razlikuju:
+  Logika je *točno* ista kao u UDS serveru. Razlikuju se samo dvije stvari:
 
-  - `setsockopt(..., SO_REUSEADDR, ...)` — TCP nakon zatvaranja veze zadrži port u stanju `TIME_WAIT` otprilike minutu, kako bi obrađeni svi mogući zaostali paketi. Bez `SO_REUSEADDR`, ako srušimo server i pokušamo ga odmah ponovo pokrenuti, dobit ćemo "Address already in use" grešku. Ova opcija nam dopušta odmah ponovno vezanje.
-  - `INADDR_ANY` u `sin_addr.s_addr` znači "slušaj na svim mrežnim sučeljima ovog računala". Ako bismo umjesto toga stavili konkretnu IP adresu (npr. `127.0.0.1`), server bi slušao samo na loopback-u, ne na vanjskim mrežnim adresama.
+  - **Tip strukture adrese**: `struct sockaddr_in` umjesto `struct sockaddr_un`. Polja su drugačija — par (IP, port) umjesto putanje.
+  - **`INADDR_ANY`** u `sin_addr.s_addr` znači "slušaj na svim mrežnim sučeljima ovog računala". Ako bismo umjesto toga stavili konkretnu IP adresu (npr. `127.0.0.1`), server bi slušao samo na loopback-u, ne na vanjskim mrežnim adresama.
 
-- [**`tcp_klijent.c`**](tcp_klijent.c) — spaja se, pošalje jednu poruku sa stdin-a, primi odgovor, ispiše ga.
+  I nema više `unlink`-a — kod TCP-a nema socket datoteke u datotečnom sustavu o kojoj treba brinuti, port se automatski oslobađa kad proces izađe.
+
+- [**`tcp_klijent.c`**](tcp_klijent.c) — spaja se, šalje poruku zadanu kao argument, čita odgovor servera i ispisuje ga. Drugi opcionalni argument je IP servera; ako je izostavljen, koristi se `127.0.0.1`.
 
   ```c
   int main(int argc, char *argv[]) {
       int                fd;
       struct sockaddr_in adresa;
-      const char        *ip = (argc >= 2) ? argv[1] : "127.0.0.1";
-      char               buffer[1024];
+      const char        *poruka = argv[1];
+      const char        *ip     = (argc == 3) ? argv[2] : "127.0.0.1";
+      char               buffer[256];
       ssize_t            n;
+
+      if (argc < 2 || argc > 3) {
+          fprintf(stderr,
+                  "Koristenje: %s \"poruka\" [ip]  (KRAJ za prekid izvrsavanja servera)\n",
+                  argv[0]);
+          exit(EXIT_FAILURE);
+      }
 
       fd = socket(AF_INET, SOCK_STREAM, 0);
 
       memset(&adresa, 0, sizeof(adresa));
       adresa.sin_family = AF_INET;
       adresa.sin_port   = htons(PORT);
+
+      /* inet_pton: pretvori IP iz teksta u binarni oblik */
       inet_pton(AF_INET, ip, &adresa.sin_addr);
 
       connect(fd, (struct sockaddr *)&adresa, sizeof(adresa));
+      write(fd, poruka, strlen(poruka));
 
-      printf("Spojen na %s:%d. Upisi poruku: ", ip, PORT);
-      fflush(stdout);
-
-      fgets(buffer, sizeof(buffer), stdin);
-      write(fd, buffer, strlen(buffer));
-
+      /* Procitaj odgovor servera */
       n = read(fd, buffer, sizeof(buffer) - 1);
       if (n > 0) {
           buffer[n] = '\0';
-          printf("Odgovor: %s", buffer);
+          printf("Odgovor: %s\n", buffer);
       }
 
       close(fd);
@@ -357,14 +402,16 @@ Echo server vraća klijentu točno ono što je primio.
   Pokretanje (u dva terminala):
 
   ```
-  Terminal A:                              Terminal B:
-  $ ./tcp_server                           $ ./tcp_klijent
-  Echo server slusa na portu 9000          Spojen na 127.0.0.1:9000. Upisi poruku: Pozdrav!
-  Klijent spojen: 127.0.0.1:55776          Odgovor: Pozdrav!
-  Primljeno: Pozdrav!
+  Terminal A:                          Terminal B:
+  $ ./tcp_server                       $ ./tcp_klijent "Pozdrav!"
+  Server slusa na portu 9000           Odgovor: Pozdrav!
+  Primljeno: Pozdrav!                  $ ./tcp_klijent "Kako si?"
+  Primljeno: Kako si?                  Odgovor: Kako si?
+  Primljeno: KRAJ                      $ ./tcp_klijent "KRAJ"
+  Server izlazi.                       Odgovor: U REDU -- IZLAZIM!
   ```
 
-  Ako pokrenemo klijent na drugom računalu u istoj mreži, predamo mu IP adresu servera kao argument: `./tcp_klijent 192.168.1.42`.
+  Ako pokrenemo klijent na drugom računalu u istoj mreži, predamo mu IP adresu servera kao drugi argument: `./tcp_klijent "Pozdrav!" 192.168.1.42`.
 
 ## Više klijenata istovremeno
 
@@ -376,15 +423,21 @@ Postoji nekoliko obrazaca kojima se to postiže.
 
 Najjednostavniji pristup, koji se prirodno nadovezuje na sve što znamo iz P05: čim `accept` vrati novi deskriptor, glavni proces pozove `fork`. Dijete preuzme razgovor s klijentom, roditelj odmah pozove sljedeći `accept`.
 
-- [**`tcp_server_fork.c`**](tcp_server_fork.c) — varijanta TCP servera s `fork`-om za svakog novog klijenta.
+Ovo je dosta napredan primjer — kombinira fork, signale, runtime stanje koje signali mijenjaju, i kontroliran exit umjesto naglog prekida. Sve te tehnike pokriveni su pojedinačno u prethodnim poglavljima skripte, pa pretpostavljamo da je čitatelj do sada s njima upoznat. Konkretno:
 
-  Cijela razlika u odnosu na `tcp_server.c` je u glavnoj petlji:
+- Razgovor s klijentom u dijetetu je **echo petlja** — sve što primi vraća natrag, dok klijent ne zatvori vezu ili pošalje `"KRAJ"`. Na `"KRAJ"` dijete odgovara s `"U REDU -- IZLAZIM!"` i pošalje signal `SIGTERM` roditelju.
+- Roditelj hvata **`SIGTERM`** (od djeteta) i **`SIGINT`** (Ctrl+C korisnika) istim handlerom, koji postavlja zastavu `zaustavi`. Kada glavna `accept` petlja vidi da je zastava postavljena, uredno izlazi iz petlje i ispiše `Server izlazi.`. Time umjesto naglog prekida (kakav bismo dobili bez handlera za SIGINT) imamo **clean exit** — server uredno zatvori slušajući socket i izađe, a budući da je `SO_REUSEADDR` postavljen, port je odmah ponovo dostupan za sljedeće pokretanje.
+- **`SIGCHLD`** se hvata kao i prije, kako se ne bi gomilali zombi procesi nakon završetka djece (P06).
+
+- [**`tcp_server_fork.c`**](tcp_server_fork.c) — varijanta TCP servera s `fork`-om za svakog novog klijenta, s echo komunikacijom, podrškom za `"KRAJ"` i clean exit na Ctrl+C.
+
+  Cijela razlika u odnosu na `tcp_server.c` je u glavnoj petlji i u funkciji `posluzi_klijenta`:
 
   ```c
-  while (1) {
+  while (!zaustavi) {
       fd_klijent = accept(fd_server, NULL, NULL);
       if (fd_klijent < 0) {
-          if (errno == EINTR) continue;    /* prekinut signalom (npr. SIGCHLD) */
+          if (errno == EINTR) continue;    /* prekinut signalom */
           perror("accept");
           continue;
       }
@@ -402,20 +455,32 @@ Najjednostavniji pristup, koji se prirodno nadovezuje na sve što znamo iz P05: 
   }
   ```
 
-  Funkcija `posluzi_klijenta` čita od klijenta i odgovara dok klijent ne zatvori vezu:
+  Funkcija `posluzi_klijenta` čita od klijenta i sve mu vraća natrag (echo), dok klijent ne zatvori vezu ili pošalje `"KRAJ"`:
 
   ```c
   static void posluzi_klijenta(int fd_klijent) {
-      char    buffer[1024];
-      ssize_t n;
-      while ((n = read(fd_klijent, buffer, sizeof(buffer))) > 0)
-          write(fd_klijent, buffer, n);
+      char        buffer[256];
+      ssize_t     n;
+      const char *poruka_kraja = "U REDU -- IZLAZIM!";
+
+      while ((n = read(fd_klijent, buffer, sizeof(buffer) - 1)) > 0) {
+          buffer[n] = '\0';
+          printf("[PID %d] Primljeno: %s\n", (int)getpid(), buffer);
+
+          if (strncmp(buffer, "KRAJ", 4) == 0) {
+              write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
+              kill(getppid(), SIGTERM);
+              break;
+          } else {
+              write(fd_klijent, buffer, n);   /* echo natrag */
+          }
+      }
   }
   ```
 
   Ovaj obrazac koristi dvije važne osobine UNIX-a koje smo već upoznali: nakon `fork`-a, **dijete naslijedi sve otvorene deskriptore** roditelja (P05), pa tako i `fd_klijent`. I roditelj i dijete inicijalno imaju otvoren `fd_klijent`, zbog čega oboje moraju pozvati `close` — dijete kad završi razgovor, roditelj odmah jer mu nije potreban. Ako roditelj zaboravi zatvoriti svoj primjerak, deskriptor će ostati otvoren u procesu i klijent neće prepoznati da je veza zatvorena.
 
-  Drugi važan detalj je hvatanje `SIGCHLD` signala da bismo pokupili zombi djecu (sjećamo se P06):
+  Postavljanje handlera za signale podsjeća na ono iz P06. Za `SIGCHLD` koristimo `SA_RESTART`, jer ne želimo da `SIGCHLD` (koji stiže svaki put kad neko dijete završi) prekida našu `accept` petlju:
 
   ```c
   static void rukovatelj_sigchld(int sig) {
@@ -424,32 +489,44 @@ Najjednostavniji pristup, koji se prirodno nadovezuje na sve što znamo iz P05: 
           ;
   }
 
-  struct sigaction sa;
   sa.sa_handler = rukovatelj_sigchld;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART;
   sigaction(SIGCHLD, &sa, NULL);
   ```
 
-  `waitpid(-1, NULL, WNOHANG)` u petlji pokupi *sve* djecu koja su završila u međuvremenu — može ih biti više ako su završili gotovo istovremeno. `SA_RESTART` osigurava da, ako je `accept` upravo bio prekinut signalom, sustav ga automatski restarta umjesto da vrati grešku `EINTR`.
+  Za `SIGTERM` (koji nam dijete šalje pri primitku "KRAJ") i `SIGINT` (Ctrl+C) koristimo **isti** handler — oba znače "zaustavi se" — i **bez** `SA_RESTART`-a, jer baš želimo da `accept` vrati grešku `EINTR`:
 
-  Test s tri klijenta paralelno:
+  ```c
+  static volatile sig_atomic_t zaustavi = 0;
+
+  static void rukovatelj_zaustavi(int sig) {
+      (void)sig;
+      zaustavi = 1;
+  }
+
+  sa.sa_handler = rukovatelj_zaustavi;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sigaction(SIGTERM, &sa, NULL);
+  sigaction(SIGINT,  &sa, NULL);
+  ```
+
+  Kad signal stigne, handler postavi `zaustavi = 1`. `accept` se vrati s greškom `EINTR`, u petlji to prepoznamo i nastavimo na sljedeću iteraciju, ali `while (!zaustavi)` provjera u sljedećem prolazu vidi da treba izaći. Tako uredno zatvorimo slušajući socket i izađemo iz `main`-a, što je standardna definicija *clean exit*-a.
+
+  Test s nekoliko klijenata paralelno:
 
   ```
-  $ ./tcp_server_fork &
-  Multi-klijent echo server slusa na portu 9000 (PID 1234)
-
-  $ echo "A" | ./tcp_klijent & echo "B" | ./tcp_klijent & echo "C" | ./tcp_klijent &
-  [1235] novi klijent
-  [1236] novi klijent
-  [1237] novi klijent
-  Odgovor: A
-  Odgovor: B
-  Odgovor: C
-  [1235] klijent otisao
-  [1236] klijent otisao
-  [1237] klijent otisao
+  Terminal A:                          Terminal B:
+  $ ./tcp_server_fork                  $ ./tcp_klijent "Klijent A"
+  Server slusa na portu 9000 ...       Odgovor: Klijent A
+  [PID 1235] Primljeno: Klijent A      $ ./tcp_klijent "Klijent B"
+  [PID 1236] Primljeno: Klijent B      Odgovor: Klijent B
+  [PID 1237] Primljeno: KRAJ           $ ./tcp_klijent "KRAJ"
+  Server izlazi.                       Odgovor: U REDU -- IZLAZIM!
   ```
+
+  Probajte ovaj server pokrenuti, spojiti se s nekoliko klijenata, i pritisnuti **Ctrl+C** u terminalu servera — uvjerit ćete se da server uredno izlazi (ispisuje "Server izlazi.") umjesto da bude nasilno prekinut. Bez `SIGINT` handlera, `Ctrl+C` bi proces prekinuo izvana, bez ikakvog clean-up koda.
 
   Svaki klijent dobiva svoj proces, paralelno se opslužuju, ne čekaju jedan drugog.
 

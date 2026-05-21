@@ -1,19 +1,17 @@
-/* TCP echo server koji opsluzuje vise klijenata istovremeno,
- * koristenjem fork-a za svakog klijenta.
+/* TCP/IP server koji opsluzuje vise klijenata istovremeno
+ * koristenjem fork-a, uz echo komunikaciju, podrsku za "KRAJ"
+ * i clean exit na Ctrl+C (SIGINT).
  *
- * Razlika u odnosu na tcp_server.c: nakon accept-a, glavni
- * proces pozove fork. Dijete preuzme komunikaciju s klijentom
- * (kompletni razgovor odvija se u djetetu), a roditelj odmah
- * ide na novi accept.
- *
- * Ovaj obrazac koristi fundamentalna svojstva iz P05:
- *   - dijete naslijedi sve otvorene deskriptore (ukljucujuci
- *     fd_klijent)
- *   - roditelj i dijete neovisno rade na razlicitim socketima
- *
- * Kako ne bismo ostavljali zombi procese, hvatamo SIGCHLD i u
- * rukovatelju pozovemo waitpid (vidi P06).
- */
+ * Razlika u odnosu na tcp_server.c:
+ *   - nakon accept-a, glavni proces pozove fork; dijete preuzme
+ *     komunikaciju s klijentom, a roditelj odmah ide na sljedeci
+ *     accept (paralelna obrada vise klijenata);
+ *   - svako dijete vrti read/write echo petlju dok klijent ne
+ *     zatvori vezu ili ne posalje "KRAJ"; na "KRAJ" odgovara
+ *     porukom "U REDU -- IZLAZIM!" i salje signal SIGTERM
+ *     roditelju koji time zaustavlja accept petlju;
+ *   - roditelj hvata i SIGINT (Ctrl+C) -- umjesto da odmah
+ *     prekine proces, postavlja zastavu za uredno gasenje. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +26,8 @@
 #define PORT    9000
 #define BACKLOG 5
 
+static volatile sig_atomic_t zaustavi = 0;
+
 static void rukovatelj_sigchld(int sig) {
   (void)sig;
   /* pokupi sve gotove djecu (neblokirajuci) */
@@ -35,15 +35,32 @@ static void rukovatelj_sigchld(int sig) {
     ;
 }
 
-static void posluzi_klijenta(int fd_klijent) {
-  char    buffer[1024];
-  ssize_t n;
+/* Zajednicki rukovatelj za SIGINT (Ctrl+C) i SIGTERM
+ * (kojeg nam posalje dijete kada primi "KRAJ"). */
+static void rukovatelj_zaustavi(int sig) {
+  (void)sig;
+  zaustavi = 1;
+}
 
-  /* Citamo dok klijent ne prekine vezu */
-  while ((n = read(fd_klijent, buffer, sizeof(buffer))) > 0) {
-    write(fd_klijent, buffer, n);   /* echo */
+static void posluzi_klijenta(int fd_klijent) {
+  char        buffer[256];
+  ssize_t     n;
+  const char *poruka_kraja = "U REDU -- IZLAZIM!";
+
+  /* Citamo dok klijent ne prekine vezu ili ne posalje "KRAJ".
+   * Sve sto primimo vracamo natrag (echo). */
+  while ((n = read(fd_klijent, buffer, sizeof(buffer) - 1)) > 0) {
+    buffer[n] = '\0';
+    printf("[PID %d] Primljeno: %s\n", (int)getpid(), buffer);
+
+    if (strncmp(buffer, "KRAJ", 4) == 0) {
+      write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
+      kill(getppid(), SIGTERM);
+      break;
+    } else {
+      write(fd_klijent, buffer, n);   /* echo natrag */
+    }
   }
-  /* read vraca 0 kad druga strana zatvori vezu */
 }
 
 int main(void) {
@@ -53,11 +70,21 @@ int main(void) {
 
   setbuf(stdout, NULL);
 
-  /* Rukovatelj SIGCHLD za pokupljenje zombi djece */
+  /* Rukovatelj SIGCHLD za pokupljenje zombi djece.
+   * SA_RESTART -- prekinut accept se sam restarta. */
   sa.sa_handler = rukovatelj_sigchld;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_RESTART;
   sigaction(SIGCHLD, &sa, NULL);
+
+  /* Rukovatelji za uredno zaustavljanje: SIGTERM (dijete javi
+   * "KRAJ") i SIGINT (korisnik Ctrl+C). Bez SA_RESTART -- zelimo
+   * da accept vrati EINTR pa da izadjemo iz petlje. */
+  sa.sa_handler = rukovatelj_zaustavi;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sigaction(SIGTERM, &sa, NULL);
+  sigaction(SIGINT,  &sa, NULL);
 
   fd_server = socket(AF_INET, SOCK_STREAM, 0);
   if (fd_server < 0) { perror("socket"); exit(EXIT_FAILURE); }
@@ -77,13 +104,12 @@ int main(void) {
     perror("listen"); exit(EXIT_FAILURE);
   }
 
-  printf("Multi-klijent echo server slusa na portu %d (PID %d)\n",
-         PORT, (int)getpid());
+  printf("Server slusa na portu %d (PID %d)\n", PORT, (int)getpid());
 
-  while (1) {
+  while (!zaustavi) {
     fd_klijent = accept(fd_server, NULL, NULL);
     if (fd_klijent < 0) {
-      if (errno == EINTR) continue;   /* prekinut signalom, idi opet */
+      if (errno == EINTR) continue;   /* prekinut signalom */
       perror("accept");
       continue;
     }
@@ -98,10 +124,8 @@ int main(void) {
     if (pid == 0) {
       /* dijete: ne treba mu fd_server */
       close(fd_server);
-      printf("[%d] novi klijent\n", (int)getpid());
       posluzi_klijenta(fd_klijent);
       close(fd_klijent);
-      printf("[%d] klijent otisao\n", (int)getpid());
       exit(EXIT_SUCCESS);
     }
 
@@ -109,6 +133,7 @@ int main(void) {
     close(fd_klijent);
   }
 
+  printf("Server izlazi.\n");
   close(fd_server);
   return 0;
 }

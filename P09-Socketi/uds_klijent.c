@@ -1,7 +1,8 @@
 /* Klijent za uds_server.
  *
  * Spaja se na UNIX domain socket /tmp/uds_primjer, posalje
- * jednu poruku zadanu kao argument naredbenog retka, i izlazi.
+ * jednu poruku zadanu kao argument naredbenog retka, procita
+ * odgovor servera i ispise ga.
  *
  * Pokretanje:
  *   ./uds_klijent "Pozdrav serveru!"
@@ -20,6 +21,8 @@ int main(int argc, char *argv[]) {
   int                fd;
   struct sockaddr_un adresa;
   const char        *poruka;
+  char               buffer[256];
+  ssize_t            n;
 
   if (argc != 2) {
     fprintf(stderr, "Koristenje: %s \"poruka\"  (KRAJ za prekid izvrsavanja servera)\n", argv[0]);
@@ -51,6 +54,13 @@ int main(int argc, char *argv[]) {
     perror("write");
     close(fd);
     exit(EXIT_FAILURE);
+  }
+
+  /* Procitaj odgovor servera */
+  n = read(fd, buffer, sizeof(buffer) - 1);
+  if (n > 0) {
+    buffer[n] = '\0';
+    printf("Odgovor: %s\n", buffer);
   }
 
   close(fd);

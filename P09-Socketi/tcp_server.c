@@ -1,19 +1,18 @@
-/* TCP echo server.
+/* TCP/IP server s echo komunikacijom. Identican po ponasanju
+ * kao uds_server, samo koristi mreznu domenu (AF_INET) umjesto
+ * UNIX domain.
  *
- * Slusa na portu 9000. Kad se klijent spoji, server cita poruku
- * i odmah ju vraca natrag (echo). Opsluzuje jednog po jednog
- * klijenta -- dok jedan radi, ostali cekaju u redu accept-a.
+ * Klijenti se spajaju i salju jednu poruku. Server vraca poruku
+ * natrag klijentu (echo) i prekida vezu. Server se vrti u petlji
+ * i opsluzuje jednog po jednog klijenta.
  *
- * Kljucne razlike u odnosu na UNIX domain socket:
- *   - AF_INET umjesto AF_UNIX
- *   - struct sockaddr_in umjesto sockaddr_un
- *   - adresa = (IP, port) umjesto putanje
- *   - htons() pretvara port iz host u network byte order
- */
+ * Iznimka: kada klijent posalje "KRAJ", server umjesto echoa
+ * odgovara s "U REDU -- IZLAZIM!" i prekida izvrsavanje. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -24,8 +23,10 @@
 int main(void) {
   int                fd_server, fd_klijent;
   struct sockaddr_in adresa;
-  char               buffer[1024];
+  char               buffer[256];
   ssize_t            n;
+  int                kraj = 0;
+  const char        *poruka_kraja = "U REDU -- IZLAZIM!";
 
   setbuf(stdout, NULL);
 
@@ -36,8 +37,7 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
-  /* Dopusti ponovno koristenje porta odmah nakon zatvaranja
-   * (inace bismo cekali ~minutu zbog TIME_WAIT stanja TCP-a) */
+  /* Dopusti ponovno koristenje porta odmah nakon zatvaranja */
   int opt = 1;
   setsockopt(fd_server, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
@@ -59,34 +59,32 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
-  printf("Echo server slusa na portu %d\n", PORT);
+  printf("Server slusa na portu %d\n", PORT);
 
-  while (1) {
-    struct sockaddr_in adresa_klijenta;
-    socklen_t          len = sizeof(adresa_klijenta);
-    char               ip_str[INET_ADDRSTRLEN];
-
-    fd_klijent = accept(fd_server, (struct sockaddr *)&adresa_klijenta, &len);
+  while (!kraj) {
+    fd_klijent = accept(fd_server, NULL, NULL);
     if (fd_klijent < 0) {
       perror("accept");
       continue;
     }
 
-    /* Pretvori IP iz binarnog u tekst i ispisi tko se spojio */
-    inet_ntop(AF_INET, &adresa_klijenta.sin_addr, ip_str, sizeof(ip_str));
-    printf("Klijent spojen: %s:%d\n", ip_str, ntohs(adresa_klijenta.sin_port));
-
-    /* Procitaj poruku i vrati ju natrag */
     n = read(fd_klijent, buffer, sizeof(buffer) - 1);
     if (n > 0) {
       buffer[n] = '\0';
-      printf("Primljeno: %s", buffer);
-      write(fd_klijent, buffer, n);   /* echo */
+      printf("Primljeno: %s\n", buffer);
+
+      if (strncmp(buffer, "KRAJ", 4) == 0) {
+        write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
+        kraj = 1;
+      } else {
+        write(fd_klijent, buffer, n);   /* echo natrag */
+      }
     }
 
     close(fd_klijent);
   }
 
+  printf("Server izlazi.\n");
   close(fd_server);
   return 0;
 }
