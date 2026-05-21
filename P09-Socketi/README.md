@@ -241,9 +241,9 @@ Server će obraditi obje poruke kao da su stigle iz našeg `uds_klijent`-a, i na
 
 Pokušajte pokrenuti server te mu nakon toga iz različitih terminala pokušajte slati poruke iz našeg klijenta, iz `nc`-a, eventualno i drugih alata — i sami isprobajte kako se ponaša, koje su mu granice, što se događa ako ga dva klijenta gađaju u isto vrijeme. Ovo je odličan način da se konkretno uvjerite u sve što smo dosad opisali i da napravite vlastite zaključke o ponašanju UDS-a.
 
-## Network socketi (TCP/IP)
+## Mrežni socketi (Network domain Sockets) -- TCP/IP
 
-Mrežna domena (`AF_INET`) koristi se za komunikaciju preko TCP/IP-a — kako između računala, tako i unutar istog računala kroz tzv. *loopback* adresu `127.0.0.1` (virtualno mrežno sučelje koje paket "vraća" istom računalu, ne ide na fizičku mrežu, pa ga koristimo za lokalnu klijent-server komunikaciju). Adresa se sada sastoji od dvije komponente: **IP adrese** (identificira računalo u mreži) i **porta** (broj između 0 i 65535 koji identificira virtualnu pristupnu točku, tj. konkretnu aplikaciju koja tu točku koristi).
+Mrežna domena (`AF_INET`) koristi se za komunikaciju preko TCP/IP-a — kako između računala, tako i unutar istog računala kroz tzv. *loopback* adresu `127.0.0.1` (virtualno mrežno sučelje koje paket "vraća" istom računalu, ne ide na fizičku mrežu, pa ga koristimo za lokalnu klijent-server komunikaciju, često upravo pri razvoju i testiranju programa). Adresa se sada sastoji od dvije komponente: **IP adrese** (identificira računalo u mreži) i **porta** (broj između 0 i 65535 koji identificira virtualnu pristupnu točku, tj. konkretnu aplikaciju koja tu točku koristi).
 
 Adresa je definirana strukturom `struct sockaddr_in` iz `<netinet/in.h>`:
 
@@ -290,7 +290,7 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
 - `dst` je odredište (obrnuto od `src`).
 - `size` (samo kod `inet_ntop`) je veličina odredišnog buffera. Za IPv4 dovoljan je `INET_ADDRSTRLEN` (16 bajtova).
 
-Što se povratnih vrijednosti tiče, `inet_pton` vraća `1` u slučaju uspjeha, `0` ako predani string nije valjana adresa za zadanu familiju, ili `-1` u slučaju druge greške (npr. nepoznata familija). `inet_ntop` vraća pokazivač na rezultantni string (`dst`) u slučaju uspjeha, ili `NULL` u slučaju greške.
+Funkcija `inet_pton` vraća `1` u slučaju uspjeha, `0` ako predani string nije valjana adresa za zadanu familiju, ili `-1` u slučaju druge greške (npr. nepoznata familija). `inet_ntop` vraća pokazivač na rezultantni string (`dst`) u slučaju uspjeha, ili `NULL` u slučaju greške.
 
 Treća pomoćna funkcija je `setsockopt`, kojom postavljamo razne opcije nad socketom:
 
@@ -302,9 +302,9 @@ int setsockopt(int fd, int level, int optname, const void *optval, socklen_t opt
 
 ### Primjer: `tcp_server` i `tcp_klijent`
 
-Strukturno identičan UDS primjeru, samo koristi mrežnu domenu umjesto UNIX domain.
+Strukturno identičan UDS primjeru, samo koristi mrežnu domenu umjesto UNIX domain socketa.
 
-- [**`tcp_server.c`**](tcp_server.c) — slušatelj na portu 9000. Prima jednu poruku od svakog klijenta, ispiše ju i vrati klijentu (echo), pa prekine vezu. Iznimka: kad primi `"KRAJ"`, umjesto echoa odgovori `"U REDU -- IZLAZIM!"` i izlazi.
+- [**`tcp_server.c`**](tcp_server.c) — sluša na portu 9000. Prima jednu poruku od svakog klijenta, ispiše ju i vrati klijentu (echo), pa prekine vezu. Iznimka: kad primi `"KRAJ"`, umjesto echoa odgovori `"U REDU -- IZLAZIM!"` i izlazi.
 
   ```c
   #define PORT    9000
@@ -430,9 +430,7 @@ Strukturno identičan UDS primjeru, samo koristi mrežnu domenu umjesto UNIX dom
 
 ## Više klijenata istovremeno
 
-Naš `tcp_server` ima jednu očitu manu: dok poslužuje jednog klijenta, svi ostali čekaju. Ako klijentova operacija dugo traje (npr. server treba računati nešto složeno), ostali klijenti su blokirani. U produkciji to gotovo nikad nije prihvatljivo — moramo opslužiti više klijenata paralelno.
-
-Postoji više načina na koje ovaj problem možemo riješiti.
+Naš `tcp_server` ima jednu manu: dok poslužuje jednog klijenta, svi ostali čekaju. Ako operacija dugo traje (npr. server treba provesti neki složen proračun, ili jednostavno čeka na podatke klijenta duže od očekivanog), ostali klijenti su blokirani. U produkciji to gotovo nikad nije prihvatljivo — moramo opslužiti više klijenata paralelno. Postoji više načina na koje ovaj problem možemo riješiti.
 
 ### Posluživanje klijenta u novom procesu
 
@@ -440,127 +438,129 @@ Najjednostavniji pristup, koji se prirodno nadovezuje na sve što znamo iz pogla
 
 Ovo je dosta napredan primjer — kombinira fork, signale, runtime stanje koje signali mijenjaju, i "čisti" izlaz (engl. *clean exit*) umjesto trenutnog prekida. Sve te tehnike pokriveni su pojedinačno u prethodnim poglavljima skripte, pa pretpostavljamo da je čitatelj do sada s njima upoznat. Konkretno:
 
-- Razgovor s klijentom u dijetetu je **echo petlja** — dijete u petlji čita poruke i svaku vraća natrag, što znači da isti klijent može poslati više poruka jednu za drugom kroz istu vezu (a ne samo jednu, kao u prethodnim primjerima). Petlja se prekida kada klijent zatvori vezu ili pošalje `"KRAJ"`. Na `"KRAJ"` dijete odgovara s `"U REDU -- IZLAZIM!"` i pošalje signal `SIGTERM` roditelju.
+- Razgovor s klijentom u dijetetu je **echo petlja** — dijete u petlji čita poruke i svaku vraća natrag, što znači da isti klijent može poslati više poruka jednu za drugom kroz istu vezu (a ne samo jednu, kao u prethodnim primjerima). Petlja se prekida kada klijent zatvori vezu ili pošalje `"KRAJ"`. U prvom slučaju samo proces-dijete koji je opsluživao klijenta prekida izvršavanje, dok roditelj i ostala djeca nastavljaju normalno raditi. U drugom slučaju, kada klijent pošalje poruku `"KRAJ"`, dijete odgovara s `"U REDU -- IZLAZIM!"` i pošalje signal `SIGTERM` roditelju kako bi se cijeli server uredno ugasio.
 - Roditelj hvata **`SIGTERM`** (od djeteta) i **`SIGINT`** (Ctrl+C korisnika) istim handlerom, koji postavlja zastavu `zaustavi`. Kada glavna `accept` petlja vidi da je zastava postavljena, uredno izlazi iz petlje i ispiše `Server izlazi.`. Time umjesto naglog prekida (kakav bismo dobili bez handlera za SIGINT) imamo **clean exit** — server uredno zatvori slušajući socket i izađe, a budući da je `SO_REUSEADDR` postavljen, port je odmah ponovo dostupan za sljedeće pokretanje.
 - **`SIGCHLD`** se hvata kao i prije, kako se ne bi gomilali zombi procesi nakon završetka djece (kao u poglavlju o signalima).
 
-- [**`tcp_server_fork.c`**](tcp_server_fork.c) — varijanta TCP servera s `fork`-om za svakog novog klijenta, s echo komunikacijom, podrškom za `"KRAJ"` i clean exit na Ctrl+C.
+Pogledajmo sad izvorni kod.
 
-  Cijela razlika u odnosu na `tcp_server.c` je u glavnoj petlji i u funkciji `posluzi_klijenta`:
+[**`tcp_server_fork.c`**](tcp_server_fork.c) je varijanta TCP servera s `fork`-om za svakog novog klijenta, s echo komunikacijom, podrškom za `"KRAJ"` i clean exit na Ctrl+C.
 
-  ```c
-  while (!zaustavi) {
-      fd_klijent = accept(fd_server, NULL, NULL);
-      if (fd_klijent < 0) {
-          if (errno == EINTR) continue;    /* prekinut signalom */
-          perror("accept");
-          continue;
-      }
+Cijela razlika u odnosu na `tcp_server.c` je u glavnoj petlji i u funkciji `posluzi_klijenta`:
 
-      pid_t pid = fork();
-      if (pid == 0) {
-          /* dijete: ne treba mu slusajuci socket */
-          close(fd_server);
-          posluzi_klijenta(fd_klijent);
-          close(fd_klijent);
-          exit(EXIT_SUCCESS);
-      }
-      /* roditelj: ne treba mu klijentov socket */
-      close(fd_klijent);
-  }
-  ```
+```c
+while (!zaustavi) {
+    fd_klijent = accept(fd_server, NULL, NULL);
+    if (fd_klijent < 0) {
+        if (errno == EINTR) continue;    /* prekinut signalom */
+        perror("accept");
+        continue;
+    }
 
-  Funkcija `posluzi_klijenta` čita od klijenta i sve mu vraća natrag (echo), dok klijent ne zatvori vezu ili pošalje `"KRAJ"`:
+    pid_t pid = fork();
+    if (pid == 0) {
+        /* dijete: ne treba mu slusajuci socket */
+        close(fd_server);
+        posluzi_klijenta(fd_klijent);
+        close(fd_klijent);
+        exit(EXIT_SUCCESS);
+    }
+    /* roditelj: ne treba mu klijentov socket */
+    close(fd_klijent);
+}
+```
 
-  ```c
-  static void posluzi_klijenta(int fd_klijent) {
-      char        buffer[256];
-      ssize_t     n;
-      const char *poruka_kraja = "U REDU -- IZLAZIM!";
+Funkcija `posluzi_klijenta` čita poruku klijenta i vraća je natrag (echo), dok klijent ne zatvori vezu ili pošalje `"KRAJ"`:
 
-      while ((n = read(fd_klijent, buffer, sizeof(buffer) - 1)) > 0) {
-          buffer[n] = '\0';
-          printf("[PID %d] Primljeno: %s\n", (int)getpid(), buffer);
+```c
+static void posluzi_klijenta(int fd_klijent) {
+    char        buffer[256];
+    ssize_t     n;
+    const char *poruka_kraja = "U REDU -- IZLAZIM!";
 
-          if (strncmp(buffer, "KRAJ", 4) == 0) {
-              write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
-              kill(getppid(), SIGTERM);
-              break;
-          } else {
-              write(fd_klijent, buffer, n);   /* echo natrag */
-          }
-      }
-  }
-  ```
+    while ((n = read(fd_klijent, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[n] = '\0';
+        printf("[PID %d] Primljeno: %s\n", (int)getpid(), buffer);
 
-  Ovaj obrazac koristi dvije važne osobine UNIX-a koje smo već upoznali: nakon `fork`-a, **dijete naslijedi sve otvorene deskriptore** roditelja (kao što smo vidjeli u poglavlju o okruženju procesa), pa tako i `fd_klijent`. I roditelj i dijete inicijalno imaju otvoren `fd_klijent`, zbog čega oboje moraju pozvati `close` — dijete kad završi razgovor, roditelj odmah jer mu nije potreban. Ako roditelj zaboravi zatvoriti svoj primjerak, deskriptor će ostati otvoren u procesu i klijent neće prepoznati da je veza zatvorena.
+        if (strncmp(buffer, "KRAJ", 4) == 0) {
+            write(fd_klijent, poruka_kraja, strlen(poruka_kraja));
+            kill(getppid(), SIGTERM);
+            break;
+        } else {
+            write(fd_klijent, buffer, n);   /* echo natrag */
+        }
+    }
+}
+```
 
-  Postavljanje handlera za signale podsjeća na ono iz prethodnog poglavlja o signalima. Za `SIGCHLD` koristimo `SA_RESTART`, jer ne želimo da `SIGCHLD` (koji stiže svaki put kad neko dijete završi) prekida našu `accept` petlju:
+Ovaj obrazac koristi dvije važne osobine UNIX-a koje smo već upoznali: nakon `fork`-a, **dijete naslijedi sve otvorene deskriptore** roditelja (kao što smo vidjeli u poglavlju o okruženju procesa), pa tako i `fd_klijent`. I roditelj i dijete inicijalno imaju otvoren `fd_klijent`, zbog čega oboje moraju pozvati `close` — dijete kad završi razgovor, roditelj odmah jer mu nije potreban. Ako roditelj zaboravi zatvoriti svoj primjerak, deskriptor će ostati otvoren u procesu i klijent neće prepoznati da je veza zatvorena.
 
-  ```c
-  static void rukovatelj_sigchld(int sig) {
-      (void)sig;
-      while (waitpid(-1, NULL, WNOHANG) > 0)
-          ;
-  }
+Postavljanje handlera za signale podsjeća na ono iz prethodnog poglavlja o signalima. Za `SIGCHLD` koristimo `SA_RESTART`, jer ne želimo da `SIGCHLD` (koji stiže svaki put kad neko dijete završi) prekida našu `accept` petlju:
 
-  sa.sa_handler = rukovatelj_sigchld;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESTART;
-  sigaction(SIGCHLD, &sa, NULL);
-  ```
+```c
+static void rukovatelj_sigchld(int sig) {
+    (void)sig;
+    while (waitpid(-1, NULL, WNOHANG) > 0)
+        ;
+}
 
-  Za `SIGTERM` (koji nam dijete šalje pri primitku "KRAJ") i `SIGINT` (Ctrl+C) koristimo **isti** handler — oba znače "zaustavi se" — i **bez** `SA_RESTART`-a, jer baš želimo da `accept` vrati grešku `EINTR`:
+sa.sa_handler = rukovatelj_sigchld;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = SA_RESTART;
+sigaction(SIGCHLD, &sa, NULL);
+```
 
-  ```c
-  static volatile sig_atomic_t zaustavi = 0;
+Za `SIGTERM` (koji nam dijete šalje pri primitku "KRAJ") i `SIGINT` (Ctrl+C) koristimo **isti** handler — oba znače "zaustavi se" — i **bez** `SA_RESTART`-a, jer baš želimo da `accept` vrati grešku `EINTR`:
 
-  static void rukovatelj_zaustavi(int sig) {
-      (void)sig;
-      zaustavi = 1;
-  }
+```c
+static volatile sig_atomic_t zaustavi = 0;
 
-  sa.sa_handler = rukovatelj_zaustavi;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_flags = 0;
-  sigaction(SIGTERM, &sa, NULL);
-  sigaction(SIGINT,  &sa, NULL);
-  ```
+static void rukovatelj_zaustavi(int sig) {
+    (void)sig;
+    zaustavi = 1;
+}
 
-  Kad signal stigne, handler postavi `zaustavi = 1`. `accept` se vrati s greškom `EINTR`, u petlji to prepoznamo i nastavimo na sljedeću iteraciju, ali `while (!zaustavi)` provjera u sljedećem prolazu vidi da treba izaći. Tako uredno zatvorimo slušajući socket i izađemo iz `main`-a, što je standardna definicija *clean exit*-a.
+sa.sa_handler = rukovatelj_zaustavi;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = 0;
+sigaction(SIGTERM, &sa, NULL);
+sigaction(SIGINT,  &sa, NULL);
+```
 
-  Test s nekoliko klijenata paralelno:
+Kad signal stigne, handler postavi `zaustavi = 1`. `accept` se vrati s greškom `EINTR`, u petlji to prepoznamo i nastavimo na sljedeću iteraciju, ali `while (!zaustavi)` provjera u sljedećem prolazu vidi da treba izaći. Tako uredno zatvorimo slušajući socket i izađemo iz `main`-a, što je standardna definicija *clean exit*-a.
 
-  ```
-  Terminal A:                          Terminal B:
-  $ ./tcp_server_fork                  $ ./tcp_klijent "Klijent A"
-  Server slusa na portu 9000 ...       Odgovor: Klijent A
-  [PID 28491] Primljeno: Klijent A     $ ./tcp_klijent "Klijent B"
-  [PID 28522] Primljeno: Klijent B     Odgovor: Klijent B
-  [PID 28537] Primljeno: KRAJ          $ ./tcp_klijent "KRAJ"
-  Server izlazi.                       Odgovor: U REDU -- IZLAZIM!
-  ```
+Test s nekoliko klijenata paralelno:
 
-  Probajte ovaj server pokrenuti, spojiti se s nekoliko klijenata, i pritisnuti **Ctrl+C** u terminalu servera — uvjerit ćete se da server uredno izlazi (ispisuje "Server izlazi.") umjesto da bude nasilno prekinut. Bez `SIGINT` handlera, `Ctrl+C` bi proces prekinuo izvana, bez ikakvog clean-up koda.
+```
+Terminal A:                          Terminal B:
+$ ./tcp_server_fork                  $ ./tcp_klijent "Klijent A"
+Server slusa na portu 9000 ...       Odgovor: Klijent A
+[PID 28491] Primljeno: Klijent A     $ ./tcp_klijent "Klijent B"
+[PID 28522] Primljeno: Klijent B     Odgovor: Klijent B
+[PID 28537] Primljeno: KRAJ          $ ./tcp_klijent "KRAJ"
+Server izlazi.                       Odgovor: U REDU -- IZLAZIM!
+```
 
-  Da bismo ispitali echo petlju s više poruka kroz istu vezu, naš `tcp_klijent` nije dovoljan — on po dizajnu šalje jednu poruku, čita jedan odgovor i izlazi. Za interaktivni test možemo koristiti `nc` (netcat), koji slijed redaka sa standardnog ulaza šalje serveru jedan po jedan, a sve što primi od servera ispiše na standardni izlaz. U novom terminalu pokrenemo:
+Probajte ovaj server pokrenuti, spojiti se s nekoliko klijenata, i pritisnuti **Ctrl+C** u terminalu servera — uvjerit ćete se da server uredno izlazi (ispisuje "Server izlazi.") umjesto da bude nasilno prekinut. Bez `SIGINT` handlera, `Ctrl+C` bi proces prekinuo izvana, bez ikakvog clean-up koda.
 
-  ```
-  $ nc 127.0.0.1 9000
-  Prva poruka
-  Prva poruka                    (echo natrag od servera)
-  Druga poruka
-  Druga poruka                   (echo natrag od servera)
-  Trecaaa
-  Trecaaa                        (echo natrag od servera)
-  ^D                             (Ctrl+D zatvara vezu)
-  ```
+Da bismo ispitali echo petlju s više poruka kroz istu vezu, naš `tcp_klijent` nije dovoljan — on po dizajnu šalje jednu poruku, čita jedan odgovor i izlazi. Za interaktivni test možemo koristiti `nc` (netcat), koji slijed redaka sa standardnog ulaza šalje serveru jedan po jedan, a sve što primi od servera ispiše na standardni izlaz. U novom terminalu pokrenemo:
 
-  Sve dok ne stisnemo Ctrl+D (oznaka kraja unosa na standardnom ulazu), `nc` šalje serveru svaki novi redak, a server ga vraća natrag — što izvrsno demonstrira da dijete u svom `read`/`write` loop-u zaista može opslužiti više razmjena s istim klijentom.
+```
+$ nc 127.0.0.1 9000
+Prva poruka
+Prva poruka                    (echo natrag od servera)
+Druga poruka
+Druga poruka                   (echo natrag od servera)
+Trecaaa
+Trecaaa                        (echo natrag od servera)
+^D                             (Ctrl+D zatvara vezu)
+```
 
-  Predlažemo čitatelju da kao vježbu dorade `tcp_klijent` (a po istom uzoru i `uds_klijent`) tako da ne šalje samo jednu poruku, nego u petlji čita redak sa standardnog ulaza, šalje ga serveru, čita i ispisuje odgovor — i to ponavlja sve dok korisnik ne stisne Ctrl+D, odnosno dok `fgets` ne vrati `NULL`. Tako bi naš klijent funkcionirao analogno `nc`-u, ali s vlastitim ispisom oblika `"Odgovor: ..."`.
+Sve dok ne stisnemo Ctrl+D (oznaka kraja unosa na standardnom ulazu), `nc` šalje serveru svaki novi redak, a server ga vraća natrag — što izvrsno demonstrira da dijete u svom `read`/`write` loop-u zaista može opslužiti više razmjena s istim klijentom.
 
-  Svaki klijent dobiva svoj proces, paralelno se opslužuju, ne čekaju jedan drugog.
+Predlažemo čitatelju da kao vježbu dorade `tcp_klijent` (a po istom uzoru i `uds_klijent`) tako da ne šalje samo jednu poruku, nego u petlji čita redak sa standardnog ulaza, šalje ga serveru, čita i ispisuje odgovor — i to ponavlja sve dok korisnik ne stisne Ctrl+D, odnosno dok standardni ulaz ne signalizira EOF. Tako bi naš klijent funkcionirao analogno `nc`-u, ali s vlastitim ispisom oblika `"Odgovor: ..."`.
+
+Svaki klijent dobiva svoj proces, paralelno se opslužuju, ne čekaju jedan drugog.
 
 ### Alternativni pristupi
 
