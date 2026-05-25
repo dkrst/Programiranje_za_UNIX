@@ -11,7 +11,7 @@
  *     porukom "U REDU -- IZLAZIM!" i salje signal SIGTERM
  *     roditelju koji time zaustavlja accept petlju;
  *   - roditelj hvata i SIGINT (Ctrl+C) -- umjesto da odmah
- *     prekine proces, postavlja zastavu za uredno gasenje. */
+ *     prekine proces, postavlja zastavicu za uredno gasenje. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +30,7 @@ static volatile sig_atomic_t zaustavi = 0;
 
 static void rukovatelj_sigchld(int sig) {
   (void)sig;
-  /* pokupi sve gotove djecu (neblokirajuci) */
+  /* pokupi sve gotove child procese (neblokirajuci) */
   while (waitpid(-1, NULL, WNOHANG) > 0)
     ;
 }

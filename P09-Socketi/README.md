@@ -48,7 +48,7 @@ Pogledajmo sad detaljnije svaku od ovih funkcija.
 **`socket`** — stvara novi socket. Argumenti su:
 
 - **`domena`** — `AF_UNIX` za lokalne sockete ili `AF_INET` za TCP/IP nad IPv4 (postoji i `AF_INET6` za IPv6).
-- **`tip`** — najčešće `SOCK_STREAM` (pouzdana, tokom-orijentirana komunikacija, kao TCP) ili `SOCK_DGRAM` (paketi, kao UDP). U ovoj skripti koristit ćemo isključivo `SOCK_STREAM`.
+- **`tip`** — najčešće `SOCK_STREAM` (pouzdana, tokom-orijentirana komunikacija, kao TCP) ili `SOCK_DGRAM` (paketi, kao UDP). Obje varijante obrađujemo u ovom poglavlju.
 - **`protokol`** — gotovo uvijek `0`, što znači "izaberi zadani protokol za ovu kombinaciju domene i tipa".
 
 Povratna vrijednost je deskriptor datoteke (`int >= 0`) za novostvoreni socket, ili `-1` uz postavljen `errno` u slučaju greške.
@@ -564,15 +564,141 @@ Svaki klijent dobiva svoj proces, paralelno se opslužuju, ne čekaju jedan drug
 
 ### Alternativni pristupi
 
-`fork` nije jedini način. Spomenimo ukratko alternativne obrasce, koje nećemo razrađivati kroz primjer:
+Stvaranje novog procesa za svakog klijenta pozivom `fork` nije jedini način kojim možemo ostvariti istovremeno posluživanje više klijenata. Spomenimo ukratko alternativne obrasce, koje nećemo razrađivati kroz primjer:
 
-- **Niti** (kao u poglavlju o višenitnom programiranju): umjesto `fork`-a, glavna nit za svakog klijenta stvori novu nit kroz `pthread_create`. Niti su lakše od procesa (manje memorije, brže stvaranje), ali zahtijevaju pažljivu sinkronizaciju ako dijele bilo kakvo stanje. Klasičan obrazac za servere srednje veličine.
+- **Niti**: umjesto `fork`-a, nit koja osluškuje dolazne pozive na otvorenom socketu (glavna nit — kolokvijalno rečeno) za svakog klijenta stvori novu nit kroz `pthread_create`. Niti su lakše od procesa (manje memorije, brže stvaranje), ali zahtijevaju pažljivu sinkronizaciju ako dijele bilo koju varijablu ili neki drugi resurs.
 
-- **Multipleksiranje I/O** (`select`, `poll`, `epoll`): jedan proces (bez fork-a, bez niti) pomoću sistemskih poziva `select`, `poll` ili `epoll` istovremeno prati više deskriptora i radi samo s onima na kojima ima podataka. Ovaj pristup omogućuje vrlo velik broj istovremenih veza (deseci tisuća) s minimalnim resursima, ali je programski složeniji jer cijeli server radi u jednoj petlji koja žonglira između svih veza. Koriste ga visokoperformantni serveri (`nginx`, `redis`, `node.js`).
+- **Thread pool**: pri pokretanju servera stvori se fiksan broj niti koje iz reda preuzimaju novodošle klijente. Izbjegava se trošak stalnog stvaranja niti za svakog klijenta, ali se zadržava paralelnost.
 
-- **Thread pool**: kombinacija — pri pokretanju servera stvori se fiksan broj niti koje iz reda preuzimaju novodošle klijente. Izbjegava se trošak stalnog stvaranja niti za svakog klijenta, ali se zadržava paralelnost.
+- **Multipleksiranje I/O** (`select`, `poll`, `epoll`): jedan proces (bez fork-a, bez niti) pomoću sistemskih poziva `select`, `poll` ili `epoll` istovremeno prati više deskriptora i radi samo s onima na kojima ima podataka. Ovaj pristup omogućuje vrlo velik broj istovremenih veza (deseci tisuća) s minimalnim resursima, ali je programski složeniji jer cijeli server radi u jednoj petlji koja žonglira između svih veza. Tema multipleksiranja izlazi izvan okvira ove skripte i neće biti obrađena ni u tekstu ni kroz primjere — zainteresiranog čitatelja upućujemo na Stevens UNP [1].
 
 Izbor pristupa ovisi o očekivanom opterećenju, vrsti rada koji server radi za klijenta (CPU vs I/O), i složenosti koju smo spremni unijeti u kod.
+
+## UDP socketi
+
+Do sada smo radili isključivo s TCP-om (tipom `SOCK_STREAM`), koji je pouzdan, tokom-orijentiran protokol — uspostavljamo vezu, šaljemo niz bajtova koji će na drugu stranu doći redom i bez gubitaka, na kraju zatvaramo vezu. To je idealno za većinu klijent-server scenarija, ali ne za sve.
+
+Internet protokolarni stog nudi i alternativu: **UDP** (engl. *User Datagram Protocol*). UDP ne uspostavlja vezu, ne jamči redoslijed, ne jamči isporuku, ne brine za retransmisiju izgubljenih paketa — jednostavno pošalje paket (datagram) prema odredištu i vrati se aplikaciji. Aplikacija je ta koja, ako joj treba pouzdanost, mora sama implementirati potvrde, retransmisije i redoslijed. U zamjenu, UDP je **brži i jednostavniji**, s manje latencije, i koristi se tamo gdje je gubitak ponekog paketa prihvatljiv: real-time prijenos audio/video signala (VoIP, video konferencije), online igre, DNS upiti, mrežno otkrivanje servisa, NTP (sinkronizacija sata) i sl.
+
+U socket sučelju UDP koristi tip `SOCK_DGRAM` (umjesto `SOCK_STREAM`), a komunikacija se odvija kroz dvije funkcije:
+
+```c
+ssize_t sendto  (int fd, const void *buf, size_t len, int flags,
+                 const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t recvfrom(int fd, void *buf, size_t len, int flags,
+                 struct sockaddr *src_addr, socklen_t *addrlen);
+```
+
+Bitne razlike u odnosu na TCP:
+
+- **Nema `listen`-a, nema `accept`-a, nema `connect`-a**. Server samo pozove `socket` i `bind`, i odmah je spreman primati pakete od bilo koga.
+- Svaki paket je samostalna jedinica. `sendto` u svakom pozivu eksplicitno navodi odredišnu adresu (jer nema "uspostavljene veze" prema fiksnom partneru).
+- `recvfrom` uz primljeni paket vrati i adresu pošiljatelja u izlaznom argumentu, što serveru omogućuje da zna kome odgovoriti.
+
+### Primjer: `udp_server` i `udp_klijent`
+
+UDP echo server po istom obrascu kao naši dosadašnji TCP primjeri: ispiše svaku poruku i vrati je natrag, a na `"KRAJ"` odgovori `"U REDU -- IZLAZIM!"` i prekida izvršavanje. Koristi port 9001 (kako se ne bi sukobio s TCP serverom na portu 9000).
+
+- [**`udp_server.c`**](udp_server.c):
+
+  ```c
+  #define PORT 9001
+
+  int main(void) {
+      int                fd;
+      struct sockaddr_in adresa, adresa_klijenta;
+      socklen_t          len;
+      char               buffer[256];
+      ssize_t            n;
+      int                kraj = 0;
+      const char        *poruka_kraja = "U REDU -- IZLAZIM!";
+
+      setbuf(stdout, NULL);
+
+      fd = socket(AF_INET, SOCK_DGRAM, 0);   /* SOCK_DGRAM = UDP */
+
+      memset(&adresa, 0, sizeof(adresa));
+      adresa.sin_family      = AF_INET;
+      adresa.sin_addr.s_addr = htonl(INADDR_ANY);
+      adresa.sin_port        = htons(PORT);
+
+      bind(fd, (struct sockaddr *)&adresa, sizeof(adresa));
+
+      /* Bez listen-a i accept-a -- UDP nema vezu */
+      printf("UDP server slusa na portu %d\n", PORT);
+
+      while (!kraj) {
+          len = sizeof(adresa_klijenta);
+          n = recvfrom(fd, buffer, sizeof(buffer) - 1, 0,
+                       (struct sockaddr *)&adresa_klijenta, &len);
+          if (n > 0) {
+              buffer[n] = '\0';
+              printf("Primljeno: %s\n", buffer);
+
+              if (strncmp(buffer, "KRAJ", 4) == 0) {
+                  sendto(fd, poruka_kraja, strlen(poruka_kraja), 0,
+                         (struct sockaddr *)&adresa_klijenta, len);
+                  kraj = 1;
+              } else {
+                  sendto(fd, buffer, n, 0,
+                         (struct sockaddr *)&adresa_klijenta, len);   /* echo */
+              }
+          }
+      }
+
+      printf("Server izlazi.\n");
+      close(fd);
+      return 0;
+  }
+  ```
+
+- [**`udp_klijent.c`**](udp_klijent.c) je strukturno jednostavan: pripremi adresu, jedan `sendto`, jedan `recvfrom`, gotov.
+
+  ```c
+  int main(int argc, char *argv[]) {
+      int                fd;
+      struct sockaddr_in adresa;
+      socklen_t          len;
+      const char        *poruka = argv[1];
+      const char        *ip     = (argc == 3) ? argv[2] : "127.0.0.1";
+      char               buffer[256];
+      ssize_t            n;
+
+      fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+      memset(&adresa, 0, sizeof(adresa));
+      adresa.sin_family = AF_INET;
+      adresa.sin_port   = htons(PORT);
+      inet_pton(AF_INET, ip, &adresa.sin_addr);
+
+      sendto(fd, poruka, strlen(poruka), 0,
+             (struct sockaddr *)&adresa, sizeof(adresa));
+
+      len = sizeof(adresa);
+      n = recvfrom(fd, buffer, sizeof(buffer) - 1, 0,
+                   (struct sockaddr *)&adresa, &len);
+      if (n > 0) {
+          buffer[n] = '\0';
+          printf("Odgovor: %s\n", buffer);
+      }
+
+      close(fd);
+      return 0;
+  }
+  ```
+
+  Pokretanje izgleda potpuno isto kao kod TCP varijante:
+
+  ```
+  Terminal A:                          Terminal B:
+  $ ./udp_server                       $ ./udp_klijent "Pozdrav!"
+  UDP server slusa na portu 9001       Odgovor: Pozdrav!
+  Primljeno: Pozdrav!                  $ ./udp_klijent "KRAJ"
+  Primljeno: KRAJ                      Odgovor: U REDU -- IZLAZIM!
+  Server izlazi.
+  ```
+
+Iz ovog jednostavnog primjera ne vidi se prava priroda UDP-a — pouzdana isporuka, gubici paketa, nepredvidiv redoslijed — sve to dolazi do izražaja tek u stvarnim mrežnim uvjetima i složenijim aplikacijama. Ali bitne **programerske** razlike (`SOCK_DGRAM`, `sendto`/`recvfrom`, odsutnost veze) primjer prikazuje izravno.
 
 ## Prevođenje
 
@@ -595,10 +721,10 @@ Za TCP primjere, koristimo port 9000. Ako vam port nije slobodan (zauzeo ga je d
 - Nakon uspostave veze, obje strane razgovaraju kroz `read`/`write` kao na obične datoteke.
 - **Mrežni byte order** je big-endian; koristimo `htons`/`htonl` za pretvaranje, inače računala različite arhitekture ne mogu razgovarati.
 - Za **više klijenata istovremeno** najjednostavniji obrazac je `fork` po klijentu — ali postoje i alternative (niti, `select`/`poll`/`epoll`, thread poolovi) koje treba znati kad performanse postanu kritične.
+- **TCP** (`SOCK_STREAM`) i **UDP** (`SOCK_DGRAM`) su dvije glavne varijante mrežnih socketa. TCP je pouzdan i orijentiran na vezu; UDP šalje samostalne pakete bez veze, brže ali bez jamstava isporuke.
 
 Mrežno programiranje je obimno područje. Spomenimo nekoliko važnih tema koje nismo razrađivali:
 
-- **UDP** (`SOCK_DGRAM`) za komunikaciju paketima bez uspostave veze.
 - **IPv6** (`AF_INET6`) kao zamjenu za IPv4.
 - **Sigurna komunikacija** kroz TLS/SSL (najpoznatija implementacija je OpenSSL).
 - **Pravilno čitanje cijele poruke** — `read` može vratiti manje bajtova nego što smo tražili (engl. *short read*); robusan kod radi u petlji dok ne pročita željeni iznos ili dok ne dobije EOF. Naši primjeri pretpostavljaju da jedan `read` vraća cijelu poruku, što je u praksi često, ali ne i garantirano.
