@@ -414,10 +414,12 @@ struct sigaction {
 };
 ```
 
-Argumenti `sigaction()`-a su:
+**Povratna vrijednost:** `0` u slučaju uspjeha; `-1` u slučaju greške (npr. nevažeći broj signala, ili pokušaj postavljanja rukovatelja za `SIGKILL` odnosno `SIGSTOP`).
 
-- **`signum`** — broj signala koji se hvata (kao i kod `signal()`-a),
-- **`act`** — pokazivač na strukturu koja opisuje novu akciju za taj signal,
+**Argumenti:**
+
+- **`signum`** — broj signala koji se hvata (kao i kod `signal()`-a).
+- **`act`** — pokazivač na strukturu koja opisuje novu akciju za taj signal.
 - **`oldact`** — pokazivač na strukturu u koju će se upisati **prethodna** akcija; korisno ako želimo privremeno preuzeti signal pa kasnije vratiti staro ponašanje. Ako nas prethodna akcija ne zanima, kao treći argument možemo koristiti `NULL` pokazivač.
 
 Najvažnija polja strukture `struct sigaction`:
@@ -510,7 +512,9 @@ Maska signala glavnog programa mijenja se sistemskim pozivom `sigprocmask`:
 int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 ```
 
-Argumenti:
+**Povratna vrijednost:** `0` u slučaju uspjeha; `-1` u slučaju greške (npr. nevažeća vrijednost `how`).
+
+**Argumenti:**
 
 - **`how`** — što se radi s argumentom `set`:
   - `SIG_BLOCK` — dodaj signale iz `set` trenutnoj maski,

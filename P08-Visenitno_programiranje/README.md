@@ -120,6 +120,8 @@ Nit može poslati drugoj niti zahtjev za prekid izvršavanja pozivom `pthread_ca
 int pthread_cancel(pthread_t thread);
 ```
 
+**Povratna vrijednost:** `0` u slučaju uspjeha; kod greške inače (ista konvencija kao kod `pthread_create`).
+
 Bitno je naglasiti da `pthread_cancel` nije bezuvjetna naredba — ona šalje **zahtjev** za otkazivanje, a hoće li i kad ciljana nit zaista završiti ovisi o njenom stanju otkaznosti i o tome dolazi li do tzv. *cancellation pointa* (poziva neke od funkcija koje POSIX definira kao mjesta na kojima se zahtjev za otkazivanje obrađuje, npr. `sleep`, `read`, `pthread_cond_wait`). Po defaultu su niti otkazne i obrada zahtjeva događa se na prvom cancellation pointu. Otkazivanje niti je relativno složena tema o kojoj nećemo dublje govoriti — koristit ćemo je samo u jednom primjeru kasnije, gdje glavna nit prekida pozadinske radnike koji izvode beskonačnu petlju.
 
 ### Primjer: `pozdrav1`
@@ -606,6 +608,8 @@ Operacije nad mutexom:
 - **`pthread_mutex_lock`** — pokušava zaključati mutex. Ako je već zaključan od strane druge niti, blokira pozivajuću nit dok mutex ne postane slobodan.
 - **`pthread_mutex_unlock`** — otpušta mutex. Smije ga otpustiti samo nit koja ga drži (ovisno o tipu mutexa — postoji više varijanti, a kod nekih ovo ponašanje nije strogo definirano, ali za naše potrebe zadani tip je dovoljan).
 
+Sve četiri funkcije vraćaju `0` u slučaju uspjeha, odnosno kod greške (ista konvencija kao kod `pthread_create`).
+
 ### Primjer: `broji2`
 
 U ovom primjeru pristup varijabli `count` ograničen je korištenjem mutexa. Kada neka od niti "zaključa" mutex, bilo koja druga nit koja pozove `pthread_mutex_lock` blokirat će sve dok nit koja drži mutex isti ne otključa pozivom `pthread_mutex_unlock`. Kada se to dogodi, bilo koja od niti koje su čekale postaje kandidat za nastavak — implementacija pthreads-a sama bira koju će probuditi, a POSIX standard ne propisuje konkretan redoslijed. Drugim riječima, ne smijemo unaprijed pretpostavljati kojoj će niti od onih koje čekaju mutex biti dodijeljen.
@@ -712,6 +716,8 @@ int pthread_cond_signal(pthread_cond_t *cond);
 int pthread_cond_broadcast(pthread_cond_t *cond);
 int pthread_cond_destroy(pthread_cond_t *cond);
 ```
+
+Sve funkcije vraćaju `0` u slučaju uspjeha, odnosno kod greške (ista konvencija kao kod `pthread_create`).
 
 Standardni obrazac korištenja kondicijske varijable je:
 
@@ -920,7 +926,11 @@ Funkcija `pthread_sigmask` je za nit ekvivalent funkcije `sigprocmask` za proces
 int pthread_sigmask(int how, const sigset_t *set, sigset_t *oldset);
 ```
 
-Argumenti su isti kao kod `sigprocmask`: `how` je `SIG_BLOCK`, `SIG_UNBLOCK` ili `SIG_SETMASK`; `set` je maska signala; `oldset` je izlazni argument u koji funkcija pohrani staru masku. Važno je naglasiti da u višenitnim programima obavezno treba koristiti `pthread_sigmask` umjesto `sigprocmask` — druga varijanta ima nedefinirano ponašanje u višenitnom okruženju.
+**Povratna vrijednost:** `0` u slučaju uspjeha; kod greške inače (ista konvencija kao kod `pthread_create`).
+
+**Argumenti** su isti kao kod `sigprocmask`: `how` je `SIG_BLOCK`, `SIG_UNBLOCK` ili `SIG_SETMASK`; `set` je maska signala; `oldset` je izlazni argument u koji funkcija pohrani staru masku.
+
+Važno je naglasiti da u višenitnim programima obavezno treba koristiti `pthread_sigmask` umjesto `sigprocmask` — druga varijanta ima nedefinirano ponašanje u višenitnom okruženju.
 
 ### Standardni obrazac: jedna nit obrađuje signale
 
@@ -992,6 +1002,13 @@ Za slanje signala procesu koristi se `kill(pid, sig)`. Za slanje signala specifi
 ```c
 int pthread_kill(pthread_t thread, int sig);
 ```
+
+**Povratna vrijednost:** `0` u slučaju uspjeha; kod greške inače (ista konvencija kao kod `pthread_create`).
+
+**Argumenti:**
+
+- **`thread`** — identifikator niti kojoj se signal šalje (vrijednost koju nam je vratio `pthread_create`).
+- **`sig`** — broj signala koji se šalje. Vrijednost `0` ne šalje nikakav signal, ali se i dalje obavlja provjera postoji li nit s navedenim identifikatorom — koristan trik za provjeru "živi" li određena nit.
 
 Ovo se rijetko koristi u praksi — kad imamo višenitni program, signali su uglavnom alat za vanjsku komunikaciju (od korisnika ili drugih procesa), pa nas obično ne zanima kojoj će točno niti stići. `pthread_kill` je tu kad nam stvarno treba precizna kontrola.
 

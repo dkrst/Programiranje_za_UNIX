@@ -760,6 +760,8 @@ Stvara ili otvara imenovani semafor.
 
 `sem_close` zatvara *deskriptor* semafora u trenutnom procesu (semafor i dalje postoji u sustavu). `sem_unlink` briše imenovani semafor iz sustava (kao `shm_unlink` za shm objekte).
 
+**Povratna vrijednost (obje):** `0` u slučaju uspjeha, `-1` u slučaju greške.
+
 #### Demonstracija: dijeljeni brojač sa semaforom
 
 Sad ćemo isti `shm_brojac` proširiti tako da je svaka inkrementacija zaštićena binarnim semaforom — drugim riječima, samo jedan proces u jednom trenutku smije ulaziti u "load → increment → store" sekvencu.
