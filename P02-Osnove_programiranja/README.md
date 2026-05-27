@@ -279,11 +279,11 @@ make clean        # briše izvršne i objektne datoteke
 
 ## Arhive objektnih datoteka — libovi
 
-> **Napomena**: ovo je gradivo za napredne. Možete ga preskočiti pri prvom čitanju — ostatak skripte ne ovisi o njemu. Ako ste tek upoznati s C-om i procesom prevođenja, preporučujemo da prvo savladate prethodne sekcije, pa se ovamo vratite kad osjetite potrebu za organizacijom koda u veće biblioteke.
+> **Napomena**: ovo je gradivo za napredne. Možete ga preskočiti pri prvom čitanju, osobito ako ste se tek upoznali s procesom prevođenja i povezivanja programa — ostatak skripte ne ovisi o njemu. Na ovaj dio možete se vratiti kasnije, kada osjetite potrebu za organizacijom koda u veće biblioteke. Naravno, ako je do sada izloženo bilo "šala mala" za vas, nema razloga da ne uđete dublje u organiziranje objektnih datoteka u biblioteke funkcija, o čemu će u sljedećoj sekciji biti više riječi.
 
 Kako program raste, izvorni kod se često dijeli u veći broj datoteka. Pri svakom prevođenju, prevodilac mora svaku izmijenjenu `.c` datoteku ponovno prevesti u objektni kod, a zatim u fazi povezivanja sastaviti sve objektne datoteke u jednu izvršnu datoteku. Za male projekte to je sasvim u redu — ali kad imamo *desetke* ili *stotine* datoteka, manipulacija svakim pojedinim `.o` postaje nepregledna.
 
-Rješenje su **arhive objektnih datoteka**, koje u UNIX terminologiji nazivamo **libovima** (engl. *libraries*, biblioteke funkcija). Lib je jedna datoteka u koju je upakirano više objektnih datoteka, organiziranih po nekom tematskom kriteriju — npr. sve funkcije za rad s mrežom u jednom libu, sve funkcije za rad sa slikama u drugom, sve naše vlastite pomoćne funkcije u trećem. Najpoznatiji primjer je već viđena standardna C biblioteka `libc` koja sadrži funkcije poput `printf`, `fopen`, `malloc`.
+Rješenje su **arhive objektnih datoteka**, koje u UNIX terminologiji nazivamo **libovima** (engl. *libraries*, biblioteke funkcija). Lib je jedna datoteka u koju je upakirano više objektnih datoteka, organiziranih po nekom tematskom kriteriju — npr. sve funkcije za rad s mrežom u jednom libu, sve funkcije za rad sa slikama u drugom, sve naše vlastite pomoćne funkcije u trećem. Najpoznatiji primjer je već viđena standardna C biblioteka `libc` koja sadrži funkcije poput `printf`, `fopen`, `malloc`, itd.
 
 Postoje dvije temeljne vrste libova:
 
@@ -322,7 +322,7 @@ Ukoliko se traženi lib ne nalazi u standardnim direktorijima, dodatnu putanju z
 gcc -Wall -L/putanja/na/direktorij prog.o -ljpeg -o izvrsna
 ```
 
-**Redoslijed datoteka u naredbenom retku je važan.** U svakoj arhivi može biti više objektnih datoteka, a prevodilac iz arhive izdvaja samo one koje sadrže funkcije potrebne za generiranje izvršne datoteke. Kada pokrenemo `gcc`, datoteke se analiziraju onim redoslijedom kojim su navedene u naredbenom retku — pri čemu se stvara lista nedostajućih funkcija. Te se funkcije zatim traže u libovima koji *slijede* u naredbenom retku. Ako je neka arhiva navedena ranije od `.o` datoteke koja koristi njezine funkcije, taj dio koda neće biti izdvojen iz liba i `gcc` će prijaviti grešku u povezivanju. **Dobra je praksa arhive staviti na kraj** naredbenog retka. Posebno treba voditi računa o redoslijedu ako koristimo više libova od kojih jedan koristi funkcije drugoga — tada lib "više razine" (onaj koji ovisi o drugima) mora doći **prije** libova o kojima ovisi.
+**Redoslijed datoteka u naredbenom retku je važan.** U svakoj arhivi može biti više objektnih datoteka, a prevodilac iz arhive izdvaja samo one koje sadrže funkcije potrebne za generiranje izvršne datoteke. Kada pokrenemo `gcc`, datoteke se analiziraju onim redoslijedom kojim su navedene u naredbenom retku — pri čemu se stvara lista nedostajućih funkcija. Te se funkcije zatim traže u libovima koji *slijede* u naredbenom retku. Ako je neka arhiva navedena ranije od `.o` datoteke koja koristi njezine funkcije, taj dio koda neće biti izdvojen iz liba i `gcc` će prijaviti grešku u povezivanju. **Dobra je praksa arhive staviti na kraj naredbe za povezivanje, kako bi `gcc` znao koje sve objektne datoteke treba iz libova "povući".** Posebno treba voditi računa o redoslijedu ako koristimo više libova od kojih jedan koristi funkcije drugoga — tada lib "više razine" (onaj koji ovisi o drugima) mora doći **prije** libova o kojima ovisi.
 
 ### Stvaranje vlastite arhive — alat `ar`
 
