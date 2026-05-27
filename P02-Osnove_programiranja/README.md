@@ -277,6 +277,221 @@ make pozdrav      # gradi samo pozdrav
 make clean        # briše izvršne i objektne datoteke
 ```
 
+## Arhive objektnih datoteka — libovi
+
+> **Napomena**: ovo je gradivo za napredne. Možete ga preskočiti pri prvom čitanju — ostatak skripte ne ovisi o njemu. Ako ste tek upoznati s C-om i procesom prevođenja, preporučujemo da prvo savladate prethodne sekcije, pa se ovamo vratite kad osjetite potrebu za organizacijom koda u veće biblioteke.
+
+Kako program raste, izvorni kod se često dijeli u veći broj datoteka. Pri svakom prevođenju, prevodilac mora svaku izmijenjenu `.c` datoteku ponovno prevesti u objektni kod, a zatim u fazi povezivanja sastaviti sve objektne datoteke u jednu izvršnu datoteku. Za male projekte to je sasvim u redu — ali kad imamo *desetke* ili *stotine* datoteka, manipulacija svakim pojedinim `.o` postaje nepregledna.
+
+Rješenje su **arhive objektnih datoteka**, koje u UNIX terminologiji nazivamo **libovima** (engl. *libraries*, biblioteke funkcija). Lib je jedna datoteka u koju je upakirano više objektnih datoteka, organiziranih po nekom tematskom kriteriju — npr. sve funkcije za rad s mrežom u jednom libu, sve funkcije za rad sa slikama u drugom, sve naše vlastite pomoćne funkcije u trećem. Najpoznatiji primjer je već viđena standardna C biblioteka `libc` koja sadrži funkcije poput `printf`, `fopen`, `malloc`.
+
+Postoje dvije temeljne vrste libova:
+
+|  | Statičke biblioteke (`.a`) | Dinamičke biblioteke (`.so`) |
+|---|---|---|
+| Povezivanje | u **fazi prevođenja** — objektni kod se kopira u izvršnu datoteku | u **fazi pokretanja** — izvršna datoteka samo sadrži referencu na lib |
+| Veličina izvršne datoteke | veća (sadrži kod liba) | manja (lib se učitava odvojeno) |
+| Ovisnost o sustavu | nikakva — izvršna datoteka samostalna | lib mora biti prisutan na sustavu pri pokretanju |
+| Distribucija | jednostavna (jedna datoteka) | složenija (lib + verzioniranje) |
+| Memorija pri više procesa | svaki proces ima svoju kopiju | svi procesi dijele isti lib u memoriji |
+| Tipična ekstenzija | `libIME.a` | `libIME.so` |
+
+U ovom poglavlju zadržavamo se na **statičkim** bibliotekama, koje su jednostavnije za razumijevanje i dovoljne za većinu početničkih primjena.
+
+### Korištenje tuđih libova
+
+Kada koristimo lib koji je netko drugi izradio (npr. standardnu C biblioteku, ili razne specijalizirane biblioteke za obradu slike, mrežnu komunikaciju, kriptografiju, ...), `gcc` ga uključuje u proces povezivanja na dva načina.
+
+Prvi je da eksplicitno navedemo putanju do `.a` datoteke kao da je objektna datoteka:
+
+```sh
+gcc -Wall prog.o /putanja/do/libjpeg.a -o izvrsna
+```
+
+Drugi, češći način je korištenjem opcije `-l<ime>`: ako se naš lib zove `libjpeg.a` i nalazi se u nekom od standardnih direktorija u kojima `gcc` traži libove (npr. `/usr/lib`), dovoljno je napisati:
+
+```sh
+gcc -Wall prog.o -ljpeg -o izvrsna
+```
+
+Uočite konvenciju: lib se na disku zove `libjpeg.a`, ali u `gcc` naredbenom retku navodimo ga kao `-ljpeg` — bez prefiksa `lib` i bez ekstenzije `.a`. Ovu konvenciju nameće sam `gcc` koji iz opcije `-lime` rekonstruira ime datoteke `libime.a`.
+
+Ukoliko se traženi lib ne nalazi u standardnim direktorijima, dodatnu putanju zadajemo opcijom `-L<putanja>`:
+
+```sh
+gcc -Wall -L/putanja/na/direktorij prog.o -ljpeg -o izvrsna
+```
+
+**Redoslijed datoteka u naredbenom retku je važan.** U svakoj arhivi može biti više objektnih datoteka, a prevodilac iz arhive izdvaja samo one koje sadrže funkcije potrebne za generiranje izvršne datoteke. Kada pokrenemo `gcc`, datoteke se analiziraju onim redoslijedom kojim su navedene u naredbenom retku — pri čemu se stvara lista nedostajućih funkcija. Te se funkcije zatim traže u libovima koji *slijede* u naredbenom retku. Ako je neka arhiva navedena ranije od `.o` datoteke koja koristi njezine funkcije, taj dio koda neće biti izdvojen iz liba i `gcc` će prijaviti grešku u povezivanju. **Dobra je praksa arhive staviti na kraj** naredbenog retka. Posebno treba voditi računa o redoslijedu ako koristimo više libova od kojih jedan koristi funkcije drugoga — tada lib "više razine" (onaj koji ovisi o drugima) mora doći **prije** libova o kojima ovisi.
+
+### Stvaranje vlastite arhive — alat `ar`
+
+Pored korištenja tuđih libova, jednako je jednostavno izraditi vlastiti lib u koji ćemo upakirati svoje funkcije. Ovo je dobra praksa ukoliko često koristimo iste funkcije u različitim projektima: arhiviranjem funkcija u lib sistematiziramo kod koji smo ranije razvili, na način da umjesto velikog broja objektnih datoteka koristimo jednu ili više tematskih arhiva. Vjerojatno najlošija praksa je kopiranje izvornog koda u svaki novi projekt, pri čemu se vrlo lako izgubiti u šumi izmjena koje unosimo u različitim verzijama.
+
+Za rad s arhivama koristimo alat `ar`:
+
+```sh
+ar [-opcije] arhiva [ulazne_datoteke]
+```
+
+Detaljnu uputu za korištenje dobivamo s `man ar`. Najčešće opcije:
+
+| Opcija | Značenje |
+|---|---|
+| `r` | dodavanje nove ili zamjena postojeće datoteke u arhivi (ako član s istim imenom postoji, prethodno se briše) |
+| `d` | brisanje datoteke člana iz arhive |
+| `x` | izdvajanje datoteke člana iz arhive |
+| `t` | ispis liste datoteka članova arhive |
+| `v` | mod rada s ispisom dodatnih informacija (*verbose*) |
+
+### Primjer
+
+U ovom poglavlju nalaze se tri datoteke koje ćemo iskoristiti za prikaz triju različitih načina povezivanja:
+
+- [**`nizfn.c`**](nizfn.c) — implementacija triju funkcija za rad s nizovima cijelih brojeva.
+
+  ```c
+  #include <stdlib.h>
+  #include <time.h>
+
+  /* Generira slucajni niz duzine broj_elemenata */
+  void slucajni_niz(int *niz, int broj_elemenata) {
+      int i;
+      srand(time(NULL));
+      for (i = 0; i < broj_elemenata; i++)
+          niz[i] = rand();
+  }
+
+  /* Pronalazi najveci element u nizu */
+  int najveci_element(int *niz, int broj_elemenata) {
+      int i, maxel = niz[0];
+      for (i = 1; i < broj_elemenata; i++) {
+          if (maxel < niz[i])
+              maxel = niz[i];
+      }
+      return maxel;
+  }
+
+  /* Pronalazi najmanji element u nizu */
+  int najmanji_element(int *niz, int broj_elemenata) {
+      int i, minel = niz[0];
+      for (i = 1; i < broj_elemenata; i++) {
+          if (minel > niz[i])
+              minel = niz[i];
+      }
+      return minel;
+  }
+  ```
+
+- [**`nizfn.h`**](nizfn.h) — zaglavlje s deklaracijama funkcija.
+
+  ```c
+  #ifndef _NIZFN_H_
+  #define _NIZFN_H_
+
+  void slucajni_niz(int *niz, int broj_elemenata);
+  int  najveci_element(int *niz, int broj_elemenata);
+  int  najmanji_element(int *niz, int broj_elemenata);
+
+  #endif
+  ```
+
+- [**`niz.c`**](niz.c) — glavni program koji generira slučajni niz, ispisuje sve elemente i pronalazi najveći i najmanji element.
+
+  ```c
+  #include <stdio.h>
+  #include <nizfn.h>
+  #define N_EL 10
+
+  int main() {
+      int i, mx, mi;
+      int niz[N_EL];
+
+      slucajni_niz(niz, N_EL);
+      printf("Elementi niza:\n");
+      printf("----------------\n");
+
+      for (i = 0; i < N_EL; i++)
+          printf("%3d. element: %12d\n", i + 1, niz[i]);
+
+      mx = najveci_element(niz, N_EL);
+      mi = najmanji_element(niz, N_EL);
+      printf("\n\nMax: %d; Min: %d\n", mx, mi);
+
+      return 0;
+  }
+  ```
+
+Sada možemo prevesti i povezati ovaj primjer na tri različita načina — sva tri daju identičnu izvršnu datoteku.
+
+**1. Direktno povezivanje** s objektnom datotekom (kao u prethodnim primjerima):
+
+```sh
+$ gcc -Wall -c nizfn.c
+$ gcc -Wall -c -I. niz.c
+$ gcc -Wall niz.o nizfn.o -o niz1
+```
+
+Uočite da smo pri prevođenju `niz.c` koristili zastavicu `-I.` — njom prevoditelju naglašavamo da datoteke zaglavlja uključene s pretprocesorskom direktivom `#include <>` potraži i u trenutnom radnom direktoriju (jer naš `niz.c` uključuje `<nizfn.h>` u šiljatim zagradama, što inače znači da se traži samo u standardnim direktorijima).
+
+**2. Eksplicitno povezivanje s arhivom**. Korištenjem alata `ar` najprije stvorimo statičku biblioteku `libniz.a` u koju ubacimo objektni kod naših funkcija:
+
+```sh
+$ gcc -Wall -c nizfn.c
+$ ar -r libniz.a nizfn.o
+```
+
+Ovime smo stvorili arhivu koja sadrži jednu objektnu datoteku s tri funkcije. Sada izvršnu datoteku generiramo navodeći `libniz.a` umjesto objektne datoteke:
+
+```sh
+$ gcc -Wall niz.o libniz.a -o niz2
+```
+
+**3. Povezivanje preko `-L -l` opcija** — `gcc` sam pronalazi `libniz.a` u zadanom direktoriju:
+
+```sh
+$ gcc -Wall -L. niz.o -lniz -o niz3
+```
+
+Sve tri izvršne datoteke su **identične**. To se može provjeriti alatom `diff` koji ispisuje razlike između datoteka:
+
+```sh
+$ diff niz1 niz2
+$ diff niz1 niz3
+```
+
+U oba slučaja `diff` ne ispisuje ništa — datoteke se ne razlikuju.
+
+### Makefile za sva tri načina
+
+U [`Makefile`](Makefile) datoteci proširenoj za ovaj primjer dana su pravila za sva tri načina povezivanja, kao i pravilo za stvaranje arhive `libniz.a`:
+
+```make
+CC = /usr/bin/gcc
+CFLAGS = -Wall
+LIBDIR = .
+TARGETS = pozdrav pozdrav_fn niz1 niz2 niz3
+
+niz1: niz.o nizfn.o
+	$(CC) $(LDFLAGS) niz.o nizfn.o -o niz1
+
+niz2: niz.o libniz.a
+	$(CC) $(LDFLAGS) niz.o libniz.a -o niz2
+
+niz3: niz.o libniz.a
+	$(CC) $(LDFLAGS) -L$(LIBDIR) niz.o -lniz -o niz3
+
+libniz.a: nizfn.o
+	ar -r $(LIBDIR)/libniz.a nizfn.o
+
+.c.o:
+	$(CC) $(CFLAGS) -I$(LIBDIR) -c $<
+```
+
+Pozivom `make niz2` (ili `make niz3`), `make` najprije provjerava postoje li potrebne ovisnosti: ukoliko ne postoje, generira `nizfn.o` korištenjem implicitnog pravila, te potom `libniz.a` korištenjem alata `ar`. Nakon toga, ovisno o pravilu, povezuje izvršnu datoteku.
+
+Jednom kad imamo statičku biblioteku, možemo ju koristiti i u drugim programima. Možemo je i **distribuirati** drugim programerima — bez dijeljenja izvornog koda, ako to ne želimo.
+
 ## Pokretanje
 
 Izvršni programi pokreću se navođenjem relativne putanje (`./`) iz istog direktorija:
@@ -287,6 +502,16 @@ Izvršni programi pokreću se navođenjem relativne putanje (`./`) iz istog dire
 ```
 
 Oba primjera ispisuju istu poruku; razlika je isključivo u unutarnjoj organizaciji koda.
+
+Ukoliko ste prošli i sekciju o libovima, na isti način možete pokrenuti i sve tri varijante `niz` primjera:
+
+```sh
+./niz1
+./niz2
+./niz3
+```
+
+Sve tri varijante daju **identičan** ispis — slučajni niz od deset cijelih brojeva, te njegov najveći i najmanji element.
 
 ## Bibliografija
 
