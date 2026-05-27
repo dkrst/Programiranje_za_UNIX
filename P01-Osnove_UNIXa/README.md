@@ -10,6 +10,8 @@ UNIX je organiziran u nekoliko slojeva apstrakcije, prikazanih na sljedećoj sli
 
 U središtu se nalazi **jezgra** (engl. *kernel*) — najniži sloj softvera koji izravno upravlja sklopovljem računala (procesorom, memorijom, diskovima, mrežnim sučeljima, ulazno-izlaznim uređajima). Jezgra je jedini dio sustava koji ima privilegirani pristup hardveru; sve ostale komponente — uključujući vlastite uvodne programe poput ljuske — moraju s hardverom komunicirati posredno, kroz nju.
 
+Problem nepostojanja standardiziranog skupa komponenti i brojnih nezavisnih proizvođača računalnog sklopovlja operacijski sustavi rješavaju korištenjem **modula** — zasebnih dijelova jezgre koji se po potrebi mogu dinamički učitati bez ponovnog pokretanja OS-a. Moduli su upravljački programi za pojedine uređaje i komponente, a mogu se dodavati u bilo kojem trenutku. Često ih izrađuju i distribuiraju sami proizvođači komponenti. U slučaju OS-a otvorenog koda, kao što je Linux, modul može izraditi i šira zajednica programera. U Windows terminologiji ekvivalent modulu je **driver** (engl. *device driver*).
+
 Komunikacija s jezgrom odvija se putem **sistemskih poziva** (engl. *system calls*) — strogo definiranog skupa funkcija koje korisnički programi pozivaju kad žele zatražiti uslugu od jezgre. Sistemski pozivi su jedino sučelje između korisničkih programa i jezgre. Na taj način programer ne mora poznavati detalje implementacije sklopovlja, nego radi protiv unificiranog i stabilnog sučelja.
 
 Iznad sistemskih poziva nalaze se **biblioteke funkcija** (engl. *libraries*, libovi) — zbirke funkcija više razine koje predstavljaju dodatnu razinu apstrakcije. Najpoznatiji primjer je standardna C biblioteka (`libc`) koja sadrži funkcije poput `printf`, `fopen`, `malloc` i mnoge druge. Funkcije iz biblioteka u konačnici se svode na jedan ili više sistemskih poziva, ali programeru pružaju znatno jednostavnije sučelje.
@@ -19,6 +21,28 @@ Iznad sistemskih poziva nalaze se **biblioteke funkcija** (engl. *libraries*, li
 Najviši sloj čine **aplikacije** — svi korisnički programi: tekstualni editori, web preglednici, baze podataka, inženjerski alati. Sve operacije ostvaruju pozivanjem funkcija iz biblioteka ili izravnim sistemskim pozivima.
 
 Iako je na slici prikazan kao zaseban sloj, **datotečni sustav** zapravo prožima cijelu arhitekturu. Jezgra ga implementira i izlaže putem sistemskih poziva. UNIX-ova filozofija *"sve je datoteka"* znači da se i uređaji, međuprocesna komunikacija i mnogi drugi resursi sustava prikazuju kao datoteke — što znatno pojednostavljuje programiranje jer se sve resursi koriste kroz isto sučelje.
+
+### Kratka povijest UNIX-a
+
+- **1969–1971**: Dennis Ritchie, Ken Thompson i drugi inženjeri razvijaju prvu verziju UNIX-a u tvrtki Bell Labs. Neke od ideja UNIX-a preuzete su iz ranijeg Berkeley Timesharing System razvijenog na sveučilištu Berkeley i MULTICS-a (Multiplexed Information and Computer Services), razvijenog u suradnji Bell Labs i sveučilišta MIT. Prva verzija UNIX-a objavljena je 1971. godine. Tijekom sedamdesetih, UNIX se širi na američkim sveučilištima, što daje dodatni poticaj razvoju novih značajki.
+
+- **BSD (1977)**: Berkeley Software Distribution, razvijen na sveučilištu Berkeley, donosi brojna poboljšanja, uključujući virtualnu memoriju, naprednije upravljanje procesima i bolji datotečni sustav. Također, BSD promiče otvoreni kôd (Open Source), što je omogućilo uključivanje šire zajednice programera i entuzijasta te dodatnu popularizaciju UNIX-a.
+
+- **1980-e**: Prihvaćanje u industriji i pojava komercijalnih verzija, kao što su AT&T UNIX, SunOS, IBM AIX, SGI IRIX, HP-UX i druge.
+
+- **POSIX (1988)**: (Portable Operating System Interface) — standard uspostavljen s ciljem ujednačavanja različitih verzija UNIX-a i osiguranja prenosivosti programa na razini izvornog koda.
+
+- **Linux (1991)**: Linus Torvalds objavljuje Linux, verziju UNIX-a koja je slobodna i otvorenog koda. Uskoro se pojavljuju različite distribucije Linuxa te kompanije koje nude komercijalnu podršku.
+
+- **iOS (2007)**: Apple objavljuje mobilni operacijski sustav za svoje telefone temeljen na BSD UNIX-u.
+
+- **Android (2008)**: Google objavljuje mobilni operacijski sustav za pametne telefone baziran na Linuxu.
+
+- **TOP500**: UNIX dominira na rang-listi 500 najsnažnijih računala na svijetu. Od 2017. godine sva računala na listi TOP500 koriste operacijske sustave bazirane na Linuxu [4]:
+
+![Operacijski sustavi na TOP500 superračunala](slike/top500_unix_linux.png)
+
+Čitatelji koji žele saznati više o povijesti UNIX-a mogu posegnuti za knjigom *Kratka povijest UNIX-a: Od UNICS-a do FreeBSD-a i Linuxa* [5].
 
 ## Sustav datoteka
 
@@ -58,6 +82,16 @@ Ova putanja označava isti direktorij neovisno o korisnikovoj trenutnoj lokaciji
 **Relativna putanja** polazi od trenutnog radnog direktorija i ne počinje s `/`. Možemo je zamisliti kao uputu kako stići do određenog mjesta u gradu: *"na prvom križanju lijevo, pa dva ravno..."* — vrijedi samo ako polazimo s točno određene lokacije. Tako, ako se nalazimo u `/home/dkrst`, putanja `nastava/unix` označava `/home/dkrst/nastava/unix`. Ako se nalazimo u `/home/dkrst/vjezbe`, do istog cilja stižemo putanjom `../nastava/unix` — `..` nas vraća jedan korak gore.
 
 Trenutni radni direktorij ispisujemo naredbom `pwd` (*print working directory*), a mijenjamo naredbom `cd` (*change directory*).
+
+### Razlike u odnosu na Windows datotečni sustav
+
+- UNIX **ne dijeli datotečni sustav prema fizičkoj ili logičkoj podjeli diska**. U Windowsima svaka particija ili disk dobiva slovo (`C:`, `D:`, `E:`, ...), dok UNIX sve montira pod jedinstvenim stablom s korijenom `/`. Različite fizičke ili logičke jedinice za pohranu podataka montiraju se (engl. *mount*) na bilo koje mjesto u stablu — ne nužno na prvoj razini. Ovo je za korisnika transparentno: kad se prijeđe s jednog uređaja ili particije na drugu, navigacija ostaje jednaka.
+
+- UNIX datoteke **nemaju ekstenziju u operacijsko-sustavnom smislu**. Ovo je važno točno razumjeti:
+   - Datoteka u svom imenu može sadržavati točku i nastavak, primjerice `program.c` ili `dat1.txt`. Taj nastavak za UNIX je samo dio imena datoteke — ništa više.
+   - Operacijski sustav ne gleda nastavak kada odlučuje o tipu datoteke niti kada odlučuje može li se datoteka izvršiti.
+   - Hoće li se datoteka moći pročitati, izmijeniti ili pokrenuti određuje isključivo sustav prava pristupa (*permissions*).
+   - Zbog toga datoteka koja se zove `dat1.txt` može biti tekstualna datoteka, izvršni binarni program, skripta ili čak direktorij — bez ikakvog ograničenja. Praktična posljedica je da uzorak `*.*` koji bi u Windowsima označavao "sve datoteke" u UNIX-u označava samo datoteke koje u imenu sadrže barem jednu točku. Za "sve datoteke" koristi se jednostavno `*`.
 
 ### Prava pristupa
 
@@ -291,6 +325,34 @@ Pri izradi skripti potrebno je imati na umu **tip ljuske** za koji je skripta pi
 
 Prvi redak skripte (`#!/bin/bash`) zove se **shebang** — to je posebna direktiva koju jezgra prepoznaje pri pokretanju skripte i koristi za odabir interpretera. Komentari u skripti počinju znakom `#` i traju do kraja retka.
 
+Da bi se ilustrirale razlike u sintaksi između `bash` i `csh` ljusaka, u nastavku su dani isti primjeri u oba okruženja jedan pored drugog.
+
+**`if`/`else` grananje** — provjera postoji li datoteka zadana kao argument skripte:
+
+| bash | csh |
+|---|---|
+| <pre>#!/bin/bash<br>if [ -f "$1" ]; then<br>    echo "$1 postoji"<br>else<br>    echo "$1 ne postoji"<br>fi</pre> | <pre>#!/usr/bin/csh<br>if ( -f "$argv[1]" ) then<br>    echo "$argv[1] postoji"<br>else<br>    echo "$argv[1] ne postoji"<br>endif</pre> |
+
+**`while` petlja** — odbrojavanje unazad od broja zadanog kao argument:
+
+| bash | csh |
+|---|---|
+| <pre>#!/bin/bash<br>a=$1<br>while [ $a -gt 0 ]; do<br>    echo $a<br>    (( a-- ))<br>done</pre> | <pre>#!/usr/bin/csh<br>set a=$1<br>while ( $a > 0 )<br>    echo $a<br>    @ a--<br>end</pre> |
+
+**`for`/`foreach` petlja** — listanje sadržaja direktorija sortiranog po vremenu izmjene:
+
+| bash | csh |
+|---|---|
+| <pre>#!/bin/bash<br>a=$(ls -t $1)<br>for i in $a; do<br>    echo $i<br>done</pre> | <pre>#!/usr/bin/csh<br>set a=`ls -t $1`<br>foreach i ($a)<br>    echo $i<br>end</pre> |
+
+**`case`/`switch` grananje** — listanje s izborom načina prikaza (po veličini ili po vremenu), ovisno o prvom argumentu skripte:
+
+| bash | csh |
+|---|---|
+| <pre>#!/bin/bash<br>case $1 in<br>    size)<br>        a=$(ls -S $2)<br>        ;;<br>    time)<br>        a=$(ls -t $2)<br>        ;;<br>    *)<br>        a=$(ls $2)<br>        ;;<br>esac<br>for i in $a; do<br>    echo $i<br>done</pre> | <pre>#!/usr/bin/csh<br>switch ($1)<br>    case size:<br>        set a=`ls -S $2`<br>        breaksw<br>    case time:<br>        set a=`ls -t $2`<br>        breaksw<br>    default:<br>        set a=`ls $2`<br>endsw<br>foreach i ($a)<br>    echo $i<br>end</pre> |
+
+Naredba `break` prekida izvršavanje petlje, a naredba `continue` preskače ostatak trenutne iteracije i nastavlja s idućom. Obje naredbe rade jednako u `bash` i `csh` ljusci.
+
 Da bi skripta postala izvršna, treba joj dati pravo izvršavanja (`x`):
 
 ```
@@ -507,6 +569,90 @@ U ovom direktoriju nalazi se nekoliko jednostavnih bash skripti koje ilustriraju
   Ukupno pojavljivanja: 7 (u 2 datoteka)
   ```
 
+### Provjera ispravnosti argumenata i izlazni status
+
+- [**`provjeri.sh`**](provjeri.sh) — provjerava je li skripta pozvana ispravno (točno jedan argument) i postoji li zadana datoteka, pa ispisuje njezin broj redaka i zadnjih 5 redaka. Demonstrira tipičan oblik provjere argumenata i razlikovanje različitih razloga greške različitim izlaznim kodovima.
+
+  ```bash
+  #!/bin/bash
+
+  # Provjeri je li zadan tocno jedan argument
+  if [ $# -ne 1 ]; then
+      echo "Koristenje: $0 <ime_datoteke>"
+      exit 1
+  fi
+
+  # Provjeri postoji li zadana datoteka
+  if [ ! -f "$1" ]; then
+      echo "Greska: datoteka '$1' ne postoji."
+      exit 2
+  fi
+
+  # Sve je u redu -- obradi datoteku
+  echo "Obrada datoteke: $1"
+  echo "Broj redaka: $(wc -l < $1)"
+  echo "Zadnjih 5 redaka:"
+  tail -5 "$1"
+
+  exit 0
+  ```
+
+  Izlazni status zadnje izvršene naredbe dostupan je kroz varijablu `$?` (bash) ili `$status` (csh):
+
+  ```
+  $ ./provjeri.sh datoteka.txt
+  Obrada datoteke: datoteka.txt
+  Broj redaka: 42
+  ...
+  $ echo $?
+  0
+  $ ./provjeri.sh nepostojeca.txt
+  Greska: datoteka 'nepostojeca.txt' ne postoji.
+  $ echo $?
+  2
+  ```
+
+  Dobra je praksa različitim greškama dodjeljivati različite izlazne kodove kako bi ih pozivajuća skripta (ili ljuska) mogla međusobno razlikovati. Vrijednost `0` po dogovoru znači uspješan završetak, a sve vrijednosti različite od nule označavaju neku grešku.
+
+### Obrada svih datoteka u direktoriju
+
+- [**`prebroji.sh`**](prebroji.sh) — iterira po svim `.c` datotekama u trenutnom direktoriju, za svaku ispisuje broj redaka te na kraju daje ukupan zbroj. Demonstrira `for` petlju nad uzorkom datoteka, naredbenu supstituciju i aritmetičko zbrajanje u akumulator.
+
+  ```bash
+  #!/bin/bash
+
+  ukupno=0
+
+  for datoteka in *.c; do
+      # Provjeri postoji li uopce neka .c datoteka
+      # (ako nema, for-petlja u bashu prolazi s doslovnim "*.c")
+      if [ ! -f "$datoteka" ]; then
+          echo "Nema .c datoteka u direktoriju."
+          exit 1
+      fi
+
+      redci=$(wc -l < "$datoteka")
+      echo "$datoteka: $redci redaka"
+      (( ukupno += redci ))
+  done
+
+  echo "---"
+  echo "Ukupno: $ukupno redaka u svim .c datotekama"
+  ```
+
+  Pokretanje (npr. iz direktorija s `.c` izvornim kodom):
+
+  ```
+  $ ./prebroji.sh
+  funkcije.c: 5 redaka
+  niz.c: 21 redaka
+  nizfn.c: 40 redaka
+  pozdrav.c: 7 redaka
+  pozdrav_fn.c: 7 redaka
+  ---
+  Ukupno: 80 redaka u svim .c datotekama
+  ```
+
 ## Što dalje?
 
 U sljedećem poglavlju krećemo s osnovama programiranja u C-u i procesa prevođenja, što su preduvjeti za C programiranje na UNIX sustavima koje obrađujemo u ostatku skripte. Sve što smo naučili u ovom poglavlju — rad u terminalu, prava pristupa, preusmjeravanje — koristit ćemo praktično u radu s primjerima.
@@ -520,3 +666,7 @@ U sljedećem poglavlju krećemo s osnovama programiranja u C-u i procesa prevođ
 [2] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
 
 [3] L. Budin, M. Golub, D. Jakobović, and L. Jelenković, *Operacijski sustavi*, 3. izd. Zagreb, Hrvatska: Element, 2013.
+
+[4] TOP500 Project, "TOP500 Supercomputer Sites — Operating System Share." [Online]. Dostupno: [https://en.wikipedia.org/wiki/TOP500](https://en.wikipedia.org/wiki/TOP500).
+
+[5] H. Horvat, *Kratka povijest UNIX-a — Od UNICS-a do FreeBSD-a i Linuxa*. Osijek: vlastita naklada, 2017. ISBN 978-953-59438-0-8. [Online]. Dostupno: [https://www.opensource-osijek.org](https://www.opensource-osijek.org/knjige/kratka-povijest-UNIXa-od-UNICSa-do-FreeBSDa-i-Linuxa).
