@@ -8,7 +8,7 @@ U ovom poglavlju obrađene su upravo ove osnovne funkcionalnosti za rad s datote
 
 Na kraju poglavlja dan je osvrt na odnos između sistemskih poziva i funkcija standardne C biblioteke, s ciljem da budući programer razumije kada i zašto koristiti koje. Svi primjeri pisani su u programskom jeziku C i pretpostavljaju UNIX (Linux) okruženje.
 
-U ovom direktoriju nalaze se programi koji ilustriraju UNIX sistemske pozive za rad s datotekama: `open()`, `creat()`, `close()`, `read()`, `write()`, `lseek()` i `umask()`. Svi primjeri pisani su izravno korištenjem sistemskih poziva (bez uporabe funkcija standardne C biblioteke poput `fopen`, `fread`, `fprintf`), s ciljem da se prikaže kako operacijski sustav zapravo obavlja ulazno/izlazne operacije i na kojoj razini počiva koncept **"sve je datoteka"** — temeljno UNIX načelo prema kojem se datoteke, uređaji, terminali, cijevi i mrežni sockets svi koriste kroz isto skučeno sučelje file deskriptora.
+U ovom direktoriju nalaze se programi koji ilustriraju UNIX sistemske pozive za rad s datotekama: `open()`, `creat()`, `close()`, `read()`, `write()`, `lseek()` i `umask()`. Svi primjeri pisani su izravno korištenjem sistemskih poziva (bez uporabe funkcija standardne C biblioteke poput `fopen`, `fread`, `fprintf`), s ciljem da se prikaže kako operacijski sustav zapravo obavlja ulazno/izlazne operacije i na kojoj razini počiva koncept **"sve je datoteka"** — temeljno UNIX načelo prema kojem se datoteke, uređaji, terminali, cijevi i mrežni socketi svi koriste kroz isto skučeno sučelje file deskriptora.
 
 Vrijedi napomenuti: funkcije standardne C biblioteke (`fopen`, `fread`, `fprintf`, `fputs`, ...) **na UNIX sustavima u konačnici se svode na ove iste sistemske pozive**. Funkcije više razine pružaju zgodne dodatke poput interno upravljanog međuspremnika za smanjenje broja sistemskih poziva, formatiran ulaz/izlaz (`printf`, `fprintf`, `scanf`, ...), ili portabilnost između operacijskih sustava — ali fizička komunikacija s jezgrom uvijek se odvija kroz `read()`, `write()`, `open()` i ostale poziva opisane u nastavku. Razumijevanje sistemskih poziva otkriva što se zapravo događa "ispod" funkcija standardne biblioteke koje ste do sada vjerojatno koristili.
 
@@ -91,6 +91,10 @@ int open(const char *pathname, int oflag, /* mode_t mode */);
 ### Funkcija `creat()`
 
 Namijenjena je kreiranju novih datoteka.
+
+> **Zašto `creat` bez završnog `e`?**
+>
+> Ime funkcije `creat` (bez završnog `e`) nije pogreška — riječ je o jednoj od najpoznatijih neobičnosti UNIX-a, naslijeđenoj još iz prvih verzija s početka 1970-ih, kad su rani UNIX sustavi imali ograničenje od najviše šest znakova u imenu sistemskog poziva. Anegdota: na pitanje što bi promijenio u UNIX-u kad bi mogao, **Ken Thompson** — jedan od izvornih autora UNIX-a — odgovorio je: *"I'd spell creat with an e."*
 
 ```c
 #include <sys/types.h>
@@ -178,6 +182,8 @@ Pisanje počinje na trenutnom file offsetu, a nakon uspješnog upisa offset se p
 ## Primjeri
 
 ### Otvaranje, čitanje i pisanje
+
+Na primjerima koji slijede ilustrirano je korištenje sistemskih poziva za rad s datotekama:
 
 - [**`read_file.c`**](read_file.c) — otvara datoteku `moja_datoteka.txt` i ispisuje njen sadržaj na standardni izlaz.
 

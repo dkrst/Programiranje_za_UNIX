@@ -1295,6 +1295,6 @@ make clean        # čisti generirane datoteke
 
 [1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
 
-[2] E. W. Dijkstra, *"Cooperating Sequential Processes"*, in *Programming Languages: NATO Advanced Study Institute*, F. Genuys, Ed. London, U.K.: Academic Press, 1968, pp. 43–112. Rukopis: EWD 123, dostupno na: <https://www.cs.utexas.edu/users/EWD/transcriptions/EWD01xx/EWD123.html>
+[2] E. W. Dijkstra, *"Cooperating Sequential Processes"*, in *Programming Languages: NATO Advanced Study Institute*, F. Genuys, Ed. London, U.K.: Academic Press, 1968, pp. 43–112. Rukopis: EWD 123, dostupno na: <https://www.cs.utexas.edu/users/EWD/transcriptions/EWD01xx/EWD123.html>. Pristupljeno: svibanj 2026.
 
-[3] B. Hall, *Beej's Guide to Unix IPC*. [Online]. Dostupno na: <https://beej.us/guide/bgipc/>
+[3] B. Hall, *Beej's Guide to Unix IPC*. [Online]. Dostupno na: <https://beej.us/guide/bgipc/>. Pristupljeno: svibanj 2026.

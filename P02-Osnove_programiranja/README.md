@@ -4,6 +4,8 @@ U ovom poglavlju dan je uvod u proces prevođenja i povezivanja C programa ilust
 
 ### Najjednostavniji program
 
+Sljedeći primjer demonstrira osnovnu strukturu C programa i tok prevođenja izvornog koda u izvršnu datoteku:
+
 - [**`pozdrav.c`**](pozdrav.c) — program u jednoj datoteci koji ispisuje poruku na standardni izlaz. Najmanji smisleni C program koji se može prevesti i pokrenuti; služi za demonstraciju osnovne sintakse (`main`, `#include`, `printf`) i osnovnog toka prevođenja.
 
   ```c
@@ -94,12 +96,16 @@ Ovaj uvid je upravo razlog postojanja alata `make`. U projektu od nekoliko datot
 
 ### Korištenje alata `make`
 
-`make` je alat koji automatizira upravo takav proces. Iz datoteke s pravilima (`Makefile`) čita koje ulazne datoteke čine projekt, kako ovise jedna o drugoj i kojim se naredbama iz njih generiraju izlazne datoteke. Na temelju vremena zadnje izmjene datoteka, `make` ponovno prevodi samo one koje su mijenjane od posljednjeg prevođenja, i ništa više. U nastavku obrađujemo samo onoliko mogućnosti koliko nam je potrebno za vlastite primjere — `make` je znatno bogatiji alat, a definitivna referenca za sve njegove mogućnosti je *GNU Make Manual*, Stallman, McGrath & Smith [3], opsežan priručnik dostupan i besplatno online na stranicama GNU projekta. Pokreće se tako da se u direktoriju s `Makefile`-om zada:
+`make` je alat koji automatizira upravo takav proces. Iz datoteke s pravilima (`Makefile`) čita koje ulazne datoteke čine projekt, kako ovise jedna o drugoj i kojim se naredbama iz njih generiraju izlazne datoteke. Na temelju vremena zadnje izmjene datoteka, `make` ponovno prevodi samo one koje su mijenjane od posljednjeg prevođenja, i ništa više. U nastavku obrađujemo samo onoliko mogućnosti koliko nam je potrebno za vlastite primjere — `make` je znatno bogatiji alat, a definitivna referenca za sve njegove mogućnosti je *GNU Make Manual*, Stallman, McGrath & Smith [3], opsežan priručnik besplatno dostupan online na stranicama GNU projekta. Pokreće se tako da se u direktoriju s `Makefile`-om zada:
 
 ```sh
 make              # izvršava prvo pravilo u Makefileu
 make ime_pravila  # izvršava navedeno pravilo
 ```
+
+> **Što je GNU?**
+>
+> GNU (rekurzivni akronim za *GNU's Not UNIX*) je projekt slobodnog softvera koji je 1983. godine pokrenuo Richard Stallman s ciljem stvaranja potpuno slobodnog UNIX-kompatibilnog operacijskog sustava. GNU projekt razvio je velik broj ključnih alata koje danas svakodnevno koristimo: `gcc` (prevodilac), `make`, `bash`, `gdb` (debugger), `emacs`, `coreutils` (`ls`, `cp`, `mv`, ...) i mnoge druge. Kad je 1991. Linus Torvalds objavio Linux jezgru, ona se prirodno kombinirala s GNU alatima, što je dalo cjelovit slobodan operacijski sustav koji mnogi nazivaju **GNU/Linux**. Zaklada za slobodan softver (engl. *Free Software Foundation*, FSF), koja stoji iza GNU projekta, danas također održava i licencu GPL (engl. *GNU General Public License*) pod kojom se objavljuje velik dio slobodnog softvera.
 
 #### Struktura pravila
 
@@ -517,6 +523,6 @@ Sve tri varijante daju **identičan** ispis — slučajni niz od deset cijelih b
 
 [1] B. W. Kernighan and D. M. Ritchie, *The C Programming Language*, 2nd ed. Englewood Cliffs, NJ, USA: Prentice Hall, 1988.
 
-[2] I. Mateljan, *Programiranje C jezikom*. Split, Hrvatska: Fakultet elektrotehnike, strojarstva i brodogradnje, 2006. [Online]. Dostupno na: <http://programiranje.yolasite.com/resources/Programiranje_C_jezikom.pdf>
+[2] I. Mateljan, *Programiranje C jezikom*. Split, Hrvatska: Fakultet elektrotehnike, strojarstva i brodogradnje, 2006. [Online]. Dostupno na: <http://programiranje.yolasite.com/resources/Programiranje_C_jezikom.pdf>. Pristupljeno: svibanj 2026.
 
-[3] R. M. Stallman, R. McGrath, and P. D. Smith, *GNU Make Manual*. Boston, MA, USA: Free Software Foundation, 2023. [Online]. Dostupno na: <https://www.gnu.org/software/make/manual/>
+[3] R. M. Stallman, R. McGrath, and P. D. Smith, *GNU Make Manual*. Boston, MA, USA: Free Software Foundation, 2023. [Online]. Dostupno na: <https://www.gnu.org/software/make/manual/>. Pristupljeno: svibanj 2026.

@@ -81,7 +81,7 @@ Pojašnjenje pojedinih polja:
 
 #### Brojač linkova kod direktorija
 
-Bilo bi prirodno očekivati da svaki novostvoreni direktorij ima `st_nlink` jednak 1 — ipak je riječ o samo jednom imenu u nadređenom direktoriju. Ipak, već u trenutku stvaranja, brojač linkova svakog direktorija je 2. Razlog je u dva posebna unosa koja jezgra automatski stvara unutar svakog direktorija: `.` (link na sam taj direktorij) i `..` (link na nadređeni). Tako svaki direktorij na samom početku ima dva imena koja na njega upućuju — jedno u direktoriju u kojem se promatrani direktorij nalazi (njegovo "stvarno" ime) i jedno unutar njega samoga (`.`).
+Bilo bi prirodno očekivati da svaki novostvoreni direktorij ima `st_nlink` jednak 1 — ipak je riječ o samo jednom imenu u nadređenom direktoriju. Ipak, već u trenutku stvaranja, brojač linkova svakog direktorija je 2. Razlog je u dva posebna unosa koja jezgra automatski stvara unutar svakog direktorija: `.` (link na sam taj direktorij) i `..` (link na nadređeni direktorij). Tako svaki direktorij na samom početku ima dva imena koja na njega upućuju — jedno u direktoriju u kojem se promatrani direktorij nalazi (njegovo "stvarno" ime) i jedno unutar njega samoga (`.`).
 
 Štoviše, svaki put kad se unutar nekog direktorija stvori novi poddirektorij, brojač linkova raste još za jedan jer poddirektorij sa sobom donosi i `..` koji pokazuje natrag. Pogledajmo to izravno u ljusci:
 

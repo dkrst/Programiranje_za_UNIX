@@ -1,6 +1,6 @@
 # Osnove UNIX-a
 
-U ovom poglavlju dan je uvod u UNIX operacijski sustav: njegovu arhitekturu, organizaciju datotečnog sustava, prava pristupa, naredbenu ljusku, preusmjeravanje ulaza i izlaza, ulančavanje naredbi, te pisanje shell skripti. Nije riječ o C programiranju — sve što slijedi odvija se u **terminalu**, izravnom interakcijom korisnika s ljuskom. Razumijevanje ovih osnova preduvjet je za sve sljedeće poglavlje, gdje ćemo se baviti programiranjem aplikacija koje se izvršavaju na UNIX sustavima.
+U ovom poglavlju dan je uvod u UNIX operacijski sustav: njegovu arhitekturu, organizaciju datotečnog sustava, prava pristupa, naredbenu ljusku, preusmjeravanje ulaza i izlaza, ulančavanje naredbi, te pisanje shell skripti. Nije riječ o C programiranju — sve što slijedi odvija se u **terminalu**, izravnom interakcijom korisnika s ljuskom. Razumijevanje ovih osnova preduvjet je za sva sljedeća poglavlja, gdje ćemo se baviti programiranjem aplikacija koje se izvršavaju na UNIX sustavima.
 
 ## Arhitektura UNIX operacijskog sustava
 
@@ -12,11 +12,11 @@ U središtu se nalazi **jezgra** (engl. *kernel*) — najniži sloj softvera koj
 
 Problem nepostojanja standardiziranog skupa komponenti i brojnih nezavisnih proizvođača računalnog sklopovlja operacijski sustavi rješavaju korištenjem **modula** — zasebnih dijelova jezgre koji se po potrebi mogu dinamički učitati bez ponovnog pokretanja OS-a. Moduli su upravljački programi za pojedine uređaje i komponente, a mogu se dodavati u bilo kojem trenutku. Često ih izrađuju i distribuiraju sami proizvođači komponenti. U slučaju OS-a otvorenog koda, kao što je Linux, modul može izraditi i šira zajednica programera. U Windows terminologiji ekvivalent modulu je **driver** (engl. *device driver*).
 
-Komunikacija s jezgrom odvija se putem **sistemskih poziva** (engl. *system calls*) — strogo definiranog skupa funkcija koje korisnički programi pozivaju kad žele zatražiti uslugu od jezgre. Sistemski pozivi su jedino sučelje između korisničkih programa i jezgre. Na taj način programer ne mora poznavati detalje implementacije sklopovlja, nego radi protiv unificiranog i stabilnog sučelja.
+Komunikacija s jezgrom odvija se putem **sistemskih poziva** (engl. *system calls*) — strogo definiranog skupa funkcija koje korisnički programi pozivaju kad žele zatražiti uslugu od jezgre. Sistemski pozivi su jedino sučelje između korisničkih programa i jezgre. Na taj način programer ne mora poznavati detalje implementacije sklopovlja, nego se oslanja na unificirano i stabilno sučelje.
 
 Iznad sistemskih poziva nalaze se **biblioteke funkcija** (engl. *libraries*, libovi) — zbirke funkcija više razine koje predstavljaju dodatnu razinu apstrakcije. Najpoznatiji primjer je standardna C biblioteka (`libc`) koja sadrži funkcije poput `printf`, `fopen`, `malloc` i mnoge druge. Funkcije iz biblioteka u konačnici se svode na jedan ili više sistemskih poziva, ali programeru pružaju znatno jednostavnije sučelje.
 
-**Naredbena ljuska** (engl. *shell*) je interpreter naredbenog retka koji korisniku omogućuje interaktivan pristup svim funkcijama sustava. Bitno je naglasiti da ljuska **nije dio jezgre** — ona je obični korisnički program koji koristi sistemske pozive i biblioteke kao i svaki drugi program. UNIX ljuska istovremeno je i kompletan programski jezik: korisnik može pisati skripte koje uključuju varijable, uvjetno grananje, petlje i funkcije, sve koristeći isključivo ljusku. Jedna od temeljnih prednosti je **filozofija ulančavanja** — izlaz jedne naredbe može postati ulaz druge, što omogućuje izgradnju složenih lanaca obrade podataka od jednostavnih, specijaliziranih programa. Ova ideja sažeta je u UNIX maksimi: *mali programi koji rade jednu stvar dobro mogu se kombinirati u moćne lance obrade*.
+**Naredbena ljuska** (engl. *shell*) je interpreter naredbenog retka koji korisniku omogućuje interaktivan pristup svim funkcijama sustava. Bitno je naglasiti da ljuska **nije dio jezgre** — ona je obični korisnički program koji koristi sistemske pozive i biblioteke kao i svaki drugi program. UNIX ljuska istovremeno je i kompletan programski jezik: korisnik može pisati skripte koje uključuju varijable, uvjetno grananje, petlje i funkcije, sve koristeći isključivo ljusku. Jedna od temeljnih prednosti je **filozofija ulančavanja** — izlaz jedne naredbe može postati ulaz druge, što omogućuje izgradnju složenih lanaca obrade podataka od jednostavnih, specijaliziranih programa. Ovo ujedno predstavlja i jedno od temeljnih načela UNIX filozofije: *mali programi koji rade jednu stvar dobro mogu se kombinirati u moćne lance obrade*.
 
 Najviši sloj čine **aplikacije** — svi korisnički programi: tekstualni editori, web preglednici, baze podataka, inženjerski alati. Sve operacije ostvaruju pozivanjem funkcija iz biblioteka ili izravnim sistemskim pozivima.
 
@@ -95,7 +95,7 @@ Trenutni radni direktorij ispisujemo naredbom `pwd` (*print working directory*),
 
 ### Prava pristupa
 
-UNIX je višekorisnički sustav, što znači da na istom računalu istovremeno može raditi više korisnika. Da različitih korisnici ne bi međusobno smetali — slučajno ili namjerno mijenjajući tuđe datoteke — uveden je **sustav prava pristupa**.
+UNIX je višekorisnički sustav, što znači da na istom računalu istovremeno može raditi više korisnika. Da različiti korisnici ne bi međusobno smetali — slučajno ili namjerno mijenjajući tuđe datoteke — uveden je **sustav prava pristupa**.
 
 Prava se dodjeljuju u tri razine, prema skupini korisnika:
 
@@ -216,7 +216,7 @@ Najčešći operatori preusmjeravanja u **bash** ljusci:
 | `&>>` | dodaj `stdout` i `stderr` na kraj |
 | `2>&1` | spoji `stderr` na `stdout` (vrlo čest "trik") |
 
-Primjer — spasimo izlaz `ls -la` u datoteku, pa pogledajmo sadržaj:
+Primjer — preusmjerimo izlaz `ls -la` u datoteku, pa pogledajmo sadržaj:
 
 ```
 $ ls -la > popis.txt
@@ -249,7 +249,7 @@ $ neka_naredba > /dev/null 2>&1        # zanemari sve, samo izvrši
 
 ## Ulančavanje naredbi (`pipes`)
 
-Pored preusmjeravanja u datoteku, izlaz jedne naredbe možemo izravno spojiti na ulaz druge — operatorom `|` (vertikalna crta, *pipe*). Ovo je realizacija temeljne UNIX filozofije: *mali programi koji rade jednu stvar dobro mogu se kombinirati u moćne lance obrade*.
+Pored preusmjeravanja u datoteku, izlaz jedne naredbe možemo izravno spojiti na ulaz druge — operatorom `|` (vertikalna crta, *pipe*). Ovo je realizacija temeljne UNIX filozofije, koju vrijedi još jednom spomenuti: *mali programi koji rade jednu stvar dobro mogu se kombinirati u moćne lance obrade*.
 
 Klasičan primjer — koliko redaka u log datoteci sadrži riječ `ERROR`?
 
@@ -667,6 +667,6 @@ U sljedećem poglavlju krećemo s osnovama programiranja u C-u i procesa prevođ
 
 [3] L. Budin, M. Golub, D. Jakobović, and L. Jelenković, *Operacijski sustavi*, 3. izd. Zagreb, Hrvatska: Element, 2013.
 
-[4] TOP500 Project, "TOP500 Supercomputer Sites — Operating System Share." [Online]. Dostupno: [https://en.wikipedia.org/wiki/TOP500](https://en.wikipedia.org/wiki/TOP500).
+[4] TOP500 Project, "TOP500 Supercomputer Sites — Operating System Share." [Online]. Dostupno: [https://en.wikipedia.org/wiki/TOP500](https://en.wikipedia.org/wiki/TOP500). Pristupljeno: svibanj 2026.
 
-[5] H. Horvat, *Kratka povijest UNIX-a — Od UNICS-a do FreeBSD-a i Linuxa*. Osijek: vlastita naklada, 2017. ISBN 978-953-59438-0-8. [Online]. Dostupno: [https://www.opensource-osijek.org](https://www.opensource-osijek.org/knjige/kratka-povijest-UNIXa-od-UNICSa-do-FreeBSDa-i-Linuxa).
+[5] H. Horvat, *Kratka povijest UNIX-a — Od UNICS-a do FreeBSD-a i Linuxa*. Osijek: vlastita naklada, 2017. ISBN 978-953-59438-0-8. [Online]. Dostupno: [https://www.opensource-osijek.org](https://www.opensource-osijek.org/knjige/kratka-povijest-UNIXa-od-UNICSa-do-FreeBSDa-i-Linuxa). Pristupljeno: svibanj 2026.

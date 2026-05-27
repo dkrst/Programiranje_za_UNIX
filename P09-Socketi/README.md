@@ -740,4 +740,4 @@ Sve ovo i mnogo više obrađeno je u referencama navedenim niže.
 
 [3] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
 
-[4] B. Hall, *Beej's Guide to Network Programming*. Dostupno online: https://beej.us/guide/bgnet/
+[4] B. Hall, *Beej's Guide to Network Programming*. Dostupno online: https://beej.us/guide/bgnet/. Pristupljeno: svibanj 2026.

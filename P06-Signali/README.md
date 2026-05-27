@@ -8,7 +8,7 @@ Proces na primljeni signal može reagirati na nekoliko načina: prepustiti zadan
 
 Signali su, gledano iz perspektive operacijskog sustava i programa, jednostavno **mali cjelobrojni identifikatori** — svaki signal ima svoj broj. Zbog čitljivosti i prenosivosti koda, u programima nikad ne baratamo izravno tim brojevima, nego koristimo **simboličke konstante** definirane u standardnoj zaglavnoj datoteci `<signal.h>` (npr. `SIGINT`, `SIGTERM`, `SIGKILL`...).
 
-POSIX standard definira tridesetak signala, a u praksi se najčešće susrećemo sa skupinom njih desetak. Tablica niže daje pregled onih s kojima ćemo raditi u ovom poglavlju i u tipičnim programima:
+POSIX standard definira tridesetak signala, a u praksi se najčešće susrećemo sa skupinom njih desetak. Sljedeća tablica daje pregled onih s kojima ćemo raditi u ovom poglavlju i u tipičnim programima:
 
 | Signal | Broj | Predefinirana akcija | Značenje |
 |---|---|---|---|
@@ -39,6 +39,8 @@ Posebnu pažnju zaslužuju **`SIGKILL`** i **`SIGSTOP`** — to su jedina dva si
 **Što je core file?** Za neke signale predefinirana akcija nije samo prekid procesa, nego i stvaranje *core file*-a — datoteke koja sadrži snimku kompletnog memorijskog prostora procesa u trenutku kad je signal primljen (varijable na stogu, hrpi, registri procesora, otvoreni file deskriptori i drugi metapodatci). Datoteka se obično zove `core` ili `core.<pid>` i nastaje u trenutnom radnom direktoriju procesa. Ovo ponašanje vezano je uz signale koji uglavnom znače da smo u programu *nešto zabrljali* — `SIGSEGV` (pristup nevažećoj memoriji), `SIGFPE` (aritmetička greška), `SIGILL` (nevažeća instrukcija), `SIGABRT` (eksplicitan prekid pomoću `abort()`). Core file omogućuje *post-mortem* analizu: alatima poput `gdb` programer može učitati core file zajedno s izvršnom datotekom, vidjeti gdje je proces bio u trenutku pada, koje su vrijednosti varijabli imale, kakav je bio stack trace itd. Naravno, ako za to imamo volje i znanja — u suprotnom core file se može jednostavno obrisati.
 
 ### Hvatanje signala
+
+Iako teoretska priča o hvatanju signala koji nas obavještavaju o nastupanju asinhronih događaja možda zvuči složeno, na sljedećim primjerima pokazat ćemo da se implementacija ovog naizgled složenog koncepta može realizirati u svega nekoliko linija koda.
 
 - [**`potvrdi.c`**](potvrdi.c) — minimalan primjer hvatanja signala koji uvodi sve ključne koncepte rada s njima. Program registrira vlastiti rukovatelj za signal `SIGINT` (signal koji se procesu šalje kad korisnik u terminalu pritisne `Ctrl+C`); kad korisnik pritisne `Ctrl+C` prvi put, program ne završi, nego ispiše poruku da treba pritisnuti `Ctrl+C` još jednom ako se zaista želi izaći. Ovo je obrazac kakav viđamo u stvarnim alatima (npr. `htop`, `vim`) i u skriptama koje se ne smiju nehotice prekinuti.
 
