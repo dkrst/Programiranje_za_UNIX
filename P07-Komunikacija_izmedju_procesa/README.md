@@ -51,15 +51,21 @@ int pipe(int fd[3]);
 
 - **`fd`** — polje od dva cijela broja u koje funkcija upisuje dva nova deskriptora datoteke: `fd[0]` (kraj za **čitanje**) i `fd[2]` (kraj za **pisanje**). Zgodno mnemoničko pomagalo: `0` se često asocira sa standardnim ulazom (čitanjem), `1` sa standardnim izlazom (pisanjem).
 
-Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i čitajući i pisajući deskriptor. U principu, ovaj proces sad može pisati u `fd[2]` i sam čitati to što je napisao iz `fd[0]`, dakle, razgovarati sam sa sobom:
+Nakon stvaranja cjevovoda, proces koji je pozvao `pipe()` drži oba kraja — i čitajući i pisajući deskriptor. U principu, ovaj proces sad može pisati u `fd[2]` i sam čitati to što je napisao iz `fd[0]`, dakle, razgovarati sam sa sobom, kako je prikazano na slici 1:
 
-![Cjevovod odmah nakon poziva pipe()](slike/cjevovod_pipe.png)
+<p align="center">
+  <img src="slike/cjevovod_pipe.png" alt="Proces drži oba kraja cjevovoda"><br>
+  <em>Slika 1: Proces drži oba kraja cjevovoda — može pisati u fd[1] i čitati iz fd[0], tj. razgovarati sam sa sobom.</em>
+</p>
 
 Ljude koji govore sami sa sobom obično "čudno" gledamo, a ni kod procesa ovo nema previše smisla. Cjevovod postaje koristan tek kad ga **dijelimo s drugim procesom**, što se postiže pozivom `fork()` neposredno nakon `pipe()`-a.
 
-Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Proces dijete nasljeđuje sve otvorene deskriptore datoteka roditelja, pa tako oba procesa sada imaju sva četiri "kraja" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). S obzirom da su cjevovodi zamišljeni za jednosmjernu komunikaciju, svaki proces trebao bi zatvoriti onaj kraj koji nema namjeru koristiti: npr. ako će informacija putovati od roditelja prema djetetu, tj. ako roditelj piše a dijete čita, roditelj zatvara `fd[0]`, a dijete `fd[2]`.
+Tipičan obrazac: pozovemo `pipe()` u roditelju, zatim `fork()`. Proces dijete nasljeđuje sve otvorene deskriptore datoteka roditelja, pa tako oba procesa sada imaju sva četiri "kraja" cjevovoda (dva u roditelju, dva u djetetu — naslijeđeni). S obzirom da su cjevovodi zamišljeni za jednosmjernu komunikaciju, svaki proces trebao bi zatvoriti onaj kraj koji nema namjeru koristiti: npr. ako će informacija putovati od roditelja prema djetetu, tj. ako roditelj piše a dijete čita, roditelj zatvara `fd[0]`, a dijete `fd[2]`. Ova situacija prikazana je na slici 2:
 
-![Cjevovod nakon fork() — roditelj piše, dijete čita](slike/cjevovod_fork.png)
+<p align="center">
+  <img src="slike/cjevovod_fork.png" alt="Cjevovod nakon fork() — roditelj piše, dijete čita"><br>
+  <em>Slika 2: Roditelj zatvara fd[0] (svoj kraj za čitanje), dijete zatvara fd[1] (svoj kraj za pisanje). Zatvoreni krajevi cjevovoda prikazani su sivom bojom.</em>
+</p>
 
 Time se uspostavlja jednosmjerni kanal: deskriptor `fd[2]` otvoren za pisanje ostaje otvoren samo u roditelju, dok deskriptor `fd[0]` otvoren za čitanje ostaje otvoren samo u djetetu. Komunikacija u suprotnom smjeru, od djeteta prema roditelju, nije više moguća (barem ne kroz ovaj cjevovod), jer su deskriptori koji bi omogućili komunikaciju u tom smjeru zatvoreni s obje strane. Ako trebamo komunikaciju u oba smjera, uobičajeno je rješenje stvoriti dva cjevovoda, svaki za svoj smjer.
 
@@ -633,9 +639,12 @@ inc  eax             ; korak 2: povecaj eax za 1
 mov  [count], eax    ; korak 3: pohrani vrijednost registra eax natrag u count
 ```
 
-Operacijski sustav u svakom trenutku može prekinuti izvršavanje procesa — između bilo koja dva koraka — i pustiti drugi proces da nastavi. Ako oba procesa rade nad istim podatkom u dijeljenoj memoriji, lako se dogodi sljedeća situacija:
+Operacijski sustav u svakom trenutku može prekinuti izvršavanje procesa — između bilo koja dva koraka — i pustiti drugi proces da nastavi. Ako oba procesa rade nad istim podatkom u dijeljenoj memoriji, lako se dogodi situacija prikazana na slici 3:
 
-![Race condition pri inkrementaciji dijeljenog brojača](slike/race_condition.png)
+<p align="center">
+  <img src="slike/race_condition.png" alt="Stanje utrke pri inkrementaciji dijeljenog brojača"><br>
+  <em>Slika 3: Stanje utrke (race condition) pri inkrementaciji dijeljenog brojača</em>
+</p>
 
 Oba procesa su izvršila po jedno povećanje, ali konačna vrijednost u memoriji je `6`, a ne `7` kako bismo očekivali. Jedna inkrementacija je **izgubljena**, jer su oba procesa pročitala istu staru vrijednost prije nego što je itko stigao zapisati novu. Dok god se procesi izvršavaju neometano (svaki dovrši sva tri koraka prije nego se prebaci na drugog), sve radi ispravno; problem se javlja samo kad ih se "pogode" preklopiti baš oko iste lokacije u strojnom kodu. To čini ovu vrstu pogreške posebno opasnom — javlja se neredovito, i pojavljuje se baš onda kad sustav ima najviše posla.
 
