@@ -4,9 +4,9 @@ U ovom poglavlju dan je uvod u UNIX operacijski sustav: njegovu arhitekturu, org
 
 ## Arhitektura UNIX operacijskog sustava
 
-UNIX je organiziran u nekoliko slojeva apstrakcije, prikazanih na sljedećoj slici:
+UNIX je organiziran u nekoliko slojeva apstrakcije, prikazanih na slici 1:
 
-![Arhitektura UNIX operacijskog sustava](slike/arhitektura.png)
+![Slika 1: Slojevita arhitektura UNIX operacijskog sustava](slike/arhitektura.png)
 
 U središtu se nalazi **jezgra** (engl. *kernel*) — najniži sloj softvera koji izravno upravlja sklopovljem računala (procesorom, memorijom, diskovima, mrežnim sučeljima, ulazno-izlaznim uređajima). Jezgra je jedini dio sustava koji ima privilegirani pristup hardveru; sve ostale komponente — uključujući vlastite uvodne programe poput ljuske — moraju s hardverom komunicirati posredno, kroz nju.
 
@@ -20,7 +20,7 @@ Iznad sistemskih poziva nalaze se **biblioteke funkcija** (engl. *libraries*, li
 
 Najviši sloj čine **aplikacije** — svi korisnički programi: tekstualni editori, web preglednici, baze podataka, inženjerski alati. Sve operacije ostvaruju pozivanjem funkcija iz biblioteka ili izravnim sistemskim pozivima.
 
-Iako je na slici prikazan kao zaseban sloj, **datotečni sustav** zapravo prožima cijelu arhitekturu. Jezgra ga implementira i izlaže putem sistemskih poziva. UNIX-ova filozofija *"sve je datoteka"* znači da se i uređaji, međuprocesna komunikacija i mnogi drugi resursi sustava prikazuju kao datoteke — što znatno pojednostavljuje programiranje jer se sve resursi koriste kroz isto sučelje.
+Iako je na slici 1 prikazan kao zaseban sloj, **datotečni sustav** zapravo prožima cijelu arhitekturu. Jezgra ga implementira i izlaže putem sistemskih poziva. UNIX-ova filozofija *"sve je datoteka"* znači da se i uređaji, međuprocesna komunikacija i mnogi drugi resursi sustava prikazuju kao datoteke — što znatno pojednostavljuje programiranje jer se sve resursi koriste kroz isto sučelje.
 
 ### Kratka povijest UNIX-a
 
@@ -38,9 +38,9 @@ Iako je na slici prikazan kao zaseban sloj, **datotečni sustav** zapravo proži
 
 - **Android (2008)**: Google objavljuje mobilni operacijski sustav za pametne telefone baziran na Linuxu.
 
-- **TOP500**: UNIX dominira na rang-listi 500 najsnažnijih računala na svijetu. Od 2017. godine sva računala na listi TOP500 koriste operacijske sustave bazirane na Linuxu [4]:
+- **TOP500**: UNIX dominira na rang-listi 500 najsnažnijih računala na svijetu. Od 2017. godine sva računala na listi TOP500 koriste operacijske sustave bazirane na Linuxu [4]. Zastupljenost pojedinih sustava kroz godine prikazana je na slici 2:
 
-![Operacijski sustavi na TOP500 superračunala](slike/top500_unix_linux.png)
+![Slika 2: Zastupljenost operacijskih sustava na TOP500 listi superračunala](slike/top500_unix_linux.png)
 
 Čitatelji koji žele saznati više o povijesti UNIX-a mogu posegnuti za knjigom *Kratka povijest UNIX-a: Od UNICS-a do FreeBSD-a i Linuxa* [5].
 
@@ -111,9 +111,9 @@ Za svaku skupinu definirana su tri prava:
 | **w** | pisanje (*write*) | dopušta izmjenu sadržaja datoteke |
 | **x** | izvršavanje (*execute*) | dopušta pokretanje datoteke kao programa |
 
-Dakle, svaka datoteka ima ukupno **devet bitova** prava — tri prava puta tri skupine. Ovih devet bitova pri ispisu naredbom `ls -l` izgleda ovako:
+Dakle, svaka datoteka ima ukupno **devet bitova** prava — tri prava puta tri skupine. Ovih devet bitova pri ispisu naredbom `ls -l` izgleda kako je prikazano na slici 3:
 
-![Prikaz prava rwx](slike/rwx.png)
+![Slika 3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale](slike/rwx.png)
 
 Primjer: prava `rw-r--r--` znače da vlasnik može čitati i pisati, a grupa i ostali samo čitati. Prava `rwxr-x---` znače da vlasnik ima sva tri prava, grupa može čitati i izvršavati, a ostali nemaju nikakva prava.
 

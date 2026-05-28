@@ -625,9 +625,9 @@ Za datoteke koje se nalaze na datotečnom sustavu (obične datoteke, direktoriji
 
 Važno je naglasiti da je većina opisanih struktura **dinamička**: kreiraju se u trenutku otvaranja datoteke i grade se od v-node tablice prema višim razinama apstrakcije (tablica datoteka, pa zatim tablica deskriptora u zapisu procesa). Kad se datoteka zatvori, odgovarajući zapisi u tim tablicama se oslobađaju. I-node tablica je, za razliku od njih, statična struktura koja čuva informaciju o stvarnim podacima datoteke na disku — ona postoji i onda kad datoteka nije otvorena ni u jednom procesu. Kad se datoteka po prvi put otvori, jezgra kopira odgovarajući i-node zapis s diska u memoriju (u takozvanu *in-core i-node tablicu*) i u tom trenutku se on ponaša kao dinamička struktura — sve dok datoteka ostaje otvorena.
 
-Opisane strukture i njihove međusobne veze za jedan proces s dvije otvorene datoteke shematski su prikazane na sljedećoj slici:
+Opisane strukture i njihove međusobne veze za jedan proces s dvije otvorene datoteke shematski su prikazane na slici 1:
 
-![Interne strukture jezgre za jedan proces s dvije otvorene datoteke](slike/io_strukture_jedan_proces.png)
+![Slika 1: Interne strukture jezgre za proces s dvije otvorene datoteke. Deskriptori datoteka 0 (standard input), 1 (standard output) i 2 (standard error) otvoreni su automatski pri pokretanju.](slike/io_strukture_jedan_proces.png)
 
 Slika prikazuje stanje internih struktura jezgre za jedan proces koji je sistemskim pozivima `open` ili `creat` otvorio dvije datoteke — jednu za čitanje (deskriptor 3) i jednu za pisanje (deskriptor 4). Uz njih, u tablici deskriptora postoje i zapisi za standardne tokove na deskriptorima 0, 1 i 2 koji su otvoreni automatski pri pokretanju procesa. Svih pet deskriptora ima vlastite zapise u tablici datoteka, no zanimljivo je primijetiti da svi zapisi za standardne tokove pokazuju na isti v-node zapis — onaj koji predstavlja korisnički terminal (znakovni uređaj `/dev/tty`). Zapisi u tablici datoteka za standardne tokove ne sadrže file offset jer kod znakovnog uređaja apstrakcija apsolutne pozicije unutar datoteke nema smisla — podaci pristižu (ili se šalju) onim redoslijedom kojim ih korisnik unosi (odnosno program ispisuje), bez mogućnosti vraćanja ili preskakanja. Nasuprot tome, deskriptori 3 i 4 pokazuju na zasebne v-node zapise koji predstavljaju regularne datoteke na disku, a u njihovim zapisima u tablici datoteka čuvaju se i odgovarajući file offseti.
 
@@ -639,9 +639,9 @@ UNIX-ova troslojna organizacija struktura podataka prirodno omogućuje različit
 
 ### Dijeljenje na razini v-node tablice
 
-Najjednostavniji i najosnovniji oblik dijeljenja prikazan je na sljedećoj slici: dva procesa, P1 i P2, neovisno jedan o drugome otvaraju istu datoteku, svaki vlastitim pozivom `open`. Zanimljivo je primijetiti da bi i u slučaju kad isti proces pozove `open` dva puta s imenom iste datoteke, rezultat bila dva nezavisna zapisa u tablici datoteka, od kojih svaki ima svoje statusne zastavice i svoj file offset.
+Najjednostavniji i najosnovniji oblik dijeljenja prikazan je na slici 2: dva procesa, P1 i P2, neovisno jedan o drugome otvaraju istu datoteku, svaki vlastitim pozivom `open`. Zanimljivo je primijetiti da bi i u slučaju kad isti proces pozove `open` dva puta s imenom iste datoteke, rezultat bila dva nezavisna zapisa u tablici datoteka, od kojih svaki ima svoje statusne zastavice i svoj file offset.
 
-![Dva procesa nezavisno otvaraju istu datoteku](slike/io_strukture_dva_procesa.png)
+![Slika 2: Dva procesa neovisno otvaraju istu datoteku: vlastiti zapis u tablici datoteka, zajednički v-node](slike/io_strukture_dva_procesa.png)
 
 Iako se radi o istoj datoteci, jezgra svakom procesu dodjeljuje zaseban zapis u tablici datoteka — a samim time i vlastiti, neovisni file offset i vlastite statusne zastavice. Dijeljenje se događa na razini v-node tablice: v-node predstavlja apstrakciju same fizičke datoteke, koja je samo jedna. Praktična posljedica je da svaki proces čita ili piše po istoj datoteci nezavisno — pomak jednog procesa u datoteci ne utječe na poziciju drugoga — dok eventualne izmjene sadržaja postaju vidljive obama procesima jer dijele istu fizičku datoteku.
 
@@ -660,7 +660,7 @@ write(fd, buf, n);          /* upisivanje podataka */
 
 Kao što smo ranije rekli, UNIX je višekorisnički, višezadaćni operacijski sustav, a naši procesi odvijaju se u tzv. **dijeljenom vremenu** (engl. *time-sharing*): svaki proces dobiva računalne resurse na raspolaganje određeni dio vremena, nakon čega biva pauziran i čeka svoj red dok se ostali procesi izvršavaju. Ovo upravljanje resursima, naravno, obavlja jezgra, odnosno njezin specijalizirani dio koji nazivamo **raspoređivač** (engl. *scheduler*). Same izmjene procesa koji se izvršava događaju se u pravilu jako brzo — proces ni u jednom trenutku nema spoznaju o tome da je njegovo izvršavanje nakratko bilo zaustavljeno, a korisnik to obično niti ne primjećuje. Tek u slučaju značajno opterećenog sustava može doći do vidljivog usporavanja i primjetnog čekanja.
 
-Važno je naglasiti da do zaustavljanja procesa može doći u bilo kojem trenutku — na to proces nema nikakav utjecaj i zaustavljanje će nastupiti kad jezgra odluči da je vrijeme da proces prepusti resurse nekom drugom. Konkretno u scenariju koji razmatramo, to znači da raspoređivač može prekinuti izvođenje našeg procesa i između poziva `lseek` i `write`, što može dovesti do sljedećeg scenarija, ilustriranog na slici:
+Važno je naglasiti da do zaustavljanja procesa može doći u bilo kojem trenutku — na to proces nema nikakav utjecaj i zaustavljanje će nastupiti kad jezgra odluči da je vrijeme da proces prepusti resurse nekom drugom. Konkretno u scenariju koji razmatramo, to znači da raspoređivač može prekinuti izvođenje našeg procesa i između poziva `lseek` i `write`, što može dovesti do scenarija ilustriranog na slici 3:
 
 1. Proces A poziva `lseek(fd, 0, SEEK_END)` i pozicionira svoj offset na kraj datoteke, recimo na offset 200.
 2. Raspoređivač prekida proces A i aktivira proces B.
@@ -670,7 +670,7 @@ Važno je naglasiti da do zaustavljanja procesa može doći u bilo kojem trenutk
 6. Proces A poziva `write` — ali njegov offset još uvijek pokazuje na 200, jer se nije ažurirao nakon što je proces B pisao u datoteku (offset procesa A čuva se u zasebnom zapisu u tablici datoteka).
 7. Posljedica: podaci koje je upisao proces B prepisani su podacima procesa A.
 
-![Race condition pri dopisivanju na kraj datoteke bez O_APPEND](slike/write_race_condition.png)
+![Slika 3: Stanje utrke (race condition) pri dopisivanju na kraj datoteke bez zastavice `O_APPEND`](slike/write_race_condition.png)
 
 Ključna spoznaja je da problem ne leži u samom pisanju — problem je što između `lseek` i `write` raspoređivač može aktivirati drugi proces koji mijenja sadržaj datoteke. U tom trenutku offset koji je sačuvao proces A više ne pokazuje na kraj datoteke. Ovakvu situaciju — u kojoj konačni ishod ovisi o tome kojim se redoslijedom odvijaju operacije dvaju ili više procesa — nazivamo **race condition**.
 
@@ -711,11 +711,11 @@ Postoje dva načina na koja do ovog oblika dijeljenja može doći.
 
 **Drugi način** je dupliciranje deskriptora unutar istog procesa korištenjem funkcija `dup` ili `dup2`. Rezultat je da dva (ili više) deskriptora unutar istog procesa pokazuju na isti zapis u tablici datoteka.
 
-![Dijeljenje na razini tablice datoteka](slike/io_strukture_dijeljenje_file_table.png)
+![Slika 4: Dijeljenje zapisa u tablici datoteka: procesi P1 i P2 dijele zapis nakon fork-a, proces P3 ima dva deskriptora koji pokazuju na isti zapis nakon dup (ili dup2)](slike/io_strukture_dijeljenje_file_table.png)
 
-Oba slučaja prikazana su na slici. Gornji dio ilustrira prvi slučaj: procesi P1 i P2 dijele jedan zapis u tablici datoteka — P2 je dijete od P1, stvoreno opisanim mehanizmom. Iako se radi o dva odvojena procesa, oni dijele isti file offset, što znači da pisanje jednog procesa pomiče offset koji vidi i drugi proces. Upravo zato ovakav mehanizam predstavlja jedan od načina rješavanja problema prepisivanja podataka opisanog u podsekciji o race conditionu: umjesto da svaki proces ima vlastiti offset koji može "zaostati" za stvarnim krajem datoteke, svi procesi dijele jedan zajednički offset koji se ažurira pri svakoj operaciji pisanja.
+Oba slučaja prikazana su na slici 4. Gornji dio ilustrira prvi slučaj: procesi P1 i P2 dijele jedan zapis u tablici datoteka — P2 je dijete od P1, stvoreno opisanim mehanizmom. Iako se radi o dva odvojena procesa, oni dijele isti file offset, što znači da pisanje jednog procesa pomiče offset koji vidi i drugi proces. Upravo zato ovakav mehanizam predstavlja jedan od načina rješavanja problema prepisivanja podataka opisanog u podsekciji o race conditionu: umjesto da svaki proces ima vlastiti offset koji može "zaostati" za stvarnim krajem datoteke, svi procesi dijele jedan zajednički offset koji se ažurira pri svakoj operaciji pisanja.
 
-Donji dio slike prikazuje drugi slučaj: proces P3 ima dva deskriptora — fd 3 i fd 4 — koji pokazuju na isti zapis u tablici datoteka. Do ove situacije dolazi pozivom `dup` ili `dup2`, funkcija koje detaljno opisujemo u nastavku.
+Donji dio slike 4 prikazuje drugi slučaj: proces P3 ima dva deskriptora — fd 3 i fd 4 — koji pokazuju na isti zapis u tablici datoteka. Do ove situacije dolazi pozivom `dup` ili `dup2`, funkcija koje detaljno opisujemo u nastavku.
 
 ### Dupliciranje deskriptora — `dup()` i `dup2()`
 
@@ -737,7 +737,7 @@ int dup2(int filedes, int filedes2);
 - **`filedes`** — otvoreni deskriptor koji se duplicira.
 - **`filedes2`** (samo za `dup2`) — ciljni deskriptor na koji se duplicira `filedes`. Ako je `filedes2` već otvoren, `dup2` ga **atomski zatvara** prije dupliciranja. Ako je `filedes2 == filedes`, poziv nema učinka i `dup2` vraća `filedes` bez promjene.
 
-Funkcija `dup` jednostavniji je način dupliciranja deskriptora datoteke: postojeći deskriptor, koji je zadan kao argument funkcije, duplicira se na **najniži slobodni deskriptor**. Na primjer, ukoliko je datoteka otvorena na deskriptoru 3 (sjetimo se da su deskriptori 0, 1 i 2 najčešće zauzeti već pri pokretanju procesa), poziv funkcije `dup` vratit će vrijednost 4, što je ujedno i novi deskriptor datoteke koji je povezan s istim zapisom u tablici datoteka na koji je prethodno pokazivao deskriptor 3. Upravo ova situacija prikazana je na donjem dijelu slike u prethodnoj podsekciji.
+Funkcija `dup` jednostavniji je način dupliciranja deskriptora datoteke: postojeći deskriptor, koji je zadan kao argument funkcije, duplicira se na **najniži slobodni deskriptor**. Na primjer, ukoliko je datoteka otvorena na deskriptoru 3 (sjetimo se da su deskriptori 0, 1 i 2 najčešće zauzeti već pri pokretanju procesa), poziv funkcije `dup` vratit će vrijednost 4, što je ujedno i novi deskriptor datoteke koji je povezan s istim zapisom u tablici datoteka na koji je prethodno pokazivao deskriptor 3. Upravo ova situacija prikazana je na donjem dijelu slike 4 u prethodnoj podsekciji.
 
 Promislimo što bi bio rezultat ako prije pozivanja funkcije `dup` zatvorimo neki od nižih deskriptora datoteke. Ova situacija prikazana je u sljedećem primjeru:
 
