@@ -124,12 +124,14 @@ Za svaku skupinu definirana su tri prava:
 | **w** | pisanje (*write*) | dopušta izmjenu sadržaja datoteke |
 | **x** | izvršavanje (*execute*) | dopušta pokretanje datoteke kao programa |
 
-Dakle, svaka datoteka ima ukupno **devet bitova** prava — tri prava puta tri skupine. Ovih devet bitova pri ispisu naredbom `ls -l` izgleda kako je prikazano na slici 1.3:
+Dakle, svaka datoteka ima ukupno **devet bitova** prava — tri prava puta tri skupine. Kako ne bismo morali preračunavati dekadsku vrijednost 9-znamenkastog binarnog broja, prava pristupa promatramo zasebno za vlasnika, grupu i ostale korisnike sustava:
 
-<p align="center">
-  <img src="slike/rwx.png" alt="Struktura prava pristupa (rwx) za vlasnika, grupu i ostale"><br>
-  <em>Slika 1.3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale</em>
-</p>
+| | *user* | | | *group* | | | *others* | |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| r | w | x | r | w | x | r | w | x |
+| 4 | 2 | 1 | 4 | 2 | 1 | 4 | 2 | 1 |
+
+Svako pravo predstavlja jedan bit s težinom: `r = 4`, `w = 2`, `x = 1`. Pojedini bit može biti uključen (pravo je dodijeljeno) ili isključen (pravo nije dodijeljeno). Apsolutna prava računaju se zasebno za vlasnika, grupu i ostale, zbrajanjem bitnih vrijednosti uključenih prava.
 
 Primjer: prava `rw-r--r--` znače da vlasnik može čitati i pisati, a grupa i ostali samo čitati. Prava `rwxr-x---` znače da vlasnik ima sva tri prava, grupa može čitati i izvršavati, a ostali nemaju nikakva prava.
 
@@ -152,7 +154,7 @@ Bitno je razlikovati pravo brisanja datoteke od prava pisanja na samu datoteku: 
 
 Prava pristupa mijenjamo naredbom `chmod`. Postoje dva načina zadavanja:
 
-**Numerički (apsolutni) način** — svako pravo predstavlja jedan bit s težinom: `r=4`, `w=2`, `x=1`. Zbrajanjem dobivamo brojku za svaku skupinu, a tri brojke (vlasnik, grupa, ostali) zapisujemo zajedno:
+**Numerički (apsolutni) način** — kao što je gore objašnjeno, zbrajanjem bitnih vrijednosti (`r=4`, `w=2`, `x=1`) dobivamo brojku za svaku skupinu, a tri brojke (vlasnik, grupa, ostali) zapisujemo zajedno:
 
 ```
 chmod 644 dat1.txt
@@ -168,7 +170,9 @@ chmod go+rx skripta.sh      # daj grupi i ostalima čitanje i izvršavanje
 chmod a-x dat1.txt          # oduzmi izvršavanje svima
 ```
 
-Simbolički način **mijenja samo navedena prava**, ostala ostaju netaknuta. Ovo je razlika u odnosu na apsolutni način, gdje uvijek navodimo cjelokupna prava odjednom.
+Važno je uočiti razliku između simboličkog i apsolutnog načina zadavanja prava. Kod simboličkog načina mijenjaju se samo navedena prava za navedenu skupinu, a sva ostala prava ostaju nepromijenjena. Naredba neće imati nikakav učinak ako dotična skupina već ima pravo koje želimo dodati, ili nema pravo koje na datoteci želimo oduzeti.
+
+Kod apsolutnog načina uvijek je potrebno navesti sva prava za vlasnika, grupu i ostale. Rezultat naredbe je točno navedeni skup prava, bez obzira na prethodne postavke.
 
 Pored običnih korisnika postoji i poseban korisnik s neograničenim ovlastima — **administrator** ili **superuser**, u UNIX terminologiji nazvan **root**. Za razliku od običnih korisnika, root može čitati, mijenjati i brisati bilo koju datoteku te pokretati i zaustavljati bilo koji proces. Upravo zbog toga administratorski račun treba koristiti s velikim oprezom — greška izvršena s root ovlastima može nepovratno oštetiti sustav.
 
