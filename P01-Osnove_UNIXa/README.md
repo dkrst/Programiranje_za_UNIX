@@ -6,9 +6,10 @@ U ovom poglavlju dan je uvod u UNIX operacijski sustav: njegovu arhitekturu, org
 
 UNIX je organiziran u nekoliko slojeva apstrakcije, prikazanih na slici 1:
 
-![Slojevita arhitektura UNIX operacijskog sustava](slike/arhitektura.png)
-
-*Slika 1: Slojevita arhitektura UNIX operacijskog sustava*
+<p align="center">
+  <img src="slike/arhitektura.png" alt="Slojevita arhitektura UNIX operacijskog sustava"><br>
+  <em>Slika 1: Slojevita arhitektura UNIX operacijskog sustava</em>
+</p>
 
 U središtu se nalazi **jezgra** (engl. *kernel*) — najniži sloj softvera koji izravno upravlja sklopovljem računala (procesorom, memorijom, diskovima, mrežnim sučeljima, ulazno-izlaznim uređajima). Jezgra je jedini dio sustava koji ima privilegirani pristup hardveru; sve ostale komponente — uključujući vlastite uvodne programe poput ljuske — moraju s hardverom komunicirati posredno, kroz nju.
 
@@ -42,9 +43,10 @@ Iako je na slici 1 prikazan kao zaseban sloj, **datotečni sustav** zapravo pro�
 
 - **TOP500**: UNIX dominira na rang-listi 500 najsnažnijih računala na svijetu. Od 2017. godine sva računala na listi TOP500 koriste operacijske sustave bazirane na Linuxu [4]. Zastupljenost pojedinih sustava kroz godine prikazana je na slici 2:
 
-![Zastupljenost operacijskih sustava na TOP500 listi superračunala](slike/top500_unix_linux.png)
-
-*Slika 2: Zastupljenost operacijskih sustava na TOP500 listi superračunala*
+<p align="center">
+  <img src="slike/top500_unix_linux.png" alt="Zastupljenost operacijskih sustava na TOP500 listi superračunala"><br>
+  <em>Slika 2: Zastupljenost operacijskih sustava na TOP500 listi superračunala</em>
+</p>
 
 Čitatelji koji žele saznati više o povijesti UNIX-a mogu posegnuti za knjigom *Kratka povijest UNIX-a: Od UNICS-a do FreeBSD-a i Linuxa* [5].
 
@@ -117,9 +119,10 @@ Za svaku skupinu definirana su tri prava:
 
 Dakle, svaka datoteka ima ukupno **devet bitova** prava — tri prava puta tri skupine. Ovih devet bitova pri ispisu naredbom `ls -l` izgleda kako je prikazano na slici 3:
 
-![Struktura prava pristupa (rwx) za vlasnika, grupu i ostale](slike/rwx.png)
-
-*Slika 3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale*
+<p align="center">
+  <img src="slike/rwx.png" alt="Struktura prava pristupa (rwx) za vlasnika, grupu i ostale"><br>
+  <em>Slika 3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale</em>
+</p>
 
 Primjer: prava `rw-r--r--` znače da vlasnik može čitati i pisati, a grupa i ostali samo čitati. Prava `rwxr-x---` znače da vlasnik ima sva tri prava, grupa može čitati i izvršavati, a ostali nemaju nikakva prava.
 

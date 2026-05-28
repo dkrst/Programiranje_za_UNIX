@@ -627,9 +627,10 @@ Važno je naglasiti da je većina opisanih struktura **dinamička**: kreiraju se
 
 Opisane strukture i njihove međusobne veze za jedan proces s dvije otvorene datoteke shematski su prikazane na slici 1:
 
-![Interne strukture jezgre za proces s dvije otvorene datoteke](slike/io_strukture_jedan_proces.png)
-
-*Slika 1: Interne strukture jezgre za proces s dvije otvorene datoteke. Deskriptori datoteka 0 (standard input), 1 (standard output) i 2 (standard error) otvoreni su automatski pri pokretanju.*
+<p align="center">
+  <img src="slike/io_strukture_jedan_proces.png" alt="Interne strukture jezgre za proces s dvije otvorene datoteke"><br>
+  <em>Slika 1: Interne strukture jezgre za proces s dvije otvorene datoteke. Deskriptori datoteka 0 (standard input), 1 (standard output) i 2 (standard error) otvoreni su automatski pri pokretanju.</em>
+</p>
 
 Slika prikazuje stanje internih struktura jezgre za jedan proces koji je sistemskim pozivima `open` ili `creat` otvorio dvije datoteke — jednu za čitanje (deskriptor 3) i jednu za pisanje (deskriptor 4). Uz njih, u tablici deskriptora postoje i zapisi za standardne tokove na deskriptorima 0, 1 i 2 koji su otvoreni automatski pri pokretanju procesa. Svih pet deskriptora ima vlastite zapise u tablici datoteka, no zanimljivo je primijetiti da svi zapisi za standardne tokove pokazuju na isti v-node zapis — onaj koji predstavlja korisnički terminal (znakovni uređaj `/dev/tty`). Zapisi u tablici datoteka za standardne tokove ne sadrže file offset jer kod znakovnog uređaja apstrakcija apsolutne pozicije unutar datoteke nema smisla — podaci pristižu (ili se šalju) onim redoslijedom kojim ih korisnik unosi (odnosno program ispisuje), bez mogućnosti vraćanja ili preskakanja. Nasuprot tome, deskriptori 3 i 4 pokazuju na zasebne v-node zapise koji predstavljaju regularne datoteke na disku, a u njihovim zapisima u tablici datoteka čuvaju se i odgovarajući file offseti.
 
@@ -643,9 +644,10 @@ UNIX-ova troslojna organizacija struktura podataka prirodno omogućuje različit
 
 Najjednostavniji i najosnovniji oblik dijeljenja prikazan je na slici 2: dva procesa, P1 i P2, neovisno jedan o drugome otvaraju istu datoteku, svaki vlastitim pozivom `open`. Zanimljivo je primijetiti da bi i u slučaju kad isti proces pozove `open` dva puta s imenom iste datoteke, rezultat bila dva nezavisna zapisa u tablici datoteka, od kojih svaki ima svoje statusne zastavice i svoj file offset.
 
-![Dva procesa neovisno otvaraju istu datoteku](slike/io_strukture_dva_procesa.png)
-
-*Slika 2: Dva procesa neovisno otvaraju istu datoteku: vlastiti zapis u tablici datoteka, zajednički v-node*
+<p align="center">
+  <img src="slike/io_strukture_dva_procesa.png" alt="Dva procesa neovisno otvaraju istu datoteku"><br>
+  <em>Slika 2: Dva procesa neovisno otvaraju istu datoteku: vlastiti zapis u tablici datoteka, zajednički v-node</em>
+</p>
 
 Iako se radi o istoj datoteci, jezgra svakom procesu dodjeljuje zaseban zapis u tablici datoteka — a samim time i vlastiti, neovisni file offset i vlastite statusne zastavice. Dijeljenje se događa na razini v-node tablice: v-node predstavlja apstrakciju same fizičke datoteke, koja je samo jedna. Praktična posljedica je da svaki proces čita ili piše po istoj datoteci nezavisno — pomak jednog procesa u datoteci ne utječe na poziciju drugoga — dok eventualne izmjene sadržaja postaju vidljive obama procesima jer dijele istu fizičku datoteku.
 
@@ -674,9 +676,10 @@ Važno je naglasiti da do zaustavljanja procesa može doći u bilo kojem trenutk
 6. Proces A poziva `write` — ali njegov offset još uvijek pokazuje na 200, jer se nije ažurirao nakon što je proces B pisao u datoteku (offset procesa A čuva se u zasebnom zapisu u tablici datoteka).
 7. Posljedica: podaci koje je upisao proces B prepisani su podacima procesa A.
 
-![Stanje utrke pri dopisivanju na kraj datoteke bez O_APPEND](slike/write_race_condition.png)
-
-*Slika 3: Stanje utrke (race condition) pri dopisivanju na kraj datoteke bez zastavice `O_APPEND`*
+<p align="center">
+  <img src="slike/write_race_condition.png" alt="Stanje utrke pri dopisivanju na kraj datoteke bez O_APPEND"><br>
+  <em>Slika 3: Stanje utrke (race condition) pri dopisivanju na kraj datoteke bez zastavice <code>O_APPEND</code></em>
+</p>
 
 Ključna spoznaja je da problem ne leži u samom pisanju — problem je što između `lseek` i `write` raspoređivač može aktivirati drugi proces koji mijenja sadržaj datoteke. U tom trenutku offset koji je sačuvao proces A više ne pokazuje na kraj datoteke. Ovakvu situaciju — u kojoj konačni ishod ovisi o tome kojim se redoslijedom odvijaju operacije dvaju ili više procesa — nazivamo **race condition**.
 
@@ -717,9 +720,10 @@ Postoje dva načina na koja do ovog oblika dijeljenja može doći.
 
 **Drugi način** je dupliciranje deskriptora unutar istog procesa korištenjem funkcija `dup` ili `dup2`. Rezultat je da dva (ili više) deskriptora unutar istog procesa pokazuju na isti zapis u tablici datoteka.
 
-![Dijeljenje zapisa u tablici datoteka](slike/io_strukture_dijeljenje_file_table.png)
-
-*Slika 4: Dijeljenje zapisa u tablici datoteka: procesi P1 i P2 dijele zapis nakon fork-a, proces P3 ima dva deskriptora koji pokazuju na isti zapis nakon dup (ili dup2)*
+<p align="center">
+  <img src="slike/io_strukture_dijeljenje_file_table.png" alt="Dijeljenje zapisa u tablici datoteka"><br>
+  <em>Slika 4: Dijeljenje zapisa u tablici datoteka: procesi P1 i P2 dijele zapis nakon fork-a, proces P3 ima dva deskriptora koji pokazuju na isti zapis nakon dup (ili dup2)</em>
+</p>
 
 Oba slučaja prikazana su na slici 4. Gornji dio ilustrira prvi slučaj: procesi P1 i P2 dijele jedan zapis u tablici datoteka — P2 je dijete od P1, stvoreno opisanim mehanizmom. Iako se radi o dva odvojena procesa, oni dijele isti file offset, što znači da pisanje jednog procesa pomiče offset koji vidi i drugi proces. Upravo zato ovakav mehanizam predstavlja jedan od načina rješavanja problema prepisivanja podataka opisanog u podsekciji o race conditionu: umjesto da svaki proces ima vlastiti offset koji može "zaostati" za stvarnim krajem datoteke, svi procesi dijele jedan zajednički offset koji se ažurira pri svakoj operaciji pisanja.
 
