@@ -1,14 +1,46 @@
 # Osnove UNIX-a
 
-U ovom poglavlju dan je uvod u UNIX operacijski sustav: njegovu arhitekturu, organizaciju datotečnog sustava, prava pristupa, naredbenu ljusku, preusmjeravanje ulaza i izlaza, ulančavanje naredbi, te pisanje shell skripti. Nije riječ o C programiranju — sve što slijedi odvija se u **terminalu**, izravnom interakcijom korisnika s ljuskom. Razumijevanje ovih osnova preduvjet je za sva sljedeća poglavlja, gdje ćemo se baviti programiranjem aplikacija koje se izvršavaju na UNIX sustavima.
+Razvoj operacijskog sustava UNIX započinje krajem šezdesetih godina prošlog stoljeća u tvrtki Bell Labs, s primarnim ciljem omogućavanja istovremenog rada više korisnika na tadašnjim mainframe računalima. Prva službena verzija UNIX-a objavljena je 1971. godine pod autorstvom Dennisa Ritchieja i Kena Thompsona [1], a distribuirana je unutar akademskih i istraživačkih institucija. Unatoč tome što je kroz desetljeća značajno evoluirao i prilagođavao se novim tehnologijama i trendovima, temeljne značajke i ideje na kojima je UNIX građen — kao što su višekorisništvo, višezadaćnost te modularna arhitektura — zadržale su se do danas. Štoviše, može se reći da je UNIX postavio temelje za brojne moderne operacijske sustave koji se danas koriste.
+
+Ključne osobine UNIX operacijskog sustava uključuju:
+
+- **Višekorisnički i višezadaćni**: UNIX je od samog početka dizajniran za istovremeni rad više korisnika, od kojih svaki može pokretati više zadataka istovremeno. Operacijski sustav sam brine o pravednoj raspodjeli procesorskog vremena i ostalih resursa računala.
+
+- **Modularna arhitektura**: Osnovne funkcionalnosti nalaze se u malim, relativno jednostavnim i specijaliziranim programima. Ove funkcionalnosti mogu se kombinirati u veće i složenije cjeline iz aplikativnih programa, ili izravno od strane korisnika korištenjem UNIX ljuske. Ovo načelo poznato je kao UNIX filozofija: svaki program radi jednu stvar, ali je radi dobro [2].
+
+- **UNIX ljuska**: UNIX ljuska (engl. *shell*) nudi naredbeni redak putem kojeg korisnik može zadavati naredbe operacijskom sustavu. Naredbe se interpretiraju te se izvršavaju određene operacije OS-a ili pokreću drugi programi. Rezultat izvođenja naredbe ispisuje se korisniku u naredbeni redak (terminal) putem kojeg je naredba zadana. Osim toga, ljuska se može koristiti i za pisanje skripti — nizova UNIX naredbi zapisanih u tekstualnoj datoteci — što se često koristi za automatizaciju zadataka.
+
+- **Kontrola pristupa i sigurnost**: UNIX ima detaljno razrađene mehanizme vlasništva i kontrole pristupa resursima. Ovi mehanizmi obuhvaćaju podatke u obliku datoteka, ali i sve druge resurse, kao što su procesi koji se izvršavaju, pristup memoriji i računalno sklopovlje. Korisnici imaju različite razine privilegija, što doprinosi sigurnosti sustava.
+
+- **Prenosivost**: UNIX je prenosiv na razini izvornog koda. To znači da izvorni kod programa možemo prevesti na različitim varijantama UNIX operacijskog sustava i na različitim računalnim platformama (različitom sklopovlju). Ova osobina, ostvarena ponajprije pisanjem UNIX-a u programskom jeziku C, bila je revolucionarna u doba kada su operacijski sustavi gotovo bez iznimke bili pisani u sklopovlju ovisnom asemblerskom jeziku.
+
+Važno je naglasiti da danas postoji više varijanti UNIX-a, kao što su BSD (Berkeley Software Distribution), Solaris, IBM AIX te HP-UX (Hewlett-Packard UNIX). Danas najpopularnija i najkorištenija varijanta UNIX-a je Linux, koji je kao studentski projekt razvio Linus Torvalds početkom devedesetih godina prošlog stoljeća, a čije je temeljno obilježje otvoreni kôd (Open Source). UNIX i njegove varijante danas dominiraju na serverskim sustavima, u akademskim krugovima, u industriji te u svim okruženjima koja zahtijevaju robusnost, skalabilnost i fleksibilnost. Otvoreni kôd Linuxa, pak, omogućio je razvoj brojnih operacijskih sustava koje nalazimo na raznim ugradbenim računalima kao i na mobilnim platformama.
+
+> **Kratka povijest UNIX-a**
+>
+> - **1969–1971**: Dennis Ritchie, Ken Thompson i drugi inženjeri razvijaju prvu verziju UNIX-a u tvrtki Bell Labs. Neke od ideja UNIX-a preuzete su iz ranijeg Berkeley Timesharing System razvijenog na sveučilištu Berkeley i MULTICS-a (Multiplexed Information and Computer Services), razvijenog u suradnji Bell Labs i sveučilišta MIT. Prva verzija UNIX-a objavljena je 1971. godine. Tijekom sedamdesetih, UNIX se širi na američkim sveučilištima, što daje dodatni poticaj razvoju novih značajki.
+> - **BSD (1977)**: Berkeley Software Distribution, razvijen na sveučilištu Berkeley, donosi brojna poboljšanja, uključujući virtualnu memoriju, naprednije upravljanje procesima i bolji datotečni sustav. Također, BSD promiče otvoreni kôd (Open Source), što je omogućilo uključivanje šire zajednice programera i entuzijasta te dodatnu popularizaciju UNIX-a.
+> - **1980-e**: Prihvaćanje u industriji i pojava komercijalnih verzija, kao što su AT&T UNIX, SunOS, IBM AIX, SGI IRIX, HP-UX i druge.
+> - **POSIX (1988)**: (Portable Operating System Interface) — standard uspostavljen s ciljem ujednačavanja različitih verzija UNIX-a i osiguranja prenosivosti programa na razini izvornog koda [3].
+> - **Linux (1991)**: Linus Torvalds objavljuje Linux, verziju UNIX-a koja je slobodna i otvorenog koda. Uskoro se pojavljuju različite distribucije Linuxa te kompanije koje nude komercijalnu podršku.
+> - **Android (2008)**: Google objavljuje mobilni operacijski sustav za pametne telefone baziran na Linuxu.
+> - **iOS (2007)**: Apple objavljuje mobilni operacijski sustav za svoje telefone temeljen na BSD UNIX-u.
+> - **TOP500**: UNIX dominira na rang-listi 500 najsnažnijih računala na svijetu. Od 2017. godine sva računala na listi TOP500 koriste operacijske sustave bazirane na Linuxu [4]. Zastupljenost pojedinih sustava kroz godine prikazana je na slici 1.1.
+>
+> Čitatelji koji žele saznati više o povijesti UNIX-a mogu posegnuti za knjigom *Kratka povijest UNIX-a: Od UNICS-a do FreeBSD-a i Linuxa* [5].
+
+<p align="center">
+  <img src="slike/top500_unix_linux.png" alt="Zastupljenost operacijskih sustava na TOP500 listi superračunala"><br>
+  <em>Slika 1.1: Zastupljenost operacijskih sustava na TOP500 listi superračunala</em>
+</p>
 
 ## Arhitektura UNIX operacijskog sustava
 
-UNIX je organiziran u nekoliko slojeva apstrakcije, prikazanih na slici 1.1:
+UNIX je organiziran u nekoliko slojeva apstrakcije, prikazanih na slici 1.2:
 
 <p align="center">
   <img src="slike/arhitektura.png" alt="Slojevita arhitektura UNIX operacijskog sustava"><br>
-  <em>Slika 1.1: Slojevita arhitektura UNIX operacijskog sustava</em>
+  <em>Slika 1.2: Slojevita arhitektura UNIX operacijskog sustava</em>
 </p>
 
 U središtu se nalazi **jezgra** (engl. *kernel*) — najniži sloj softvera koji izravno upravlja sklopovljem računala (procesorom, memorijom, diskovima, mrežnim sučeljima, ulazno-izlaznim uređajima). Jezgra je jedini dio sustava koji ima privilegirani pristup hardveru; sve ostale komponente — uključujući vlastite uvodne programe poput ljuske — moraju s hardverom komunicirati posredno, kroz nju.
@@ -23,32 +55,7 @@ Iznad sistemskih poziva nalaze se **biblioteke funkcija** (engl. *libraries*, li
 
 Najviši sloj čine **aplikacije** — svi korisnički programi: tekstualni editori, web preglednici, baze podataka, inženjerski alati. Sve operacije ostvaruju pozivanjem funkcija iz biblioteka ili izravnim sistemskim pozivima.
 
-Iako je na slici 1.1 prikazan kao zaseban sloj, **datotečni sustav** zapravo prožima cijelu arhitekturu. Jezgra ga implementira i izlaže putem sistemskih poziva. UNIX-ova filozofija *"sve je datoteka"* znači da se i uređaji, međuprocesna komunikacija i mnogi drugi resursi sustava prikazuju kao datoteke — što znatno pojednostavljuje programiranje jer se sve resursi koriste kroz isto sučelje.
-
-### Kratka povijest UNIX-a
-
-- **1969–1971**: Dennis Ritchie, Ken Thompson i drugi inženjeri razvijaju prvu verziju UNIX-a u tvrtki Bell Labs. Neke od ideja UNIX-a preuzete su iz ranijeg Berkeley Timesharing System razvijenog na sveučilištu Berkeley i MULTICS-a (Multiplexed Information and Computer Services), razvijenog u suradnji Bell Labs i sveučilišta MIT. Prva verzija UNIX-a objavljena je 1971. godine. Tijekom sedamdesetih, UNIX se širi na američkim sveučilištima, što daje dodatni poticaj razvoju novih značajki.
-
-- **BSD (1977)**: Berkeley Software Distribution, razvijen na sveučilištu Berkeley, donosi brojna poboljšanja, uključujući virtualnu memoriju, naprednije upravljanje procesima i bolji datotečni sustav. Također, BSD promiče otvoreni kôd (Open Source), što je omogućilo uključivanje šire zajednice programera i entuzijasta te dodatnu popularizaciju UNIX-a.
-
-- **1980-e**: Prihvaćanje u industriji i pojava komercijalnih verzija, kao što su AT&T UNIX, SunOS, IBM AIX, SGI IRIX, HP-UX i druge.
-
-- **POSIX (1988)**: (Portable Operating System Interface) — standard uspostavljen s ciljem ujednačavanja različitih verzija UNIX-a i osiguranja prenosivosti programa na razini izvornog koda.
-
-- **Linux (1991)**: Linus Torvalds objavljuje Linux, verziju UNIX-a koja je slobodna i otvorenog koda. Uskoro se pojavljuju različite distribucije Linuxa te kompanije koje nude komercijalnu podršku.
-
-- **iOS (2007)**: Apple objavljuje mobilni operacijski sustav za svoje telefone temeljen na BSD UNIX-u.
-
-- **Android (2008)**: Google objavljuje mobilni operacijski sustav za pametne telefone baziran na Linuxu.
-
-- **TOP500**: UNIX dominira na rang-listi 500 najsnažnijih računala na svijetu. Od 2017. godine sva računala na listi TOP500 koriste operacijske sustave bazirane na Linuxu [4]. Zastupljenost pojedinih sustava kroz godine prikazana je na slici 1.2:
-
-<p align="center">
-  <img src="slike/top500_unix_linux.png" alt="Zastupljenost operacijskih sustava na TOP500 listi superračunala"><br>
-  <em>Slika 1.2: Zastupljenost operacijskih sustava na TOP500 listi superračunala</em>
-</p>
-
-Čitatelji koji žele saznati više o povijesti UNIX-a mogu posegnuti za knjigom *Kratka povijest UNIX-a: Od UNICS-a do FreeBSD-a i Linuxa* [5].
+Iako je na slici 1.2 prikazan kao zaseban sloj, **datotečni sustav** zapravo prožima cijelu arhitekturu. Jezgra ga implementira i izlaže putem sistemskih poziva. UNIX-ova filozofija *"sve je datoteka"* znači da se i uređaji, međuprocesna komunikacija i mnogi drugi resursi sustava prikazuju kao datoteke — što znatno pojednostavljuje programiranje jer se sve resursi koriste kroz isto sučelje.
 
 ## Sustav datoteka
 
@@ -186,6 +193,10 @@ Ljuska je program koji čita naredbe sa standardnog ulaza (`stdin`), interpretir
 | `man` | otvara priručnik za zadanu naredbu ili sistemski poziv | `man ls` |
 
 **Upozorenje za `rm`**: UNIX nema "koš za smeće" — brisanje je trajno. Posebno opasna kombinacija je `rm -rf` koja briše rekurzivno bez ikakvog upita. Naredba `rm -rf /` (ili neka njezina slučajna varijacija s razmacima) može obrisati cijeli sustav. Uvijek dvaput provjerite što ste utipkali prije nego pritisnete Enter.
+
+> Zadavanjem naredbi iz ljuske možemo pokretati korisničke programe, ali i koristiti naredbe ljuske. Osnovna razlika leži u činjenici da svakom korisničkom programu uvijek odgovara izvršna datoteka — program, koja se pokretanjem učitava u memoriju i izvršava. Nasuprot tome, pokretanjem ugrađenih naredbi ljuske (engl. *Shell Built-in Commands*) aktiviramo funkcije implementirane u samoj ljusci.
+>
+> S aspekta prosječnog korisnika ova razlika nema veliko značenje i nije nužno uočljiva kada ljusci zadamo neku naredbu. Ipak, ugrađene naredbe ovise o izboru ljuske i ne stvaraju novi proces pri izvršavanju. Naredba `cd` je primjer ugrađene naredbe (nema odgovarajuću izvršnu datoteku), a pokretanjem ove naredbe mijenja se radni direktorij ljuske. Pokretanje vanjskog programa uvijek znači i stvaranje novog procesa, dok pokretanje ugrađene naredbe ljuske ne stvara novi proces već se poziva određena funkcionalnost same ljuske — procesa koji se već aktivno izvodi na sklopovlju računala.
 
 ### Pokretanje programa u pozadini
 
