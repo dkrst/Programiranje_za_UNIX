@@ -351,27 +351,146 @@ Da bi se ilustrirale razlike u sintaksi između `bash` i `csh` ljusaka, u nastav
 
 **`if`/`else` grananje** — provjera postoji li datoteka zadana kao argument skripte:
 
-| bash | csh |
-|---|---|
-| <pre>#!/bin/bash<br>if [ -f "$1" ]; then<br>    echo "$1 postoji"<br>else<br>    echo "$1 ne postoji"<br>fi</pre> | <pre>#!/usr/bin/csh<br>if ( -f "$argv[1]" ) then<br>    echo "$argv[1] postoji"<br>else<br>    echo "$argv[1] ne postoji"<br>endif</pre> |
+<table width="100%">
+<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<tr valign="top">
+<td width="50%">
+
+```bash
+#!/bin/bash
+if [ -f "$1" ]; then
+    echo "$1 postoji"
+else
+    echo "$1 ne postoji"
+fi
+```
+
+</td>
+<td width="50%">
+
+```csh
+#!/usr/bin/csh
+if ( -f "$argv[1]" ) then
+    echo "$argv[1] postoji"
+else
+    echo "$argv[1] ne postoji"
+endif
+```
+
+</td>
+</tr>
+</table>
 
 **`while` petlja** — odbrojavanje unazad od broja zadanog kao argument:
 
-| bash | csh |
-|---|---|
-| <pre>#!/bin/bash<br>a=$1<br>while [ $a -gt 0 ]; do<br>    echo $a<br>    (( a-- ))<br>done</pre> | <pre>#!/usr/bin/csh<br>set a=$1<br>while ( $a > 0 )<br>    echo $a<br>    @ a--<br>end</pre> |
+<table width="100%">
+<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<tr valign="top">
+<td width="50%">
+
+```bash
+#!/bin/bash
+a=$1
+while [ $a -gt 0 ]; do
+    echo $a
+    (( a-- ))
+done
+```
+
+</td>
+<td width="50%">
+
+```csh
+#!/usr/bin/csh
+set a=$1
+while ( $a > 0 )
+    echo $a
+    @ a--
+end
+```
+
+</td>
+</tr>
+</table>
 
 **`for`/`foreach` petlja** — listanje sadržaja direktorija sortiranog po vremenu izmjene:
 
-| bash | csh |
-|---|---|
-| <pre>#!/bin/bash<br>a=$(ls -t $1)<br>for i in $a; do<br>    echo $i<br>done</pre> | <pre>#!/usr/bin/csh<br>set a=`ls -t $1`<br>foreach i ($a)<br>    echo $i<br>end</pre> |
+<table width="100%">
+<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<tr valign="top">
+<td width="50%">
+
+```bash
+#!/bin/bash
+a=$(ls -t $1)
+for i in $a; do
+    echo $i
+done
+```
+
+</td>
+<td width="50%">
+
+```csh
+#!/usr/bin/csh
+set a=`ls -t $1`
+foreach i ($a)
+    echo $i
+end
+```
+
+</td>
+</tr>
+</table>
 
 **`case`/`switch` grananje** — listanje s izborom načina prikaza (po veličini ili po vremenu), ovisno o prvom argumentu skripte:
 
-| bash | csh |
-|---|---|
-| <pre>#!/bin/bash<br>case $1 in<br>    size)<br>        a=$(ls -S $2)<br>        ;;<br>    time)<br>        a=$(ls -t $2)<br>        ;;<br>    *)<br>        a=$(ls $2)<br>        ;;<br>esac<br>for i in $a; do<br>    echo $i<br>done</pre> | <pre>#!/usr/bin/csh<br>switch ($1)<br>    case size:<br>        set a=`ls -S $2`<br>        breaksw<br>    case time:<br>        set a=`ls -t $2`<br>        breaksw<br>    default:<br>        set a=`ls $2`<br>endsw<br>foreach i ($a)<br>    echo $i<br>end</pre> |
+<table width="100%">
+<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<tr valign="top">
+<td width="50%">
+
+```bash
+#!/bin/bash
+case $1 in
+    size)
+        a=$(ls -S $2)
+        ;;
+    time)
+        a=$(ls -t $2)
+        ;;
+    *)
+        a=$(ls $2)
+        ;;
+esac
+for i in $a; do
+    echo $i
+done
+```
+
+</td>
+<td width="50%">
+
+```csh
+#!/usr/bin/csh
+switch ($1)
+    case size:
+        set a=`ls -S $2`
+        breaksw
+    case time:
+        set a=`ls -t $2`
+        breaksw
+    default:
+        set a=`ls $2`
+endsw
+foreach i ($a)
+    echo $i
+end
+```
+
+</td>
+</tr>
+</table>
 
 Naredba `break` prekida izvršavanje petlje, a naredba `continue` preskače ostatak trenutne iteracije i nastavlja s idućom. Obje naredbe rade jednako u `bash` i `csh` ljusci.
 
