@@ -351,10 +351,11 @@ Da bi se ilustrirale razlike u sintaksi između `bash` i `csh` ljusaka, u nastav
 
 **`if`/`else` grananje** — provjera postoji li datoteka zadana kao argument skripte:
 
-<table width="100%">
-<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<table width="80%">
+<colgroup><col width="40%"><col width="40%"></colgroup>
+<tr><th>bash</th><th>csh</th></tr>
 <tr valign="top">
-<td width="50%">
+<td>
 
 ```bash
 #!/bin/bash
@@ -366,7 +367,7 @@ fi
 ```
 
 </td>
-<td width="50%">
+<td>
 
 ```csh
 #!/usr/bin/csh
@@ -383,10 +384,11 @@ endif
 
 **`while` petlja** — odbrojavanje unazad od broja zadanog kao argument:
 
-<table width="100%">
-<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<table width="80%">
+<colgroup><col width="40%"><col width="40%"></colgroup>
+<tr><th>bash</th><th>csh</th></tr>
 <tr valign="top">
-<td width="50%">
+<td>
 
 ```bash
 #!/bin/bash
@@ -398,7 +400,7 @@ done
 ```
 
 </td>
-<td width="50%">
+<td>
 
 ```csh
 #!/usr/bin/csh
@@ -415,10 +417,11 @@ end
 
 **`for`/`foreach` petlja** — listanje sadržaja direktorija sortiranog po vremenu izmjene:
 
-<table width="100%">
-<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<table width="80%">
+<colgroup><col width="40%"><col width="40%"></colgroup>
+<tr><th>bash</th><th>csh</th></tr>
 <tr valign="top">
-<td width="50%">
+<td>
 
 ```bash
 #!/bin/bash
@@ -429,7 +432,7 @@ done
 ```
 
 </td>
-<td width="50%">
+<td>
 
 ```csh
 #!/usr/bin/csh
@@ -445,10 +448,11 @@ end
 
 **`case`/`switch` grananje** — listanje s izborom načina prikaza (po veličini ili po vremenu), ovisno o prvom argumentu skripte:
 
-<table width="100%">
-<tr><th width="50%">bash</th><th width="50%">csh</th></tr>
+<table width="80%">
+<colgroup><col width="40%"><col width="40%"></colgroup>
+<tr><th>bash</th><th>csh</th></tr>
 <tr valign="top">
-<td width="50%">
+<td>
 
 ```bash
 #!/bin/bash
@@ -469,7 +473,7 @@ done
 ```
 
 </td>
-<td width="50%">
+<td>
 
 ```csh
 #!/usr/bin/csh
