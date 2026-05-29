@@ -587,7 +587,7 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
   - **Uvjet `argc < 2`** — ako je program pokrenut bez imena datoteke, poziva se `rw(STDIN_FILENO, STDOUT_FILENO)` — standardni ulaz se prepisuje na standardni izlaz, potpuno isto kao u primjeru `io_copy.c`, ali ovaj put znak po znak.
   - **`for` petlja po argumentima** — u slučaju da je navedena jedna ili više datoteka, petlja redom prolazi kroz `argv[1]` do `argv[argc-1]`, otvara svaku pozivom `open()` s `O_RDONLY`, i njezin sadržaj ispisuje na standardni izlaz pozivom iste funkcije `rw()` — ali sada s file deskriptorom otvorene datoteke umjesto `STDIN_FILENO`. Nakon ispisa datoteka se zatvara pozivom `close()`, a petlja nastavlja sa sljedećom.
 
-  Ovaj primjer ilustrira jednu od temeljnih posljedica UNIX načela *"sve je datoteka"*: ista funkcija `rw()`, napisana nad općim file deskriptorima, radi bez izmjena kako s običnim datotekama tako i sa standardnim tokovima. Programeru je svejedno odakle podaci dolaze — logika prijenosa je jedinstvena.
+  Ovaj primjer ilustrira jednu od temeljnih posljedica UNIX načela *"sve je datoteka"*: ista funkcija `rw()`, napisana nad općim file deskriptorima, radi bez izmjena kako s običnim datotekama tako i sa standardnim ulazno/izlaznim tokovima. Programeru je svejedno odakle podaci dolaze — logika i implementacija čitanja i pisanja je jedinstvena.
 
   Pokretanjem programa s različitim argumentima dobivamo različito ponašanje:
 
