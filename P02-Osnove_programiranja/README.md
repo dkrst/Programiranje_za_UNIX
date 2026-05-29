@@ -20,7 +20,7 @@ Sintaksu C-a podrazumijevamo poznatom — za sustavno učenje samog jezika prepo
 Postupak dobivanja izvršne datoteke, tj. programa koji možemo učitati u memoriju i pokrenuti, sastoji se od dva osnovna koraka i uključuje više različitih tipova datoteka. Ovaj proces započinje pisanjem izvornog koda koji, u slučaju programskog jezika **C**, uključuje datoteke izvornog koda (datoteke s ekstenzijom **.c**) i datoteke zaglavlja (ekstenzija **.h**). Osnovni koraci ovog procesa prikazani su na slici 2.1:
 
 <p align="center">
-  <img src="slike/prevodjenje.png" alt="Prevođenje i povezivanje"><br>
+  <img src="slike/prevodjenje.png" alt="Prevođenje i povezivanje" width="60%"><br>
   <em>Slika 2.1: Prevođenje i povezivanje</em>
 </p>
 
