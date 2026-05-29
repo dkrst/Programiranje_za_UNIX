@@ -42,6 +42,10 @@ Postupak dobivanja izvršne datoteke, tj. programa koji možemo učitati u memor
 
 **GCC**, besplatan prevodilac otvorenog koda, dio je **GNU** paketa prevodilaca koji uključuje prevodilace za **C**, **C++**, **Fortran**, **Ada**, **Go** i druge programske jezike, kao i libove potrebne za povezivanje programa. Dostupan je pod **GPL** (*General Public License*) licencom za brojne platforme s ciljem omogućavanja razvoja prenosivog koda za različite arhitekture i okruženja. **GCC** prevodilac se koristi za prevođenje i povezivanje (*compiling & linking*) **C** i **C++** izvornog koda.
 
+> **Što je GNU?**
+>
+> GNU (rekurzivni akronim za *GNU's Not UNIX*) je projekt slobodnog softvera koji je 1983. godine pokrenuo Richard Stallman s ciljem stvaranja potpuno slobodnog UNIX-kompatibilnog operacijskog sustava. GNU projekt razvio je velik broj ključnih alata koje danas svakodnevno koristimo: `gcc` (prevodilac), `make`, `bash`, `gdb` (debugger), `emacs`, `coreutils` (`ls`, `cp`, `mv`, ...) i mnoge druge. Kad je 1991. Linus Torvalds objavio Linux jezgru, ona se prirodno kombinirala s GNU alatima, što je dalo cjelovit slobodan operacijski sustav koji mnogi nazivaju **GNU/Linux**. Zaklada za slobodan softver (engl. *Free Software Foundation*, FSF), koja stoji iza GNU projekta, danas također održava i licencu GPL (engl. *GNU General Public License*) pod kojom se objavljuje velik dio slobodnog softvera.
+
 ### Sintaksa i osnovne opcije
 
 ```sh
@@ -174,10 +178,6 @@ Ovaj uvid je upravo razlog postojanja alata `make`. U projektu od nekoliko datot
 make              # izvršava prvo pravilo u Makefileu
 make ime_pravila  # izvršava navedeno pravilo
 ```
-
-> **Što je GNU?**
->
-> GNU (rekurzivni akronim za *GNU's Not UNIX*) je projekt slobodnog softvera koji je 1983. godine pokrenuo Richard Stallman s ciljem stvaranja potpuno slobodnog UNIX-kompatibilnog operacijskog sustava. GNU projekt razvio je velik broj ključnih alata koje danas svakodnevno koristimo: `gcc` (prevodilac), `make`, `bash`, `gdb` (debugger), `emacs`, `coreutils` (`ls`, `cp`, `mv`, ...) i mnoge druge. Kad je 1991. Linus Torvalds objavio Linux jezgru, ona se prirodno kombinirala s GNU alatima, što je dalo cjelovit slobodan operacijski sustav koji mnogi nazivaju **GNU/Linux**. Zaklada za slobodan softver (engl. *Free Software Foundation*, FSF), koja stoji iza GNU projekta, danas također održava i licencu GPL (engl. *GNU General Public License*) pod kojom se objavljuje velik dio slobodnog softvera.
 
 ### Struktura pravila
 
