@@ -1,8 +1,82 @@
 # Osnove programiranja
 
-U ovom poglavlju dan je uvod u proces prevođenja i povezivanja C programa ilustriran jednostavnim primjerima. Sintaksu C-a podrazumijevamo poznatom — za sustavno učenje samog jezika preporučujemo klasičnu *The C Programming Language*, Kernighan & Ritchie [1], odnosno na hrvatskom jeziku FESB-ovu nastavnu skriptu *Programiranje C jezikom*, Mateljan [2], dostupnu i u digitalnom obliku.
+U ovom poglavlju opisani su osnovni koraci u procesu stvaranja programske podrške — od prve napisane linije izvornog koda do trenutka kada korisnik pokrene gotovu aplikaciju. Obrađeni su sljedeći koraci i alati:
 
-### Najjednostavniji program
+- **prevođenje i povezivanje** — postupak kojim izvorni kod postaje izvršna datoteka, te tipovi datoteka koji u tom procesu sudjeluju,
+- **GCC** — GNU prevodilac za C i C++, njegova sintaksa i najvažnije opcije,
+- **make** — alat za automatiziranje prevođenja u projektima s više datoteka izvornog koda,
+- **arhive objektnog koda** — stvaranje i korištenje statičkih biblioteka funkcija.
+
+Iako se navedeni postupci i primjeri u prvom redu odnose na razvoj programske podrške za operacijski sustav UNIX u programskom jeziku **C**, opisani principi prevođenja i povezivanja, uz manje razlike, vrijede za većinu operacijskih sustava i prevodilačkih programskih jezika.
+
+> **Prevodilački i interpreterski jezici**
+>
+> Pored prevodilačkih programskih jezika, kod kojih se izvorni kod postupkom prevođenja i povezivanja pretvara u izvršnu datoteku, tj. strojni kôd, postoje i interpreterski jezici. Kod interpreterskih jezika naredbe izvornog koda analiziraju se i izvršavaju u trenutku izvođenja — dobar primjer su shell skripte opisane u poglavlju 1.
+
+Sintaksu C-a podrazumijevamo poznatom — za sustavno učenje samog jezika preporučujemo klasičnu *The C Programming Language*, Kernighan & Ritchie [1], odnosno na hrvatskom jeziku FESB-ovu nastavnu skriptu *Programiranje C jezikom*, Mateljan [2], dostupnu i u digitalnom obliku.
+
+## Prevođenje i povezivanje izvornog koda
+
+Postupak dobivanja izvršne datoteke, tj. programa koji možemo učitati u memoriju i pokrenuti, sastoji se od dva osnovna koraka i uključuje više različitih tipova datoteka. Ovaj proces započinje pisanjem izvornog koda koji, u slučaju programskog jezika **C**, uključuje datoteke izvornog koda (datoteke s ekstenzijom **.c**) i datoteke zaglavlja (ekstenzija **.h**). Osnovni koraci ovog procesa prikazani su na slici 2.1:
+
+<p align="center">
+  <img src="slike/prevodjenje.png" alt="Prevođenje i povezivanje"><br>
+  <em>Slika 2.1: Prevođenje i povezivanje</em>
+</p>
+
+- **Prevođenje** (*Compiling*)
+  Programski prevodilac analizira izvorni kod i prevodi ga u objektni. Ovaj postupak započinje obradom *predprocesorom* koji kod priprema za prevođenje, dio čega je i uključivanje datoteka zaglavlja (**.h**) u izvorni kod. Svaka datoteka izvornog koda prevodi se u datoteku objektnog koda (ekstenzija **.o**).
+
+- **Povezivanje** (*Linking*)
+  Datoteke objektnog koda povezuju se u izvršnu datoteku. Pored objektnih datoteka, u postupku povezivanja kao ulazne datoteke koriste se i arhive funkcija ili *statički libovi*. Libovi su kolekcije objektnih datoteka pohranjenih na način da je iz njih moguće izdvojiti objektne datoteke u izvornom obliku. Da bi u postupku povezivanja iz datoteka objektnog koda mogla biti generirana izvršna datoteka, u točno jednoj objektnoj datoteci mora biti definirana funkcija *main*, koja predstavlja ulaznu točku programa.
+
+> **Integrirana razvojna okruženja (IDE)**
+>
+> Moderna integrirana razvojna okruženja (*Integrated Development Environment* — IDE) programeru olakšavaju postupak prevođenja izvornog koda u izvršnu datoteku. Ovi programi automatski generiraju datoteku s pravilima za prevođenje i povezivanje, a korisnik proces stvaranja izvršne datoteke pokreće jednostavnim odabirom opcije *build*. Pored automatiziranog prevođenja i povezivanja, integrirana razvojna okruženja obično uključuju editor, program za pronalaženje pogrešaka (*debugger*), alate za automatsko generiranje koda (*wizards*), alate za kreiranje korisničkog sučelja (*Graphical User Interface* — GUI) i druge dodatke koji značajno olakšavaju i ubrzavaju proces razvoja programske podrške.
+>
+> Kod ovih je sustava dobar dio postupaka i koraka u stvaranju programa skriven od programera, pa mnogi, čak i iskusniji programeri slabo poznaju procese koji su potrebni da bi od izvornog koda nastala njihova najnovija aplikacija. Iako je ovim život programera značajno olakšan, svaki programer koji drži do sebe trebao bi ovladati osnovnim principima i koracima u prevođenju i povezivanju izvornog koda, kao i shvatiti odnose među tipovima datoteka koje u tom procesu sudjeluju, čime stvara temelj za kvalitetniji razvoj programerske vještine.
+>
+> Za razvoj programske podrške na UNIX sustavima danas je na raspolaganju više kvalitetnih integriranih razvojnih okruženja. Među najpopularnijima su *Visual Studio Code* (besplatan, s bogatim skupom dodataka), *CLion* (komercijalan, namijenjen C i C++ razvoju) te *Eclipse CDT* (besplatan, otvorenog koda).
+
+## GCC — GNU projekt C i C++ prevodilac
+
+**GCC**, besplatan prevodilac otvorenog koda, dio je **GNU** paketa prevodilaca koji uključuje prevodilace za **C**, **C++**, **Fortran**, **Ada**, **Go** i druge programske jezike, kao i libove potrebne za povezivanje programa. Dostupan je pod **GPL** (*General Public License*) licencom za brojne platforme s ciljem omogućavanja razvoja prenosivog koda za različite arhitekture i okruženja. **GCC** prevodilac se koristi za prevođenje i povezivanje (*compiling & linking*) **C** i **C++** izvornog koda.
+
+### Sintaksa i osnovne opcije
+
+```sh
+gcc [opcije] ulazne_datoteke
+```
+
+U daljnjem tekstu navedene su osnovne opcije i tipovi datoteka koje **gcc** koristi. Detaljnu uputu za korištenje **gcc** prevodilaca moguće je dobiti naredbom `man gcc`.
+
+- **`-c`** — samo prevođenje, bez povezivanja (rezultat je objektna datoteka)
+- **`-O`**`razina` — razina optimizacije (0–3)
+- **`-g`** — generira informaciju za *debugger* (program za pronalaženje grešaka)
+- **`-I`**`dir` — uključi `dir` u listu direktorija s datotekama zaglavlja
+- **`-L`**`dir` — uključi `dir` u listu direktorija s arhivama objektnog koda
+- **`-Wall`** — prikaži sva upozorenja (*Warning all*)
+- **`-o`** `datoteka` — naziv izlazne datoteke
+
+Ukoliko ime izlazne izvršne datoteke nije eksplicitno navedeno opcijom **`-o`**, uobičajeno ime izvršne datoteke je `a.out`. Ukoliko se koristi opcija **`-c`**, izlazna datoteka je datoteka objektnog koda. Ime objektne datoteke stvorene iz datoteke izvornog koda imena `ime.sufiks` (na primjer `ime.c`) je `ime.o`.
+
+### Ulazni tipovi datoteka
+
+Nakon pokretanja, **gcc** obavlja predprocesiranje, prevođenje i povezivanje. Tipovi datoteka koji se mogu pojaviti kao ulazne datoteke za **gcc** uključuju:
+
+- **`datoteka.c`** — C izvorni kod koji je potrebno predprocesirati
+- **`datoteka.i`** — C izvorni kod koji se ne predprocesira
+- **`datoteka.h`** — C ili C++ datoteka zaglavlja, obrađuje se u fazi predprocesiranja
+- **`datoteka.cc`**, **`datoteka.cp`**, **`datoteka.cpp`**, **`datoteka.CPP`**, **`datoteka.cxx`**, **`datoteka.c++`**, **`datoteka.C`** — C++ izvorni kod koji je potrebno predprocesirati
+- **`datoteka.ii`** — C++ izvorni kod koji se ne predprocesira
+- **`datoteka.hh`**, **`datoteka.H`** — C++ datoteka zaglavlja, obrađuje se u fazi predprocesiranja
+- **`datoteka.o`**, **`datoteka.a`** — objektni kod, koristi se u fazi povezivanja. Pored datoteka s ekstenzijom **`.o`** (objektne datoteke) i **`.a`** (arhive objektnog koda), **gcc** sve datoteke koje ne prepoznaje kao jedan od uobičajenih ulaznih tipova (pored ovdje navedenih postoje i drugi) tretira kao datoteke objektnog koda.
+
+### Primjeri korištenja
+
+U sljedećim sekcijama upoznajemo se s dva primjera C programa — najprije najjednostavnijim, a zatim primjerom s funkcijom razdvojenom u zasebnu datoteku — te kroz njih obrađujemo praktične načine korištenja **gcc**-a, ručnim pokretanjem i automatizacijom pomoću alata `make`.
+
+## Najjednostavniji program
 
 Sljedeći primjer demonstrira osnovnu strukturu C programa i tok prevođenja izvornog koda u izvršnu datoteku:
 
@@ -18,7 +92,28 @@ Sljedeći primjer demonstrira osnovnu strukturu C programa i tok prevođenja izv
   }
   ```
 
-### Program u više datoteka
+### Prevođenje u jednom koraku
+
+Za `pozdrav.c`, koji ne ovisi o drugim datotekama izvornog koda, dovoljan je jedan poziv prevodioca:
+
+```sh
+gcc -Wall pozdrav.c -o pozdrav
+```
+
+Zastavica `-Wall` uključuje tipična upozorenja prevodioca; `-o pozdrav` određuje ime izlazne izvršne datoteke. Bez `-o`, rezultat bi se zvao `a.out`.
+
+### Prevođenje u dva koraka
+
+Postupak generiranja izvršne datoteke zapravo se sastoji od dvije odvojene faze. U prvoj fazi (**prevođenje**, engl. *compilation*) prevodilac iz datoteke izvornog koda proizvodi datoteku objektnog koda. U drugoj fazi (**povezivanje**, engl. *linking*) jedna ili više objektnih datoteka spaja se u izvršni program, uz eventualno uključivanje simbola iz vanjskih biblioteka. Oba koraka mogu se pokrenuti odvojeno:
+
+```sh
+gcc -Wall -c pozdrav.c              # prevođenje: pozdrav.c -> pozdrav.o
+gcc -Wall pozdrav.o -o pozdrav      # povezivanje: pozdrav.o -> pozdrav
+```
+
+Zastavica `-c` nalaže prevodiocu da stane nakon faze prevođenja i ne pokreće povezivanje.
+
+## Program u više datoteka
 
 Funkcionalno, primjer iz ovog odjeljka radi potpuno isto što i prethodni `pozdrav` — ispisuje istu poruku na standardni izlaz. Razlika je u tome što je kod razbijen u tri datoteke: zaglavlje s deklaracijom funkcije, C datoteku izvornog koda s njezinom definicijom i glavni program koji funkciju poziva. Ovaj umjetno složeniji oblik služi nam da objasnimo proces prevođenja i povezivanja u prisutnosti više prevodbenih jedinica. U realnim programima organizacija koda u više datoteka je gotovo univerzalno pravilo, pa je ovaj minimalni primjer dobra polazna točka za razumijevanje takvog načina rada.
 
@@ -57,30 +152,7 @@ Funkcionalno, primjer iz ovog odjeljka radi potpuno isto što i prethodni `pozdr
 
 Ovaj skup datoteka ilustrira osnovnu organizaciju projekta u više prevodbenih jedinica: zaglavlje `.h` sadrži deklaraciju i dijeli se između jedinica koje funkciju pozivaju i one koja ju definira, dok se `.c` datoteke prevode neovisno i kasnije povezuju u izvršni program.
 
-## Prevođenje
-
-### Ručno prevođenje u jednom koraku
-
-Za `pozdrav.c`, koji ne ovisi o drugim datotekama izvornog koda, dovoljan je jedan poziv prevodioca:
-
-```sh
-gcc -Wall pozdrav.c -o pozdrav
-```
-
-Zastavica `-Wall` uključuje tipična upozorenja prevodioca; `-o pozdrav` određuje ime izlazne izvršne datoteke. Bez `-o`, rezultat bi se zvao `a.out`.
-
-### Ručno prevođenje u dva koraka
-
-Postupak generiranja izvršne datoteke zapravo se sastoji od dvije odvojene faze. U prvoj fazi (**prevođenje**, engl. *compilation*) prevodilac iz datoteke izvornog koda proizvodi datoteku objektnog koda. U drugoj fazi (**povezivanje**, engl. *linking*) jedna ili više objektnih datoteka spaja se u izvršni program, uz eventualno uključivanje simbola iz vanjskih biblioteka. Oba koraka mogu se pokrenuti odvojeno:
-
-```sh
-gcc -Wall -c pozdrav.c              # prevođenje: pozdrav.c -> pozdrav.o
-gcc -Wall pozdrav.o -o pozdrav      # povezivanje: pozdrav.o -> pozdrav
-```
-
-Zastavica `-c` nalaže prevodiocu da stane nakon faze prevođenja i ne pokreće povezivanje.
-
-### Ručno prevođenje programa iz više datoteka
+### Prevođenje programa iz više datoteka
 
 Za `pozdrav_fn` potrebno je prevesti dvije izvorne datoteke u objektne, a zatim ih povezati u jedan izvršni program:
 
@@ -94,7 +166,7 @@ Ovdje se jasno vidi razlika između dviju faza koje smo ranije spomenuli — **p
 
 Ovaj uvid je upravo razlog postojanja alata `make`. U projektu od nekoliko datoteka, ručno paziti koja se `.c` smije propustiti pri ponovnom prevođenju brzo postaje naporno i podložno greškama. `make` taj posao automatizira: na temelju vremena zadnje izmjene svake datoteke, sam odluči koje `.o` treba ponovno generirati, a koje su već svježe, i izvodi samo nužne korake.
 
-### Korištenje alata `make`
+## Korištenje alata `make`
 
 `make` je alat koji automatizira upravo takav proces. Iz datoteke s pravilima (`Makefile`) čita koje ulazne datoteke čine projekt, kako ovise jedna o drugoj i kojim se naredbama iz njih generiraju izlazne datoteke. Na temelju vremena zadnje izmjene datoteka, `make` ponovno prevodi samo one koje su mijenjane od posljednjeg prevođenja, i ništa više. U nastavku obrađujemo samo onoliko mogućnosti koliko nam je potrebno za vlastite primjere — `make` je znatno bogatiji alat, a definitivna referenca za sve njegove mogućnosti je *GNU Make Manual*, Stallman, McGrath & Smith [3], opsežan priručnik besplatno dostupan online na stranicama GNU projekta. Pokreće se tako da se u direktoriju s `Makefile`-om zada:
 
@@ -107,7 +179,7 @@ make ime_pravila  # izvršava navedeno pravilo
 >
 > GNU (rekurzivni akronim za *GNU's Not UNIX*) je projekt slobodnog softvera koji je 1983. godine pokrenuo Richard Stallman s ciljem stvaranja potpuno slobodnog UNIX-kompatibilnog operacijskog sustava. GNU projekt razvio je velik broj ključnih alata koje danas svakodnevno koristimo: `gcc` (prevodilac), `make`, `bash`, `gdb` (debugger), `emacs`, `coreutils` (`ls`, `cp`, `mv`, ...) i mnoge druge. Kad je 1991. Linus Torvalds objavio Linux jezgru, ona se prirodno kombinirala s GNU alatima, što je dalo cjelovit slobodan operacijski sustav koji mnogi nazivaju **GNU/Linux**. Zaklada za slobodan softver (engl. *Free Software Foundation*, FSF), koja stoji iza GNU projekta, danas također održava i licencu GPL (engl. *GNU General Public License*) pod kojom se objavljuje velik dio slobodnog softvera.
 
-#### Struktura pravila
+### Struktura pravila
 
 Svako pravilo ima oblik:
 
@@ -120,7 +192,7 @@ cilj: ovisnosti
 - **ovisnosti** je popis datoteka o kojima cilj ovisi — ako je bilo koja od njih novija od cilja, pravilo se izvršava.
 - **naredbe** su naredbe ljuske koje pravilo izvršava. **Moraju** biti uvučene tabulatorom, ne razmacima.
 
-#### Gradnja Makefilea korak po korak
+### Gradnja Makefilea korak po korak
 
 Krenut ćemo od najjednostavnije verzije i postupno je poboljšavati.
 
