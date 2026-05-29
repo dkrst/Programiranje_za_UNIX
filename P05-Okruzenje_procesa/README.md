@@ -1,8 +1,30 @@
 # Okruženje procesa
 
+Proces je jedan od fundamentalnih koncepata UNIX-a, kao i bilo kojeg drugog operacijskog sustava, te predstavlja osnovnu jedinicu izvršavanja koja omogućuje pokretanje programa. UNIX proces aktivni je entitet s obilježjima koja uključuju jedinstveni identifikator procesa (engl. *Process ID* — **PID**), vlasnika procesa, prioritet procesa, stanje procesa, vremena izvršavanja i pridijeljene resurse. Svaki UNIX proces samostalna je instanca izvršavanja zadanog programa, pri čemu više procesa istovremeno i nezavisno može izvršavati isti program.
+
+> **Program i proces**
+>
+> Odnos između programa i procesa možemo usporediti s receptima i kuhanjem ručka. Svaki recept u osnovi predstavlja "program" za kuhanje: niz precizno definiranih koraka i postupaka s naredbama kontrole toka (`if (nedovoljno_slano): dodaj_soli`), petljama (`while(meso_tvrdo): nastavi_kuhanje`) i svim ostalim instrukcijama potrebnim da dobijemo očekivani rezultat u vidu ukusnog ručka.
+>
+> Sam postupak kuhanja u osnovi je pokretanje procesa koji izvršava program, tj. prati zadani recept korak po korak. Pri tom ne postoji nikakva prepreka da više kuhara istovremeno ne pokrene proces kuhanja po istom receptu. Tada svaki od kuhara zapravo nezavisno izvršava svoj "proces", ali svi kuhaju po istom receptu, tj. u svim procesima izvršava se isti "program".
+
+<p align="center">
+  <img src="slike/zivotni_ciklus.png" alt="Životni ciklus UNIX procesa" width="60%"><br>
+  <em>Slika 5.1: Životni ciklus UNIX procesa</em>
+</p>
+
+Životni ciklus UNIX procesa, prikazan na slici 5.1, započinje sistemskim pozivom `fork` — jedinim načinom za stvaranje novog procesa na UNIX-u. U tom trenutku proces dobiva **PID**, koji predstavlja jedinstveni identitet procesa i nepromjenjiv je za cijelo vrijeme njegovog postojanja, te memorijski prostor u kojem se proces izvršava, nakon čega je spreman za izvršavanje. Kada će i koliko vremena proces stvarno dobiti na raspolaganje za izvršavanje na računalnom sklopovlju ovisi o opterećenosti sustava. Naime, UNIX je višezadaćni operacijski sustav i u pravilu u svakom trenutku postoji više aktivnih procesa od raspoloživih procesora i procesorskih jezgri. Kako bi se osiguralo da se više procesa izvršava istovremeno, procesi se izvršavaju u tzv. *dijeljenom vremenu*. Resursima upravlja **raspoređivač** (engl. *scheduler*), komponenta operacijskog sustava odgovorna za dijeljenje procesorskog vremena među procesima koji se istovremeno izvršavaju, pri čemu uzima u obzir prioritet svakog procesa zasebno. Tijekom izvršavanja, UNIX proces može se nalaziti u jednom od nekoliko stanja:
+
+1. **Ready** — proces je spreman za izvršavanje i čeka da ga operacijski sustav prebaci u aktivno stanje i dodijeli mu njegov dio procesorskog vremena.
+2. **Running** — proces se izvršava na računalnom sklopovlju. Raspoređivač u bilo kojem trenutku može privremeno zaustaviti izvršavanje procesa i prebaciti ga u stanje čekanja. Važno je naglasiti da proces — tj. programer koji je napisao program koji se u procesu izvršava — ne može predvidjeti u kojem će se trenutku to dogoditi.
+3. **Sleeping** — za vrijeme izvršavanja proces može doći u situaciju da mora čekati nastup određenog uvjeta kako bi nastavio s izvršavanjem, npr. kada čeka na "spore" ulazno/izlazne operacije. U tom slučaju raspoređivač ga prebacuje iz stanja aktivnog izvršavanja u stanje spavanja. Kada se uvjeti za nastavak zadovolje, raspoređivač proces prebacuje u stanje čekanja (Ready) — raspoloživi resursi u tom su trenutku dodijeljeni drugim procesima pa ga nije moguće odmah vratiti u aktivno izvršavanje. Proces može i sam zatražiti da ga se uspava na određeno vrijeme sistemskim pozivom `sleep`.
+4. **Terminated** — sistemski poziv `exit` prekida izvršavanje procesa. Prekidom se oslobađaju resursi koje je proces koristio, ali informacija o procesu, uključujući njegov *izlazni status*, još neko vrijeme može ostati zapisana u sustavu. Kao što je ranije spomenuto, funkcija `main` ima povratnu vrijednost tipa `int`, a sistemski poziv `exit` kao argument prima jednu cjelobrojnu vrijednost — upravo ta vrijednost predstavlja izlazni status procesa. Poziv `return` iz funkcije `main` ima isti učinak kao `exit` te prekida izvršavanje procesa.
+
 U ovom poglavlju dani su primjeri koji demonstriraju upravljanje procesima na UNIX-u: dohvaćanje argumenata naredbenog retka i okruženja UNIX procesa, stvaranje procesa, pokretanje programa i upravljanje limitima. Svaki od ovih mehanizama vezan je uz jedan ili više sistemskih poziva — `fork()`, `exec` obitelj, `wait()`, `dup2()`, `setrlimit()` — koji zajedno tvore jezgru UNIX-ove filozofije upravljanja procesima. Primjeri su poredani tako da se teme grade postupno — od najjednostavnijih (ispis primljenih argumenata) prema složenijima (kombinacija `fork`, `exec`, `dup2` i `wait` u jednom programu). Tematski je ovo područje detaljno obrađeno u *Advanced Programming in the UNIX Environment*, Stevens & Rago [1], a šire koncepte procesa kao temeljne apstrakcije operacijskog sustava (životni ciklus, stanja, raspoređivanje) na hrvatskom jeziku obrađuje *Operacijski sustavi*, Budin, Golub, Jakobović & Jelenković [2].
 
 ### Argumenti naredbenog retka
+
+S argumentima naredbenog retka susreli smo se već u poglavlju o ulazno/izlaznim operacijama; ovdje ćemo detaljnije objasniti njihovu organizaciju u kontekstu memorijske slike procesa.
 
 Funkcija `main` prema ISO C standardu može imati dva osnovna oblika:
 
@@ -15,11 +37,11 @@ Prvi oblik koristimo kada program ne očekuje dodatne opcije i argumente koje ko
 
 Prilikom pozivanja bilo koje naredbe u UNIX ljusci, ljuska analizira niz znakova kojim korisnik želi pokrenuti naredbu i dijeli ga na podnizove odvojene razmacima. Ovaj postupak nazivamo **tokenizacija**, a rezultat je niz **tokena** — stringova koji redom sadrže pozvanu naredbu i sve argumente koje je korisnik naveo. Ukoliko ovim stringovima želimo pristupiti iz našeg programa, koristimo drugi oblik funkcije `main`, kod kojeg funkcija prima dva argumenta: cjelobrojni `argc` u kojem je pohranjen ukupan broj stringova navedenih u naredbenom retku (uključujući i naredbu kojom je program pozvan), i polje pokazivača na znakovni niz `argv`, u kojem su ovi stringovi redom pohranjeni.
 
-Argumenti naredbenog retka nalaze se na samom vrhu adresnog prostora procesa, kako je prikazano na slici 5.1:
+Argumenti naredbenog retka nalaze se na samom vrhu adresnog prostora procesa, kako je prikazano na slici 5.2:
 
 <p align="center">
-  <img src="slike/memorijska_slika.png" alt="Memorijska slika (adresni prostor) UNIX procesa"><br>
-  <em>Slika 5.1: Memorijska slika (adresni prostor) UNIX procesa</em>
+  <img src="slike/memorijska_slika.png" alt="Memorijska slika (adresni prostor) UNIX procesa" width="60%"><br>
+  <em>Slika 5.2: Memorijska slika (adresni prostor) UNIX procesa</em>
 </p>
 
 Najjednostavniji način pristupa je iteriranje kroz polje pokazivača `argv`, od prvog elementa (indeks 0) koji pokazuje na samu naredbu, do posljednjeg s indeksom `argc-1`.
@@ -40,11 +62,11 @@ argv[3] = "drugi_argument"
 argv[4] = NULL
 ```
 
-Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja temeljem razmaka (*space*) — praznog prostora između njih. Pri tom je svejedno koristimo li jedan ili više razmaka (više puta pritisnuta tipka *space* prilikom unosa). Dodatno, pored pokazivača `argv[0]` do `argv[argc-1]`, uvijek postoji i posljednji pokazivač u nizu s indeksom `argc`, koji pokazuje na vrijednost `NULL`, tj. `(void*)0`. Organizacija polja `argv` u memoriji shematski je prikazana na slici 5.2:
+Uočimo dva detalja: ljuska tokenizira naredbeni redak tako da tokene razdvaja temeljem razmaka (*space*) — praznog prostora između njih. Pri tom je svejedno koristimo li jedan ili više razmaka (više puta pritisnuta tipka *space* prilikom unosa). Dodatno, pored pokazivača `argv[0]` do `argv[argc-1]`, uvijek postoji i posljednji pokazivač u nizu s indeksom `argc`, koji pokazuje na vrijednost `NULL`, tj. `(void*)0`. Organizacija polja `argv` u memoriji shematski je prikazana na slici 5.3:
 
 <p align="center">
-  <img src="slike/args.png" alt="Organizacija argumenata naredbenog retka u memoriji procesa"><br>
-  <em>Slika 5.2: Organizacija argumenata naredbenog retka u memoriji procesa</em>
+  <img src="slike/args.png" alt="Organizacija argumenata naredbenog retka u memoriji procesa" width="60%"><br>
+  <em>Slika 5.3: Organizacija argumenata naredbenog retka u memoriji procesa</em>
 </p>
 
 - [**`argumenti.c`**](argumenti.c) — najjednostavniji mogući primjer rada s argumentima naredbenog retka. Program u petlji prolazi kroz polje `argv[0], ..., argv[argc-1]` i ispisuje indeks i vrijednost svakog argumenta. Koristi se za vizualnu provjeru kako ljuska prenosi naredbeni redak programu — posebno korisno za razumijevanje razdvajanja riječi po razmacima, ponašanja navodnika, ili kako `argv[0]` uvijek nosi ime kojim je program pokrenut.
@@ -253,11 +275,11 @@ int main(int argc, char *argv[]) {
 
 Pokazivač `environ` pokazuje na isti niz pokazivača kao i `envp` u trenutku pokretanja procesa — drugim riječima, oba mehanizma daju početno isti pogled na okruženje. Razlika postaje vidljiva tek nakon poziva funkcija `setenv()`, `putenv()` ili `unsetenv()`: te funkcije ažuriraju varijablu `environ` (eventualno realocirajući memoriju), dok `envp` ostaje pokazivati na izvornu, sada zastarjelu kopiju. Drugim riječima, `envp` je "snapshot" okoline u trenutku ulaska u `main`, a `environ` je "živa" referenca.
 
-Organizacija varijabli okruženja u memoriji procesa shematski je prikazana na slici 5.3. Bez obzira pristupa li se okruženju kroz `environ` ili kroz `envp`, sama struktura u memoriji uvijek je ista — niz pokazivača na stringove oblika `"IME=vrijednost"` završen `NULL`-om. Razlikuje se samo ime varijable kroz koju mu pristupamo.
+Organizacija varijabli okruženja u memoriji procesa shematski je prikazana na slici 5.4. Bez obzira pristupa li se okruženju kroz `environ` ili kroz `envp`, sama struktura u memoriji uvijek je ista — niz pokazivača na stringove oblika `"IME=vrijednost"` završen `NULL`-om. Razlikuje se samo ime varijable kroz koju mu pristupamo.
 
 <p align="center">
-  <img src="slike/environ.png" alt="Organizacija varijabli okruženja u memoriji procesa"><br>
-  <em>Slika 5.3: Organizacija varijabli okruženja u memoriji procesa</em>
+  <img src="slike/environ.png" alt="Organizacija varijabli okruženja u memoriji procesa" width="60%"><br>
+  <em>Slika 5.4: Organizacija varijabli okruženja u memoriji procesa</em>
 </p>
 
 Za razliku od `envp`, varijabla `environ` **jest** standardizirana — propisuje je POSIX.1-2017. Zanimljivo, to je jedini objekt u POSIX-u kojeg ne deklarira nijedna sistemska zaglavna datoteka, pa korisnik mora sam navesti deklaraciju `extern char **environ;` u svom programu (kao u primjeru iznad). ISO C, ponovo, ovu varijablu uopće ne spominje.
@@ -303,7 +325,7 @@ U sljedećem ćemo paru primjera (`listenv1.c` i `listenv2.c`) prikazati oba meh
 
 ### Životni ciklus procesa
 
-Životni ciklus UNIX procesa započinje sistemskim pozivom `fork`, što je jedini način za stvaranje novog procesa na UNIX-u. U ovom trenutku proces dobija **PID**, koji predstavlja jedinstveni identitet procesa i nepromjenjiv je za cijelo vrijeme njegovog postojanja, te memorijski prostor u kojem se proces izvršava — nakon čega je spreman za izvršavanje.
+Kao što je opisano u uvodu, novi proces na UNIX-u nastaje isključivo sistemskim pozivom `fork` — njime započinje životni ciklus prikazan na slici 5.1. Pogledajmo sada `fork` detaljnije:
 
 ```c
 #include <unistd.h>
@@ -502,8 +524,6 @@ Stoga je dobra programerska praksa voditi računa o procesima koje ste stvorili:
 ### Pokretanje novog programa
 
 Proces i program su dva povezana ali različita koncepta. **Proces** je aktivna instanca izvršavanja — entitet koji ima svoj PID, memorijski prostor i resurse. **Program** je statičan zapis: strojni kod pohranjen u izvršnoj datoteci, niz instrukcija koje proces izvršava.
-
-Odnos između programa i procesa možemo usporediti s receptima i kuhanjem ručka. Svaki recept u osnovi predstavlja "program" za kuhanje: niz precizno definiranih koraka i postupaka s naredbama kontrole toka (`if (nedovoljno_slano): dodaj_soli`), petljama (`while(meso_tvrdo): nastavi_kuhanje`) i svim ostalim instrukcijama potrebnim da dobijemo očekivani rezultat u vidu ukusnog ručka. Sam postupak kuhanja u osnovi je pokretanje procesa koji izvršava program, tj. prati zadani recept korak po korak. Pri tom ne postoji nikakva prepreka da više kuhara istovremeno ne pokrene proces kuhanja po istom receptu. Tada svaki od kuhara zapravo nezavisno izvršava svoj "proces", ali svi kuhaju po istom receptu, tj. u svim procesima izvršava se isti "program".
 
 Na UNIX-u proces "kuhanja" započinje s pripremom: stvaranjem novog procesa i pripadajućeg memorijskog prostora u kojem će se proces izvršavati — pozivom funkcije `fork()`, kao što smo vidjeli u prethodnoj sekciji. Nakon toga krećemo s kuhanjem po odgovarajućem receptu — programu zapisanom u izvršnoj datoteci — korištenjem sistemskog poziva `exec`, koji kao argument uzima izvršnu datoteku koju želimo pokrenuti. Valja napomenuti da je `exec` zapravo **obitelj funkcija**, koje imaju istu funkcionalnost (učitavanje programa-recepta), a razlikuju se u načinu kako se zadaju argumenti naredbenog retka i put do izvršne datoteke:
 
