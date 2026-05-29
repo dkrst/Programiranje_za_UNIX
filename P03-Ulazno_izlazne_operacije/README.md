@@ -481,7 +481,9 @@ Algoritam je jednostavan: za svako kreiranje datoteke, jezgra uzima `mode` koji 
 
 ### Argumenti naredbenog retka
 
-Naredbe i programi na UNIX sustavu često prihvaćaju **argumente naredbenog retka** — niz tokena koje korisnik upisuje uz ime programa kako bi izmijenio njegovo ponašanje, ili da bi mu predao ulaz (npr. ime datoteke nad kojom program radi). Primjer iz svakodnevnog rada s ljuskom je `cp izvor.txt cilj.txt`, gdje `cp` prima dva argumenta. Da bi C program mogao iščitati te argumente, `main` se deklarira u proširenom obliku:
+U svim primjerima koje smo do sada obradili u ovom poglavlju ime datoteke nad kojom program radi zapisano je izravno u izvornom kodu. `read_file.c` uvijek čita `moja_datoteka.txt`; `f_strip.c` uvijek piše u `file.strip`; `f_hole.c` u `file.hole`. U praksi ovakav pristup brzo postaje neupotrebljiv — teško je zamisliv iole koristan program kojem je ime ulazne ili izlazne datoteke trajno ugrađeno u izvorni kod i zahtijeva mijenjanje izvornog koda te ponovno prevođenje svaki put kada treba raditi s drugom datotekom.
+
+Rješenje je da ime datoteke, kao i bilo koji drugi podatak ili parametar koji određuje ponašanje programa, zadaje korisnik pri pokretanju programa. Mehanizam koji UNIX nudi za to su **argumenti naredbenog retka** (*command-line arguments*) — niz tokena koje korisnik upisuje iza imena naredbe, a koje ljuska prosljeđuje programu pri njegovom pokretanju. Primjer iz svakodnevnog rada s ljuskom je `cp izvor.txt cilj.txt`, gdje `cp` prima dva argumenta. Da bi C program mogao iščitati te argumente, `main` se deklarira u proširenom obliku:
 
 ```c
 int main(int argc, char *argv[])
@@ -578,14 +580,16 @@ Ovdje `argc` sadrži broj argumenata, a `argv` je polje nizova znakova u kojemu 
   }
   ```
 
-  Osnovna petlja čitanja i pisanja enkapsulirana je u pomoćnoj funkciji `rw(fdin, fdout)` koja čita s jednog deskriptora i piše na drugi. Ponašanje programa ovisi o argumentima naredbenog retka:
+  Ključna ideja u implementaciji je pomoćna funkcija `rw()` koja sadrži osnovnu petlju čitanja s jednog deskriptora i pisanja na drugi. Ista petlja koja je u prethodnim primjerima bila u `main()` ovdje je izdvojena kao zasebna funkcija kako bi se mogla pozvati u više različitih konteksta.
 
-  - **Bez argumenata** program poziva `rw(STDIN_FILENO, STDOUT_FILENO)` i tako praktički radi istu stvar kao `io_copy`: čita sa standardnog ulaza i ispisuje na standardni izlaz.
-  - **S jednim ili više argumenata** program redom otvara svaku navedenu datoteku pozivom `open()` i njezin sadržaj prosljeđuje na standardni izlaz pozivom iste funkcije `rw()`, ali sad s file deskriptorom otvorene datoteke umjesto standardnog ulaza.
+  Analizirajmo glavni program:
 
-  Program time u bitnome reproducira funkcionalnost UNIX naredbe `cat` i ujedno sažima sve koncepte iz prethodnih primjera: otvaranje datoteka s provjerom grešaka, jedinstveno sučelje preko file deskriptora, rad s argumentima naredbenog retka, i uniformno korištenje istih sistemskih poziva bez obzira na izvor (datoteka ili standardni tok).
+  - **Uvjet `argc < 2`** — ako je program pokrenut bez imena datoteke, poziva se `rw(STDIN_FILENO, STDOUT_FILENO)` — standardni ulaz se prepisuje na standardni izlaz, potpuno isto kao u primjeru `io_copy.c`, ali ovaj put znak po znak.
+  - **`for` petlja po argumentima** — u slučaju da je navedena jedna ili više datoteka, petlja redom prolazi kroz `argv[1]` do `argv[argc-1]`, otvara svaku pozivom `open()` s `O_RDONLY`, i njezin sadržaj ispisuje na standardni izlaz pozivom iste funkcije `rw()` — ali sada s file deskriptorom otvorene datoteke umjesto `STDIN_FILENO`. Nakon ispisa datoteka se zatvara pozivom `close()`, a petlja nastavlja sa sljedećom.
 
-  Pokretanje:
+  Ovaj primjer ilustrira jednu od temeljnih posljedica UNIX načela *"sve je datoteka"*: ista funkcija `rw()`, napisana nad općim file deskriptorima, radi bez izmjena kako s običnim datotekama tako i sa standardnim tokovima. Programeru je svejedno odakle podaci dolaze — logika prijenosa je jedinstvena.
+
+  Pokretanjem programa s različitim argumentima dobivamo različito ponašanje:
 
   ```
   $ ./f_cat
