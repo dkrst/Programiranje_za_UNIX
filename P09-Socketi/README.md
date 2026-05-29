@@ -80,6 +80,29 @@ Povratna vrijednost je `0` u slučaju uspjeha, `-1` u slučaju greške.
 
 **`close`** — zatvara socket. Ako je u tijeku razgovor, druga strana će dobiti EOF (`read` vraća `0`) i znat će da je veza prekinuta.
 
+> **`send` i `recv` — socketima namijenjene inačice `write` i `read`**
+>
+> Iako na povezanom socketu možemo komunicirati `read`-om i `write`-om kao nad bilo kojim deskriptorom, POSIX nudi i dvije funkcije osmišljene specifično za sockete:
+>
+> ```c
+> #include <sys/socket.h>
+>
+> ssize_t send(int fd, const void *buf, size_t len, int flags);
+> ssize_t recv(int fd, void *buf, size_t len, int flags);
+> ```
+>
+> Prva tri argumenta i povratna vrijednost (broj prenesenih bajtova, ili `-1` uz postavljen `errno`) istovjetni su onima kod `write`-a i `read`-a. Jedina je razlika **četvrti argument `flags`**, kojeg `read`/`write` nemaju — njime upravljamo ponašanjem koje ima smisla samo nad socketom. Kada je `flags` jednak `0`, pozivi su potpuno ekvivalentni: `send(fd, buf, len, 0)` radi isto što i `write(fd, buf, len)`, a `recv(fd, buf, len, 0)` isto što i `read(fd, buf, len)`. Upravo zato primjeri u ovom poglavlju, radi jednostavnosti, koriste poznate `read`/`write`.
+>
+> Smisao funkcija `send`/`recv` leži dakle u zastavicama (`flags`), koje nad mrežnom vezom omogućuju operacije kakve obična datoteka nema, primjerice:
+>
+> - **`MSG_PEEK`** — "proviri" u dolazne podatke bez njihovog uklanjanja iz reda, pa ih sljedeći `recv` vraća ponovo.
+> - **`MSG_WAITALL`** — blokiraj dok ne stigne točno `len` bajtova (ublažava problem *short read*-a opisan na kraju poglavlja).
+> - **`MSG_DONTWAIT`** — izvedi samo ovaj poziv neblokirajuće, bez trajne promjene postavki socketa.
+> - **`MSG_NOSIGNAL`** — pri pisanju u prekinutu vezu vrati grešku `EPIPE` umjesto slanja signala `SIGPIPE` (koji bi inače mogao prekinuti proces).
+> - **`MSG_OOB`** — slanje, odnosno primanje *out-of-band* podataka (hitnih podataka izvan uobičajenog toka).
+>
+> Ukratko: za jednostavne programe, kao što su primjeri u ovoj skripti, `read`/`write` su sasvim dovoljni, a za `send`/`recv` posežemo kada nam zatreba neka od mogućnosti koje pruža `flags`.
+
 Ilustrirajmo korištenje opisanih funkcija na konkretnim primjerima.
 
 ## UNIX domain socketi
