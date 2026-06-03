@@ -1,6 +1,8 @@
 # Programiranje za UNIX
 
-Skripta s primjerima iz kolegija **Programiranje za UNIX** (Damir Krstinić, Maja Braović, travanj 2026.), Sveučilište u Splitu, Fakultet elektrotehnike, strojarstva i brodogradnje (FESB).
+Skripta je prvenstveno namijenjena studentima koji slušaju kolegij *Programiranje za UNIX* na Fakultetu elektrotehnike, strojarstva i brodogradnje Sveučilišta u Splitu. Djelomično se obrađuje i gradivo kolegija *Paralelno računanje* koji se predaje na istom fakultetu. Pored toga, skripta je namijenjena i drugim studentima tehničkih i prirodnih znanosti koje zanima programiranje i operacijski sustavi.
+
+Cjelokupan tekst skripte, uključujući i sve primjere, dostupan je online na adresi [https://github.com/dkrst/Programiranje_za_UNIX](https://github.com/dkrst/Programiranje_za_UNIX).
 
 Skripta je organizirana po poglavljima koja postupno uvode čitatelja u ključne koncepte UNIX sustava — od osnova rada u ljusci, preko C programiranja i sistemskih poziva, do procesa, signala, niti i mrežnog programiranja. Svaki primjer ilustrira specifičnu funkcionalnost (ljuska, sistemski pozivi, rad s procesima, datotečni sustav, signali, niti, socketi) i predviđen je za prevođenje standardnim `gcc`-om na proizvoljnom POSIX-kompatibilnom sustavu. Svaki direktorij ima vlastiti README s detaljnim opisom primjera i teorijskim uvodom u temu poglavlja. Na kraju svakog poglavlja dana je bibliografija s referencama na dodatnu literaturu — knjige, sveučilišne udžbenike i online vodiče, kako na engleskom tako i na hrvatskom jeziku. Iako se uglavnom koristi istih nekoliko naslova, bibliografija je ciljano dana zasebno za svaku cjelinu kako bi je čitatelj lakše pratio uz odgovarajuću temu.
 
