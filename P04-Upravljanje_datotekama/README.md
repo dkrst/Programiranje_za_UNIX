@@ -1136,6 +1136,69 @@ make fileinfo     # gradi pojedinačni primjer
 make clean        # čisti generirane datoteke
 ```
 
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — `fileinfo3`
+
+Modificirajte primjer [`fileinfo2.c`](fileinfo2.c) tako da umjesto ispisa svakog atributa u zasebnom retku sve podatke o datoteci ispiše u jednom retku, na sličan način kako ih ispisuje naredba `ls -l`: tip datoteke i prava pristupa kao niz od deset znakova (`-rw-r--r--`), zatim broj linkova, UID i GID vlasnika, veličinu, vrijeme zadnje izmjene i ime datoteke. Za simbolički link iza imena ispišite i ` -> ` te ime datoteke na koju link pokazuje.
+
+Očekivano ponašanje:
+
+```sh
+$ ./fileinfo3 fileinfo.c
+-rw-r--r-- 1 1000 1000 1300 May  5 15:22 fileinfo.c
+$ ./fileinfo3 drugoime.c
+lrwxrwxrwx 1 1000 1000   10 May  5 16:14 drugoime.c -> fileinfo.c
+$ ls -l fileinfo.c drugoime.c
+-rw-r--r-- 1 dkrst dkrst 1300 May  5 15:22 fileinfo.c
+lrwxrwxrwx 1 dkrst dkrst   10 May  5 16:14 drugoime.c -> fileinfo.c
+```
+
+Jedina razlika u odnosu na `ls -l` je što umjesto imena vlasnika i grupe ispisujemo njihove brojčane identifikatore.
+
+> **Mala pomoć:** Pri rješavanju zadatka koristite se primjerom [`readsymlink.c`](readsymlink.c), a za formatiranje ispisa datuma i vremena funkcijom `strftime()`.
+
+**Dodatni zadatak:** korištenjem funkcija `getpwuid()` i `getgrgid()` umjesto UID-a i GID-a ispišite ime vlasnika i grupe.
+
+### Zadatak 2 — `mojls2`
+
+Modificirajte primjer [`mojls.c`](mojls.c) tako da za svaku stavku direktorija ispiše redak u istom obliku kao `fileinfo3` iz prethodnog zadatka, čime dobivate vlastitu inačicu naredbe `ls -l`. Ispis za jednu datoteku izdvojite u zasebnu funkciju koju zatim pozivate iz petlje po stavkama direktorija.
+
+Očekivano ponašanje:
+
+```sh
+$ ./mojls2
+drwxr-xr-x 2 1000 1000 4096 May  5 16:10 slike
+-rw-r--r-- 1 1000 1000  412 May  5 15:20 Makefile
+lrwxrwxrwx 1 1000 1000   10 May  5 16:14 drugoime.c -> fileinfo.c
+-rw-r--r-- 1 1000 1000 1300 May  5 15:22 fileinfo.c
+```
+
+### Zadatak 3 — `noviji`
+
+Napišite program `noviji` koji prima imena dviju datoteka, `izvor` i `odrediste`, te usporedi vremena njihove zadnje izmjene. Ako `odrediste` ne postoji ili je `izvor` od njega noviji, program ispiše da je odredište potrebno osvježiti; u protivnom ispiše da je odredište ažurno. Ako `izvor` ne postoji, program ispiše grešku.
+
+Očekivano ponašanje:
+
+```sh
+$ ./noviji fileinfo.c fileinfo
+Odrediste 'fileinfo' je azurno.
+$ ./dotakni fileinfo.c
+Datoteka 'fileinfo.c' azurirana.
+$ ./noviji fileinfo.c fileinfo
+Odrediste 'fileinfo' treba osvjeziti.
+$ ./noviji fileinfo.c nepostojeca
+Odrediste 'nepostojeca' treba osvjeziti.
+```
+
+Opisana tehnika usporedbe vremena izmjene izvorne i ciljane datoteke koristi se u alatu `make` prilikom odlučivanja koje dijelove koda treba ponovo prevesti.
+
+> **Mala pomoć:** Za provjeru vremena zadnje izmjene koristite funkciju `stat()`.
+
+**Dodatni zadatak:** ako je odredište potrebno osvježiti, kopirajte sadržaj izvora u odredište (po uzoru na [`io_copy.c`](../P03-Ulazno_izlazne_operacije/io_copy.c) iz poglavlja P03) i pomoću `utime()` odredištu postavite ista vremena pristupa i izmjene kakva ima izvor.
+
+Doradite `Makefile` datoteku na način da u nju dodate pravila za prevođenje i povezivanje zadataka za vježbu.
+
 ## Bibliografija
 
 [1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
