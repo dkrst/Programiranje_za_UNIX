@@ -805,7 +805,7 @@ Svih šest funkcija u pozadini završava u sistemskom pozivu `execve()` — osta
   }
   ```
 
-  Program `potrosac.c` je pratilac koji služi samo za demonstraciju djelovanja `limitraj`-a — sastoji se od jedne jedine beskonačne petlje `while(1);`, bez ijednog sistemskog poziva ili I/O operacije.
+  Program `potrosac.c` je pomoćni program koji nam služi samo za demonstraciju rada programa `limitraj.c` — sastoji se od beskonačne petlje i jedina mu je funkcija "trošenje" vremena.
 
   ```c
   /* potrosac.c */
@@ -902,6 +902,75 @@ make all          # gradi sve primjere
 make pokreni2     # gradi samo zadani primjer
 make clean        # briše izvršne i objektne datoteke
 ```
+
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — `mojenv`
+
+Napišite program `mojenv` koji se ponaša ovisno o argumentima naredbenog retka:
+
+- pozvan **bez argumenata**, ispisuje sve varijable okruženja, jednu po retku, u obliku `IME=vrijednost`;
+- pozvan s **jednim ili više argumenata**, svaki argument tumači kao ime varijable okruženja i za svaku ispisuje `IME = vrijednost`, odnosno poruku `IME: environment varijabla ne postoji` ako varijabla nije postavljena.
+
+Očekivano ponašanje:
+
+```sh
+$ ./mojenv | head -3
+SHELL=/bin/bash
+HOME=/home/dkrst
+USER=dkrst
+$ ./mojenv HOME NEPOSTOJECA PATH
+HOME = /home/dkrst
+NEPOSTOJECA: environment varijabla ne postoji
+PATH = /usr/local/bin:/usr/bin:/bin
+$ ./mojenv | wc -l          # koliko varijabli ima vaš proces?
+```
+
+U prvom pozivu izlaz programa cjevovodom (`|`) je preusmjeren u naredbu `head -3`, koja propušta samo prva tri retka. Sam `./mojenv` ispisao bi *sve* varijable okruženja — obično nekoliko desetaka redaka; ograničenje je ovdje samo radi kraćeg prikaza. Isto vrijedi za zadnji poziv, gdje `wc -l` umjesto sadržaja ispisuje broj redaka.
+
+> **Mala pomoć:** Sve što vam treba za rješavanje ovog zadatka već postoji u primjerima [`readenv.c`](readenv.c) i [`listenv1.c`](listenv1.c) (ili [`listenv2.c`](listenv2.c)). Dovoljno je ta dva primjera povezati u jedan program, a o načinu izvršavanja odlučiti na temelju broja argumenata naredbenog retka.
+
+### Zadatak 2 — `pokreni_sve`
+
+Napišite program `pokreni_sve` koji svaki argument naredbenog retka tumači kao ime naredbe (bez dodatnih argumenata) i za svaku stvori zaseban proces dijete koji tu naredbu izvršava. Roditelj nakon toga čeka završetak sve djece i za svako ispisuje PID, ime naredbe i način završetka: izlazni status ako je naredba završila normalno, odnosno broj signala ako je prekinuta signalom. Ako naredbu nije moguće pokrenuti, dijete to mora prijaviti i završiti izlaznim statusom 127.
+
+Očekivano ponašanje:
+
+```sh
+$ ./pokreni_sve date whoami nepostojeca
+Thu Aug 26 10:21:05 CEST 2026
+execvp: No such file or directory
+dkrst
+[PID 31240] date: normalan izlaz, izlazni status 0
+[PID 31241] whoami: normalan izlaz, izlazni status 0
+[PID 31242] nepostojeca: normalan izlaz, izlazni status 127
+```
+
+Naredba `whoami` ispisuje korisničko ime korisnika koji ju je pokrenuo. Naravno, korisničko ime i datum koji će se ispisati će u vašem slučaju biti drugačiji.
+
+Primijetite da redoslijed ispisa naredbi nije nužno jednak redoslijedu argumenata — procesi se izvršavaju usporedno, pa redoslijed ispisa ovisi o složenosti i brzini izvođenja svakog od programa, ali i o redoslijedu izvršavanja, o čemu odlučuje jezgra, tj. raspoređivač (engl. *scheduler*).
+
+> **Mala pomoć:** Pri rješavanju zadatka koristite se primjerom [`pokreni2.c`](pokreni2.c).
+
+### Zadatak 3 — `limitraj2`
+
+Modificirajte primjer [`limitraj.c`](limitraj.c) tako da se ograničenje procesorskog vremena ne zadaje fiksno, nego kao prvi argument naredbenog retka, a ostali argumenti čine naredbu s njezinim argumentima. Prije pokretanja naredbe zadane u naredbenom retku stvorite novi proces te u njemu nametnite ograničenje procesorskog vremena i pokrenite samu naredbu. Roditeljski proces treba pričekati da dijete završi te ispisati je li naredba završila normalno (uz izlazni status) ili je prekinuta signalom (uz broj signala).
+
+Očekivano ponašanje:
+
+```sh
+$ ./limitraj2 2 ./potrosac
+Prekid signalom, signal: 24
+$ ./limitraj2 2 ls -l Makefile
+-rw-r--r-- 1 dkrst dkrst 412 Aug 26 10:21 Makefile
+Normalan izlaz, izlazni status: 0
+```
+
+Provjerite značenje signala 24 i zašto je u ovom primjeru baš on primljen. Naredba `ls`, s druge strane, završi puno prije isteka dvije sekunde pa ograničenje na nju nema utjecaja.
+
+**Dodatni zadatak:** korištenjem funkcije `strsignal()`, uz broj signala ispišite i kratki opis uzroka slanja signala.
+
+Doradite `Makefile` datoteku na način da u nju dodate pravila za prevođenje i povezivanje zadataka za vježbu.
 
 ## Bibliografija
 
