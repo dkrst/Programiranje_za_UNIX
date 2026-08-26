@@ -31,7 +31,7 @@ Svaki direktorij odgovara jednom poglavlju skripte:
 
 ### [`P01-Osnove_UNIXa/`](P01-Osnove_UNIXa/)
 
-Uvodno poglavlje koje upoznaje čitatelja s arhitekturom UNIX operacijskog sustava, organizacijom datotečnog sustava, pravima pristupa, naredbenom ljuskom, preusmjeravanjem ulaza i izlaza, ulančavanjem naredbi te osnovama pisanja shell skripti. Sadrži četiri **bash skripte** koje ilustriraju ključne koncepte: `pozdrav.sh`, `brojac.sh`, `backup.sh`, `trazi.sh`.
+Uvodno poglavlje koje upoznaje čitatelja s arhitekturom UNIX operacijskog sustava, organizacijom datotečnog sustava, pravima pristupa, naredbenom ljuskom, preusmjeravanjem ulaza i izlaza, ulančavanjem naredbi te osnovama pisanja shell skripti. Sadrži šest **bash skripti** koje ilustriraju ključne koncepte: `pozdrav.sh`, `brojac.sh`, `backup.sh`, `trazi.sh`, `provjeri.sh`, `prebroji.sh`.
 
 ### [`P02-Osnove_programiranja/`](P02-Osnove_programiranja/)
 
