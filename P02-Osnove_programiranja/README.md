@@ -591,6 +591,43 @@ Ukoliko ste prošli i sekciju o libovima, na isti način možete pokrenuti i sve
 
 Sve tri varijante daju **identičan** ispis — slučajni niz od deset cijelih brojeva, te njegov najveći i najmanji element.
 
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — `kalkulator`
+
+Napišite program `kalkulator` organiziran u tri datoteke, po uzoru na primjer `pozdrav_fn`: zaglavlje `racun.h` s deklaracijama funkcija `zbroji`, `oduzmi`, `pomnozi` i `podijeli` (svaka prima dva cijela broja i vraća rezultat), datoteku `racun.c` s njihovim definicijama te datoteku `kalkulator.c` s funkcijom `main` koja poziva sve četiri funkcije nad dva broja i ispisuje rezultate. Pri dijeljenju provjerite da djelitelj nije nula.
+
+Program prevedite **u dva koraka** — najprije svaku `.c` datoteku zasebno u objektnu datoteku (prilikom prevođenja uključite opciju `-Wall`), a zatim objektne datoteke povežite u izvršnu. Pogledajte ispis naredbe `ls -l` prije i poslije svakog koraka kako biste uočili koje datoteke nastaju.
+
+> **Mala pomoć:** Obratite pažnju da zaglavlje `racun.h` bude uključeno i u `racun.c` i u `kalkulator.c` te da je zaštićeno od višestrukog uključivanja (`#ifndef`/`#define`/`#endif`) kao `funkcije.h`.
+
+**Dodatni zadatak:** funkcije realizirajte tako da rade s brojevima u tipu s pomičnim zarezom (`double`) umjesto s cijelim brojevima, uz odgovarajuću promjenu deklaracija u zaglavlju i ispisa u `main`-u.
+
+### Zadatak 2 — Makefile za `kalkulator`
+
+Za program iz prethodnog zadatka napišite `Makefile` koji:
+
+- koristi varijable `CC` i `CFLAGS` za prevodilac i njegove opcije;
+- za generiranje objektnih datoteka koristi implicitno pravilo `.c.o`, a ne zasebno pravilo za svaku datoteku;
+- ima pravilo `default` koje gradi `kalkulator` i pravilo `clean` koje briše izvršnu i sve objektne datoteke;
+- doradite pravila u Makefile datoteci na način da promjena zaglavlja `racun.h` uzrokuje ponovno prevođenje obiju `.c` datoteka koje ga uključuju.
+
+Ispravnost Makefilea provjerite tako da nakon uspješnog `make` promijenite samo `racun.c` (npr. dodate komentar) i ponovo pokrenete `make` — trebala bi se ponovo prevesti samo ta datoteka, a zatim ponoviti povezivanje. Nakon toga promijenite `racun.h` i uvjerite se da se prevode obje `.c` datoteke.
+
+> **Mala pomoć:** Zavisnost o zaglavlju izražava se navođenjem zaglavlja među ovisnostima u pravilu, npr. `racun.o: racun.h`. Pravilo ne mora imati naredbe — dovoljno je da `make` zna o čemu cilj ovisi.
+
+### Zadatak 3 — Proširenje arhive `libniz.a`
+
+Proširite arhivu `libniz.a` iz primjera dodatnom funkcijom `prosjek` koja za zadani niz cijelih brojeva vraća aritmetičku sredinu njegovih elemenata kao `double`. Funkciju definirajte u **novoj** datoteci `nizstat.c` (ne u `nizfn.c`), deklarirajte je u zaglavlju `nizfn.h`, a zatim:
+
+1. objektnu datoteku `nizstat.o` dodajte u postojeću arhivu naredbom `ar`;
+2. naredbom `ar -t` provjerite da arhiva sadrži obje objektne datoteke;
+3. u program `niz.c` dodajte ispis prosjeka;
+4. program povežite na sva tri načina opisana u tekstu (`niz1`, `niz2`, `niz3`) i uvjerite se da sve tri varijante daju isti ispis;
+5. dopunite `Makefile` tako da se `nizstat.o` prevodi i uključuje u arhivu automatski.
+
+> **Mala pomoć:** Pri dodavanju u arhivu koristite istu opciju `ar -r` koja je korištena pri njenom stvaranju — ako objektna datoteka istog imena već postoji u arhivi, bit će zamijenjena, a u protivnom dodana.
+
 ## Bibliografija
 
 [1] B. W. Kernighan and D. M. Ritchie, *The C Programming Language*, 2nd ed. Englewood Cliffs, NJ, USA: Prentice Hall, 1988.
