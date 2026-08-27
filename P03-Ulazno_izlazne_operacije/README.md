@@ -883,6 +883,38 @@ make clean        # briše izvršne, objektne i generirane datoteke
 
 Pravilo `clean` briše sve izvršne datoteke, objektne datoteke, privremene `*~` datoteke, `a.out`, kao i datoteke koje primjeri sami stvaraju pri pokretanju — `file.strip`, `file.hole`, `datoteka1`, `datoteka2` — kako bi se radni direktorij vratio u čisto stanje.
 
+## Zadaci za samostalno rješavanje
+
+U svim zadacima koristite isključivo sistemske pozive obrađene u ovom poglavlju (`open`, `creat`, `read`, `write`, `close`, `lseek`, `dup2`), bez funkcija standardne C biblioteke za rad s datotekama (`fopen`, `fgets`, `printf`, ...). Poruke o greškama ispisujte na standardni izlaz za greške i u slučaju greške završite s izlaznim statusom 1.
+
+### Zadatak 1 — `mojhead`
+
+Napišite program `mojhead` koji ispisuje prvih `N` redaka zadane datoteke, po uzoru na naredbu `head`. Ime datoteke zadaje se kao argument, a broj redaka neobaveznom opcijom `-n N`; ako opcija nije zadana, `N` je 10. Datoteku čitajte u blokovima (kao u `io_copy.c`), a ne znak po znak; unutar pročitanog bloka brojite znakove novog retka i prekinite ispis kad izbrojite `N` redaka.
+
+> **Mala pomoć:** Zadnji blok najčešće sadrži i dio teksta koji ne treba ispisati — potrebno je odrediti koliko bajtova iz bloka proslijediti `write`-u.
+
+**Dodatni zadatak:** ako ime datoteke nije zadano, program neka čita sa standardnog ulaza, tako da se može koristiti u lancu naredbi (npr. `ls -l | ./mojhead -n 3`).
+
+### Zadatak 2 — `mojtail`
+
+Napišite program `mojtail` koji ispisuje zadnjih `N` bajtova zadane datoteke, po uzoru na naredbu `tail -c N`. Broj bajtova zadaje se opcijom `-c N`, a ako nije zadan, `N` je 10. Program realizirajte tako da ne čitate cijelu datoteku od početka: pomoću `lseek` odredite njenu veličinu, pozicionirajte se `N` bajtova prije kraja (ili na početak, ako je datoteka kraća od `N`) i od tog mjesta pročitajte i ispišite ostatak.
+
+Program pokrenite i nad datotekom s rupom stvorenom primjerom `f_hole` te objasnite što ste dobili u ispisu i zašto.
+
+> **Mala pomoć:** `lseek(fd, 0, SEEK_END)` vraća veličinu datoteke, a `lseek(fd, -N, SEEK_END)` pozicionira `N` bajtova prije kraja.
+
+**Dodatni zadatak:** umjesto zadnjih `N` bajtova ispišite zadnjih `N` redaka (ponašanje naredbe `tail -n N`), i dalje bez čitanja cijele datoteke od početka. Datoteku čitajte unatrag u blokovima, od kraja prema početku, i brojite znakove novog retka; kad izbrojite `N` redaka, pozicionirajte se iza pronađenog znaka i ispišite ostatak datoteke.
+
+### Zadatak 3 — `mojtee`
+
+Napišite program `mojtee` koji čita sa standardnog ulaza i sve pročitano istovremeno zapisuje na standardni izlaz **i** u datoteku zadanu kao argument, po uzoru na naredbu `tee`. Datoteku otvorite pozivom `open` s odgovarajućim zastavicama tako da se stvori ako ne postoji, a ako postoji, da se njen sadržaj briše. Uz opciju `-a` novi sadržaj dodaje se na kraj postojeće datoteke.
+
+Program isprobajte u lancu naredbi, npr. `ls -l / | ./mojtee popis.txt`, te s preusmjerenim standardnim ulazom, npr. `./mojtee kopija.txt < mojtee.c`.
+
+> **Mala pomoć:** Prisjetite se sekcije o atomskim operacijama — zašto je za dodavanje na kraj datoteke ispravno koristiti zastavicu `O_APPEND`, a ne `lseek` na kraj pa `write`?
+
+**Dodatni zadatak:** dodajte opciju `-e` uz koju program pomoću `dup2` preusmjeri i standardni izlaz za greške (deskriptor 2) u istu datoteku, bez promjene bilo kojeg poziva `write`. Usporedite primjere `dup_redirect.c` i `dup2_redirect.c` te se prisjetite zašto je `dup2` sigurniji od para `close`/`dup`.
+
 ## Bibliografija
 
 [1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.
