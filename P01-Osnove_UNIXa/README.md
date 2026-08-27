@@ -330,6 +330,19 @@ Bitna napomena: novi proces u UNIX-u uvijek nastaje iz **postojećeg** procesa �
 
 Pored interaktivnog načina rada, ljusku možemo koristiti i **programski**. Niz naredbi zapisan u tekstualnoj datoteci kojoj smo dali pravo izvršavanja postaje cjelovit program — **shell skripta**. Skripte koristimo za automatizaciju, od jednostavnih svakodnevnih radnji do složenih administracijskih i programerskih zadataka.
 
+> **Editori**
+>
+> Za pisanje skripti, kao i svakog drugog izvornog koda u nastavku ove skripte, potreban nam je **editor teksta** — program kojim stvaramo i uređujemo obične tekstualne datoteke. Na UNIX sustavima postoji dugačka tradicija editora koji rade izravno u terminalu, bez grafičkog sučelja, što ih čini nezamjenjivima pri radu na udaljenim računalima i poslužiteljima:
+>
+> - **`vi`** / **`vim`** (*Vi IMproved*): standardni editor UNIX-a, prisutan praktički na svakom sustavu. Radi u više načina rada (naredbeni, unos teksta, ...), zbog čega početnicima može djelovati neobično, ali je iznimno moćan i brz kad se savlada. Minimum koji vrijedi zapamtiti: `i` za ulazak u unos teksta, `Esc` za povratak u naredbeni način, `:wq` za spremanje i izlaz te `:q!` za izlaz bez spremanja.
+> - **`nano`**: jednostavan editor bez načina rada, s popisom osnovnih naredbi stalno prikazanim pri dnu ekrana (npr. `Ctrl+O` sprema, `Ctrl+X` izlazi). Dobar izbor za prve korake.
+> - **`joe`** (*Joe's Own Editor*): editor sa sličnom filozofijom kao `nano`; nije uvijek instaliran, ali je dostupan u svim distribucijama.
+> - **`emacs`**: uz `vi`, drugi veliki klasik UNIX-a, iznimno proširiv (vlastiti programski jezik za dodatke). Ravnopravno radi u terminalu i u grafičkom sučelju. Pri korištenju u grafičkom sučelju, korisnik ima uobičajeno sučelje dostupno putem izbornika i miša, mada s ponešto drugačijom organizacijom i kombinacijama tipaka za upravljanje u odnosu na ono na što je "doseljenik" s Windowsa možda navikao.
+>
+> U grafičkom okruženju na raspolaganju su i editori koje ćete vjerojatno prepoznati iz drugih operacijskih sustava: *Visual Studio Code*, *Kate*, *Gedit* i drugi, kao i integrirana razvojna okruženja koja ćemo spomenuti u sljedećem poglavlju. Svi oni na kraju rade istu stvar — spremaju običan tekst u datoteku koju zatim izvršavamo ili prevodimo.
+>
+> Koji ćete editor koristiti stvar je osobnog izbora, ali sam rad u nekom od njih **nužna je vještina** za korištenje UNIX-a i za praćenje poglavlja koja slijede. Preporučujemo da već sada odaberete jedan i u njemu napišete primjere iz ovog poglavlja, a da uz to naučite barem osnove `vi`-ja — dovoljne da otvorite, izmijenite i spremite datoteku — jer je to ponekad jedini editor dostupan na udaljenom sustavu.
+
 Pri izradi skripti potrebno je imati na umu **tip ljuske** za koji je skripta pisana. Iako su osnovne naredbe iste, detalji poput definiranja varijabli, uvjetnog grananja i petlji razlikuju se između ljuski. Najčešće ljuske su `bash` (Bourne Again Shell, najraširenija na Linuxu) i `csh` (C Shell). Razlike u sintaksi:
 
 | Operacija | bash | csh |
@@ -797,6 +810,58 @@ U ovom direktoriju nalazi se nekoliko jednostavnih bash skripti koje ilustriraju
   ---
   Ukupno: 80 redaka u svim .c datotekama
   ```
+
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — Prava pristupa i preusmjeravanje
+
+U svom matičnom direktoriju stvorite direktorij `vjezba` i u njemu datoteku `biljeske.txt` s nekoliko redaka teksta. Zatim, koristeći isključivo naredbe iz ovog poglavlja:
+
+1. Postavite prava pristupa tako da vlasnik može čitati i pisati, grupa samo čitati, a ostali nemaju nikakva prava. Ovo napravite korištenjem apsolutnog (oktalnog) zadavanja prava. Provjerite rezultat s `ls -l`.
+2. Korištenjem simboličkog zadavanja prava, dodajte svim korisnicima sustava pravo čitanja datoteke i ponovo provjerite rezultat naredbom `ls -l`.
+3. Dodajte na kraj datoteke `biljeske.txt` ispis naredbe `date`, bez brisanja postojećeg sadržaja.
+4. Pokrenite `ls -l biljeske.txt nepostoji.txt` tako da se ispis uspješnih rezultata spremi u `rezultat.txt`, a poruke o greškama u `greske.txt`.
+5. Ponovite prethodnu naredbu tako da poruke o greškama potpuno nestanu, a uspješan ispis ostane na ekranu.
+
+> **Mala pomoć:** Pogledajte tablicu operatora preusmjeravanja i primjer sa `/dev/null`.
+
+### Zadatak 2 — Ulančavanje naredbi
+
+Bez pisanja skripte, samo ulančavanjem naredbi u jednom retku, riješite sljedeće:
+
+1. Ispišite pet najvećih datoteka u direktoriju `/etc` (samo obične datoteke, ne direktorije), poredane od najveće prema najmanjoj.
+2. Prebrojite koliko različitih ljuski koriste korisnici na sustavu, čitajući datoteku `/etc/passwd` (ljuska je zadnje polje, a polja su odvojena dvotočkom).
+3. Ispišite koliko procesa svakog korisnika trenutačno radi na sustavu, poredano silazno po broju procesa.
+
+> **Mala pomoć:** Korisne naredbe su `ls -lS`, `find -type f`, `cut`, `sort -rn`, `uniq -c`, `head` i `ps -eo user=`. Prisjetite se da `uniq` uklanja samo **susjedne** duplikate. Upute za korištenje svake od spomenutih naredbi možete dobiti korištenjem naredbe `man`.
+
+### Zadatak 3 — `ocisti.sh`
+
+Napišite skriptu `ocisti.sh` koja prima ime direktorija i broj dana `N`, te iz zadanog direktorija briše sve arhive `*.tar.gz` starije od `N` dana — dakle skriptu koja održava red nakon višestrukog pokretanja primjera [`backup.sh`](backup.sh). Skripta mora:
+
+- provjeriti da su zadana točno dva argumenta, u protivnom ispisati uputu za korištenje i završiti s izlaznim statusom 1;
+- provjeriti da prvi argument postoji i da je direktorij, u protivnom ispisati grešku i završiti sa statusom 2;
+- za svaku pronađenu arhivu ispisati njeno ime prije brisanja, a na kraju ispisati ukupan broj obrisanih datoteka;
+- ako nije obrisana nijedna datoteka, ispisati odgovarajuću poruku.
+
+Očekivano ponašanje:
+
+```sh
+$ ./ocisti.sh
+Korištenje: ./ocisti.sh <direktorij> <broj_dana>
+$ echo $?
+1
+$ ./ocisti.sh arhive 30
+Brišem: arhive/projekt_2026-06-02_09-15.tar.gz
+Brišem: arhive/projekt_2026-06-19_17-40.tar.gz
+Obrisano arhiva: 2
+$ ./ocisti.sh arhive 30
+Nema arhiva starijih od 30 dana u 'arhive'.
+```
+
+> **Mala pomoć:** Naredba `find <dir> -name "*.tar.gz" -mtime +N` pronalazi datoteke izmijenjene prije više od `N` dana. Po uzoru na [`trazi.sh`](trazi.sh) iterirajte po rezultatu `find`-a u `for` petlji.
+
+**Dodatni zadatak:** dodajte neobavezni treći argument `-n` (engl. *dry run*) uz koji skripta samo ispisuje što bi obrisala, ali ništa ne briše. Zatim skriptu prepišite u `csh` inačicu, po uzoru na usporedne tablice u ovom poglavlju.
 
 ## Što dalje?
 
