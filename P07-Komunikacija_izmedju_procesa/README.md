@@ -1300,6 +1300,36 @@ make cijev        # gradi pojedinačni primjer
 make clean        # čisti generirane datoteke
 ```
 
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — `spoji.c`
+
+Napišite program `spoji.c` koji prima imena dvaju programa i izvršava ih spojene anonimnim cjevovodom, tako da standardni izlaz prvoga postane standardni ulaz drugoga — ono što ljuska radi za `naredba1 | naredba2`. Program ima istu funkcionalnost kao `prebroji.c`, ali može pokretati proizvoljne programe s obje strane cjevovoda, a ne unaprijed zadane i hardkodirane kao u `prebroji.c`.
+
+Rad programa provjerite usporedbom ispisa `./spoji ls wc` s ispisom `ls | wc`.
+
+> **Mala pomoć:** Pripazite da **svaki** proces zatvori sve krajeve cjevovoda koje ne koristi — dok god je otvoren ijedan pisaći deskriptor, čitatelj neće dobiti kraj datoteke i `wc` će čekati zauvijek.
+
+### Zadatak 2 — Koprocesor
+
+Modificirajte program `prebroji.c` tako da proces koji prebrojava retke svoj rezultat ne ispisuje na standardni izlaz, nego ga kroz **drugi cjevovod** vraća glavnom procesu, koji konačan rezultat ispisuje na standardni izlaz. Ovakva struktura — pomoćni proces koji podatke prima od glavnog procesa i rezultat mu vraća natrag — naziva se **koprocesom** (engl. *coprocess*).
+
+Za razliku od `prebroji.c`, glavni proces ovdje ne pokreće vanjski program (onaj ne bi znao pročitati vraćeni rezultat), nego podatke stvara sam:
+
+1. stvorite dva cjevovoda: jedan za slanje podataka koprocesu, drugi za povratak rezultata; u svakom od procesa zatvorite krajeve cjevovoda koji vam ne trebaju;
+2. dijete pomoću `dup2` preusmjeri svoj standardni ulaz na čitaći kraj prvog cjevovoda, a standardni izlaz na pisaći kraj drugog, te pozivom `execlp` pokrene `wc -l`;
+3. roditelj u petlji upiše u prvi cjevovod slučajan broj redaka u obliku `1. red`, `2. red`, ..., zatim zatvori pisaći kraj, iz drugog cjevovoda pročita rezultat i ispiše ga u obliku `Broj redaka: N`. Usporedite ispisani rezultat s brojem redaka koje ste poslali.
+
+> **Mala pomoć:** Koprocesor neće ispisati rezultat dok god je otvoren **ijedan** pisaći deskriptor prvog cjevovoda — pripazite da i dijete zatvori naslijeđene krajeve koje ne koristi, a roditelj pisaći kraj čim pošalje sve podatke.
+
+### Zadatak 3 — Blagajna
+
+Proširite primjere `shm_brojac.c` i `shm_brojac_sem.c` u simulaciju zajedničke blagajne. U dijeljenoj memoriji nalazi se struktura sa stanjem računa (početno 1000) i brojem obavljenih transakcija. Program stvori **dva** procesa djeteta: jedno dijete u petlji od 100.000 iteracija uplaćuje 10 (uvećava stanje), a drugo u isto toliko iteracija isplaćuje 10 (umanjuje stanje); svako dijete pri tome broji i transakcije. Po završetku obaju procesa roditelj ispisuje konačno stanje računa i ukupan broj transakcija.
+
+Program napišite u dvije inačice: bez ikakve sinkronizacije i sa POSIX semaforom koji štiti pristup strukturi. Pokrenite obje inačice više puta, usporedite rezultate s očekivanim (stanje 1000, transakcija 200.000) i objasnite razliku.
+
+> **Mala pomoć:** Kritični odsječak čine **obje** promjene zajedno — stanje i brojač transakcija moraju se mijenjati pod istim semaforom, inače struktura može završiti u nekonzistentnom stanju.
+
 ## Bibliografija
 
 [1] W. R. Stevens and S. A. Rago, *Advanced Programming in the UNIX Environment*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2013.

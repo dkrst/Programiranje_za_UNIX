@@ -105,11 +105,22 @@ Iako teoretska priča o hvatanju signala koji nas obavještavaju o nastupanju as
 
   - **Rukovatelj je vrlo kratak** — samo inkrementira brojač i ne pokušava ništa složenije od toga (npr. nema poziva `printf`-a). Ovo nije slučajno: rukovatelj signala se izvršava u posebnom kontekstu — može prekinuti glavni program u doslovno bilo kojem trenutku, uključujući i sredinu poziva drugih funkcija. Preporuka je iz rukovatelja pozivati samo tzv. **`async-signal-safe`** funkcije — funkcije za koje POSIX standard jamči da ih je sigurno pozvati iz signal handlera. U taj skup ne spada i `printf` — njegovo korištenje u rukovatelju može u rijetkim slučajevima dovesti do iznenađujućih grešaka. Detaljnije ćemo o ovome u kasnijem primjeru, ali već sad uvodimo dobru praksu: rukovatelj postavlja zastavicu, glavni program reagira.
 
-  - **Komunikacija kroz globalnu varijablu** — rukovatelj i glavni program "razgovaraju" kroz `brojac`. Strogo gledano, takve dijeljene varijable trebale bi biti deklarirane s tipom `volatile sig_atomic_t` umjesto običnog `int`-a:
-    - Ključna riječ `volatile` govori prevoditelju da vrijednost varijable može biti promijenjena "iza leđa" glavnog programa (od strane rukovatelja), pa optimizator ne smije njezinu vrijednost cache-irati u registru kroz iteracije petlje.
-    - Tip `sig_atomic_t` jamči da se čitanje i pisanje varijable obavlja u jednoj nedjeljivoj operaciji — rukovatelj ne može uhvatiti glavni program "u sredini" upisa.
+  - **Komunikacija kroz globalnu varijablu** — rukovatelj i glavni program "razgovaraju" kroz `brojac`. Kako takvu dijeljenu varijablu ispravno deklarirati, objašnjava okvir u nastavku.
 
-    Na većini modernih arhitektura (uključujući x86) u praksi će raditi i obični `int`.
+> **Zastavice u rukovateljima signala — `volatile sig_atomic_t`**
+>
+> Varijable koje dijele rukovatelj signala i glavni program strogo gledano treba deklarirati kao:
+>
+> ```c
+> volatile sig_atomic_t zastavica;
+> ```
+>
+> Svaki od dva dijela deklaracije rješava svoj, međusobno neovisan problem:
+>
+> - **`volatile`** se odnosi na **prevodilac**. Gledajući petlju poput `while (!zastavica) ;` optimizator može zaključiti da vrijednost varijable unutar petlje nitko ne mijenja, pa je smije pročitati samo jednom i dalje držati u registru. Ukoliko se ovo dogodi, program se vrti zauvijek, iako je rukovatelj zastavicu odavno postavio. U praksi se to događa kada se prilikom prevođenja uključe određene opcije optimizacije (npr. `gcc -O2`). `volatile` prevodilcu kaže da se vrijednost može promijeniti "iza leđa" vidljivog toka programa, pa svako čitanje mora stvarno pristupiti memoriji.
+> - **`sig_atomic_t`** (definiran u `signal.h`) je cjelobrojni tip za koji ISO C standard jamči da se čita i piše atomski, u jednoj nedjeljivoj operaciji. Signal može prekinuti glavni program između bilo koje dvije strojne instrukcije; kad bi se vrijednost čitala ili pisala u više koraka (npr. 64-bitna vrijednost na 32-bitnom procesoru), čitatelj bi mogao zateći "hibrid" — pola stare, pola nove vrijednosti. Za `sig_atomic_t` to nije moguće: vrijednost je uvijek ili cijela stara ili cijela nova.
+>
+> Na većini modernih arhitektura (uključujući x86) u praksi će ispravno raditi i obični `int` — ali to je svojstvo platforme, a ne jamstvo standarda. Iz istog razloga rukovatelj treba raditi **što manje**: idealno samo postaviti zastavicu, a sav pravi posao (ispis, oslobađanje resursa, izlazak) ostaviti glavnom programu — obrazac koji slijede svi primjeri u ovom poglavlju.
 
   > **Napomena.** U nekim povijesnim verzijama UNIX-a rukovatelj signala resetirao bi se svaki put kada bi signal bio primljen, pa ga je bilo potrebno ponovno registrirati. U modernim verzijama UNIX-a ovo ponašanje gotovo sigurno nećete susresti.
 
@@ -717,6 +728,32 @@ make all          # gradi sve primjere
 make stoperica    # gradi samo zadani primjer
 make clean        # briše izvršne i objektne datoteke
 ```
+
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — Sigurne zastavice
+
+Prisjetite se razlike u pristupu varijabli tipa `int` i `volatile sig_atomic_t`. Ispravite sve primjere u ovom poglavlju tako da budu sigurni za prevođenje i izvršavanje, bez obzira na opcije koje se koriste prilikom prevođenja i tip procesora.
+
+### Zadatak 2 — `mojsleep`
+
+Napišite program `mojsleep` koji prima broj sekundi `N` i završava nakon `N` sekundi, po uzoru na naredbu `sleep` — ali uz dodatak: dok čeka, na svaki primljeni `SIGINT` (`Ctrl+C`) ispisuje koliko je sekundi još preostalo, **ne prekidajući** čekanje. Program smije završiti samo istekom vremena ili signalom `SIGTERM`. Odbrojavanje realizirajte pomoću `alarm()` i vlastitog rukovatelja za `SIGALRM` (po uzoru na `stoperica.c`), bez korištenja funkcije `sleep()`.
+
+> **Mala pomoć:** Prisjetite se što radi sistemski poziv `pause`.
+
+**Dodatni zadatak:** na `SIGTERM` program prije izlaska ispiše koliko je sekundi ukupno odčekao, te provjeri izlazni status i ispiše uzrok prekida — istek vremena (0) ili prekid signalom (1).
+
+### Zadatak 3 — Kritični odsječak
+
+Napišite program koji u beskonačnoj petlji izvršava kritični dio koda — obradu koja ne smije biti prekinuta. Program završava izvršavanje kada primi `SIGINT`, ali tek po završetku tekuće obrade. Program realizirajte korištenjem sistemskog poziva `sigaction`:
+
+1. instalirajte rukovatelja za `SIGINT` koji samo postavlja zastavicu tipa `volatile sig_atomic_t`;
+2. pomoću `sigprocmask` blokirajte `SIGINT` neposredno prije početka obrade i odblokirajte ga po njenom završetku (po uzoru na `maska.c`);
+3. nakon svake obrade provjerite zastavicu i, ako je postavljena, uredno završite s ispisom ukupnog broja dovršenih obrada.
+
+Pošaljite programu `SIGINT` usred obrade (`Ctrl+C`) i uvjerite se da se poruka o prekidu pojavljuje tek nakon što obrada završi. Objasnite: što bi se dogodilo bez blokiranja, a što ako bi se umjesto blokiranja signal jednostavno ignorirao (`SIG_IGN`)?
+
+> **Mala pomoć:** Obradu simulirajte na način da prvo ispišete "Početak obrade", zatim pozovite `sleep(1)`, nakon toga ispišite "Radim...", ponovo pozovite `sleep(1)` te na kraju ispišite "Obrada gotova".
 
 ## Bibliografija
 
