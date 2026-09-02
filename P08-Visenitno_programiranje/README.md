@@ -1055,6 +1055,28 @@ make nit_pozdrav  # gradi pojedinačni primjer
 make clean        # čisti generirane datoteke
 ```
 
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — `broji2` bez globalnih varijabli
+
+Prepravite program `broji2.c` na način da ne koristi globalne varijable. Sve potrebne varijable, uključujući i mutex, deklarirajte u funkciji `main`, a svakoj od niti kroz argument funkcije proslijedite strukturu s pokazivačima na sve što joj je potrebno (po uzoru na `argumenti2.c`). Rezultat izvođenja mora ostati isti kao kod izvornog programa.
+
+### Zadatak 2 — Brojanje bez mutexa
+
+Riješite problem iz prethodnog zadatka bez korištenja mutexa. Prepravite program na način da svaka nit broj ponavljanja računa u lokalnoj varijabli, bez pristupa zajedničkom brojaču. Putem argumenata funkcija `pthread_exit` i `pthread_join` vratite lokalni zbroj iz svake niti te ih zbrojite u glavnoj niti.
+
+Usporedite brzinu izvođenja obiju inačica (npr. naredbom `time`) i objasnite razliku.
+
+> **Mala pomoć:** Prisjetite se u primjeru `kvadrat2.c` kako nit vraća rezultat kroz `pthread_exit` — i zašto vraćeni pokazivač ne smije pokazivati na lokalne (automatske) varijable niti.
+
+### Zadatak 3 — Blagajna
+
+Riješite zadatak „Blagajna" iz prethodnog poglavlja korištenjem niti umjesto procesa: dvije niti dijele strukturu sa stanjem računa (početno 1000) i brojem transakcija, jedna u 100.000 iteracija uplaćuje 10, druga u isto toliko iteracija isplaćuje 10. Program napišite u dvije inačice — bez sinkronizacije i s muteksom — pokrenite obje više puta i usporedite rezultate s očekivanima.
+
+Na kraju usporedite rješenje s onim iz prethodnog poglavlja i odgovorite: što je kod niti jednostavnije (kako niti dijele strukturu, a kako su je dijelili procesi?), a što ostaje jednako (kritični odsječak)?
+
+> **Mala pomoć:** Za razliku od procesa, nitima nije potrebna dijeljena memorija (`shm_open`/`mmap`) — dovoljna je obična globalna struktura.
+
 ## Bibliografija
 
 [1] D. R. Butenhof, *Programming with POSIX Threads*. Boston, MA, USA: Addison-Wesley Professional, 1997.
