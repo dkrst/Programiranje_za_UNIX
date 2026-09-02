@@ -755,6 +755,67 @@ Mrežno programiranje je obimno područje. Spomenimo nekoliko važnih tema koje 
 
 Sve ovo i mnogo više obrađeno je u referencama navedenim niže.
 
+## Zadaci za samostalno rješavanje
+
+### Zadatak 1 — Posluženi klijenti
+
+Proširite par `tcp_server.c` / `tcp_klijent.c`:
+
+1. server za svakog posluženog klijenta ispisuje njegovu IP adresu i port, koje dobiva kroz drugi i treći argument poziva `accept` (dosad neiskorištene — u primjeru su `NULL`), te redni broj klijenta od pokretanja servera;
+2. u odgovoru klijentu, uz echo poruke, server na početak dopiše klijentovu adresu u obliku `[IP:port] poruka` — tako klijent saznaje vlastitu adresu i port kako ih vidi server (port klijent inače ni ne zna, jer mu ga pri spajanju dodjeljuje jezgra).
+
+Provjerite rad spajanjem više klijenata: jednom s istog računala na kojem radi server, a drugi put s druge IP adrese. Ispis na serveru (poslužena dva klijenta — prvi lokalni, drugi s drugog računala):
+
+```
+$ ./tcp_server
+Server slusa na portu 9000
+Klijent 1 (127.0.0.1:53214)
+Primljeno: Pozdrav serveru
+Klijent 2 (192.168.1.17:41808)
+Primljeno: Pozdrav s drugog racunala
+```
+
+Ispis lokalnog klijenta:
+
+```
+$ ./tcp_klijent 127.0.0.1 "Pozdrav serveru"
+Odgovor: [127.0.0.1:53214] Pozdrav serveru
+```
+
+Ispis klijenta koji se spaja s drugog računala (server radi na adresi 192.168.1.5):
+
+```
+$ ./tcp_klijent 192.168.1.5 "Pozdrav s drugog racunala"
+Odgovor: [192.168.1.17:41808] Pozdrav s drugog racunala
+```
+
+> **Mala pomoć:** `accept` u argumentima vraća `struct sockaddr_in` klijenta; za pretvorbu adrese u ispisivi oblik koristite `inet_ntoa` ili `inet_ntop`, a za port ne zaboravite `ntohs`.
+
+### Zadatak 2 — Server vremena
+
+Po uzoru na echo primjere napišite par `vrijeme_server.c` / `vrijeme_klijent.c` s jednostavnim protokolom. Klijent šalje jednu od tekstualnih naredbi, a server odgovara:
+
+- `VRIJEME` — trenutačno vrijeme na serveru (npr. `14:35:07`);
+- `DATUM` — današnji datum (npr. `2.9.2026.`);
+- `BROJ` — koliko je zahtjeva server dosad poslužio;
+- bilo što drugo — `NEPOZNATA NAREDBA`.
+
+Naredba se klijentu zadaje kao argument naredbenog retka. Server poslužuje klijente jednog po jednog, u petlji, kao `tcp_server.c`.
+
+> **Mala pomoć:** Usporedbu primljene naredbe radite sa `strcmp` — i pripazite da primljeni niz prije usporedbe zaključite nul-znakom, kao u primjerima. Za vrijeme i datum poslužit će funkcije `time`, `localtime` i `strftime`.
+
+**Dodatni zadatak:** server preradite po uzoru na `tcp_server_fork.c` tako da svakog klijenta poslužuje u zasebnom procesu. Radi li tada naredba `BROJ` ispravno? Objasnite zašto (prisjetite se poglavlja o okruženju procesa i kopiranju memorije kod `fork`).
+
+### Zadatak 3 — Server vremena, ovaj put UDP
+
+Preradite par iz zadatka 2 u `vrijeme_server_udp.c` / `vrijeme_klijent_udp.c`, po uzoru na primjere `udp_server.c` i `udp_klijent.c`: klijent naredbu šalje datagramom (`sendto`), server odgovor vraća datagramom na adresu pošiljatelja dobivenu iz `recvfrom`. Funkcionalnost (naredbe `VRIJEME`, `DATUM`, `BROJ`) ostaje ista.
+
+Zatim usporedite obje izvedbe i odgovorite:
+
+1. Koje sistemske pozive TCP izvedba treba, a UDP izvedba ne? Što je zbog toga jednostavnije, a što se gubi?
+2. Pokrenite UDP klijenta **bez pokrenutog servera**. Što se događa i po čemu se to razlikuje od TCP klijenta u istoj situaciji? (Klijenta koji čeka prekinite s `Ctrl+C`.)
+3. Ima li kod UDP servera smisla govoriti o "posluživanju jednog po jednog klijenta" i treba li mu ekvivalent `tcp_server_fork.c` izvedbe? Zašto?
+
 ## Bibliografija
 
 [1] W. R. Stevens, B. Fenner, and A. M. Rudoff, *UNIX Network Programming, Volume 1: The Sockets Networking API*, 3rd ed. Boston, MA, USA: Addison-Wesley Professional, 2003.
