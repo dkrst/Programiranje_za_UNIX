@@ -1071,7 +1071,7 @@ Usporedite brzinu izvođenja obiju inačica (npr. naredbom `time`) i objasnite r
 
 ### Zadatak 3 — Blagajna
 
-Riješite zadatak „Blagajna" iz prethodnog poglavlja korištenjem niti umjesto procesa: dvije niti dijele strukturu sa stanjem računa (početno 1000) i brojem transakcija, jedna u 100.000 iteracija uplaćuje 10, druga u isto toliko iteracija isplaćuje 10. Program napišite u dvije inačice — bez sinkronizacije i s muteksom — pokrenite obje više puta i usporedite rezultate s očekivanima.
+Riješite zadatak „Blagajna" iz prethodnog poglavlja korištenjem niti umjesto procesa: dvije niti dijele strukturu sa stanjem računa (početno 1000) i brojem transakcija, jedna u 100000 iteracija uplaćuje 10, druga u isto toliko iteracija isplaćuje 10. Program napišite u dvije inačice — bez sinkronizacije i s muteksom — pokrenite obje više puta i usporedite rezultate s očekivanima.
 
 Na kraju usporedite rješenje s onim iz prethodnog poglavlja i odgovorite: što je kod niti jednostavnije (kako niti dijele strukturu, a kako su je dijelili procesi?), a što ostaje jednako (kritični odsječak)?
 
