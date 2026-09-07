@@ -1326,7 +1326,7 @@ Za razliku od `prebroji.c`, glavni proces ovdje ne pokreće vanjski program (ona
 
 Proširite primjere `shm_brojac.c` i `shm_brojac_sem.c` u simulaciju zajedničke blagajne. U dijeljenoj memoriji nalazi se struktura sa stanjem računa (početno 1000) i brojem obavljenih transakcija. Program stvori **dva** procesa djeteta: jedno dijete u petlji od 100000 iteracija uplaćuje 10 (uvećava stanje), a drugo u isto toliko iteracija isplaćuje 10 (umanjuje stanje); svako dijete pri tome broji i transakcije. Po završetku obaju procesa roditelj ispisuje konačno stanje računa i ukupan broj transakcija.
 
-Program napišite u dvije inačice: bez ikakve sinkronizacije i sa POSIX semaforom koji štiti pristup strukturi. Pokrenite obje inačice više puta, usporedite rezultate s očekivanim (stanje 1000, transakcija 200.000) i objasnite razliku.
+Program napišite u dvije inačice: bez ikakve sinkronizacije i sa POSIX semaforom koji štiti pristup strukturi. Pokrenite obje inačice više puta, usporedite rezultate s očekivanim (stanje 1000, transakcija 200000) i objasnite razliku.
 
 > **Mala pomoć:** Kritični odsječak čine **obje** promjene zajedno — stanje i brojač transakcija moraju se mijenjati pod istim semaforom, inače struktura može završiti u nekonzistentnom stanju.
 
