@@ -1,0 +1,122 @@
+% ---------------------------------------------------------------
+% Zajednicka tema za prezentacije kolegija "Programiranje za UNIX"
+% FESB - Sveuciliste u Splitu
+%
+% Ukljucuje se preko pandoc opcije -H fesb.tex
+% ---------------------------------------------------------------
+
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+% ---------- boje -----------------------------------------------
+\definecolor{fesbPlava}{RGB}{0,58,112}      % primarna, tamnoplava
+\definecolor{fesbSvijetla}{RGB}{0,116,178}  % sekundarna, svjetlija plava
+\definecolor{fesbSiva}{RGB}{110,118,128}    % tekst podnozja
+\definecolor{fesbPozadina}{RGB}{247,249,251}% vrlo blijeda pozadina
+\definecolor{fesbNaglasak}{RGB}{196,120,20} % naglasak (kod, istaknuto)
+
+\setbeamercolor{normal text}{fg=black!88, bg=fesbPozadina}
+\setbeamercolor{frametitle}{fg=fesbPlava, bg=}
+\setbeamercolor{title}{fg=fesbPlava}
+\setbeamercolor{subtitle}{fg=fesbSvijetla}
+\setbeamercolor{author}{fg=black!75}
+\setbeamercolor{institute}{fg=fesbSiva}
+\setbeamercolor{date}{fg=fesbSiva}
+\setbeamercolor{structure}{fg=fesbSvijetla}
+\setbeamercolor{itemize item}{fg=fesbSvijetla}
+\setbeamercolor{itemize subitem}{fg=fesbSvijetla!70}
+\setbeamercolor{enumerate item}{fg=fesbSvijetla}
+\setbeamercolor{section in toc}{fg=fesbPlava}
+\setbeamercolor{block title}{fg=white, bg=fesbPlava}
+\setbeamercolor{block body}{bg=fesbPlava!5}
+
+% ---------- tipografija ----------------------------------------
+\setbeamerfont{frametitle}{size=\large, series=\bfseries}
+\setbeamerfont{title}{size=\LARGE, series=\bfseries}
+\setbeamerfont{subtitle}{size=\large}
+\setbeamerfont{footline}{size=\tiny}
+\setbeamertemplate{itemize item}{\raisebox{0.15ex}{\scriptsize$\blacktriangleright$}}
+\setbeamertemplate{itemize subitem}{\raisebox{0.15ex}{\tiny$\blacktriangleright$}}
+\setbeamertemplate{navigation symbols}{}
+
+% ---------- pozadina: blijeda ploha + tanka crta uz gornji rub --
+\setbeamertemplate{background}{%
+  \begin{tikzpicture}[remember picture, overlay]
+    \fill[fesbPozadina] (current page.south west) rectangle (current page.north east);
+    % diskretan kut u gornjem desnom uglu
+    \fill[fesbSvijetla!9]
+      ($(current page.north east)+(-1.8cm,0)$) --
+      (current page.north east) --
+      ($(current page.north east)+(0,-1.8cm)$) -- cycle;
+    % tanka linija uz donji rub
+    \fill[fesbPlava!85]
+      ($(current page.south west)+(0,0.9ex)$) rectangle
+      ($(current page.south east)+(0,1.2ex)$);
+  \end{tikzpicture}%
+}
+
+% ---------- naslov okvira: tekst + tanka podcrta ----------------
+\setbeamertemplate{frametitle}{%
+  \vspace{1.2ex}%
+  \begin{beamercolorbox}[wd=\paperwidth, leftskip=0.9cm, rightskip=0.9cm]{frametitle}
+    \usebeamerfont{frametitle}\insertframetitle\par
+    \vspace{0.4ex}%
+    \textcolor{fesbSvijetla!60}{\rule{0.10\paperwidth}{0.9pt}}
+  \end{beamercolorbox}%
+  \vspace{0.5ex}%
+}
+
+% ---------- podnozje ---------------------------------------------
+\setbeamertemplate{footline}{%
+  \ifnum\insertframenumber=1\relax\else
+  \hbox{}\vspace{-1.5ex}%
+  \hspace{0.9cm}%
+  \begin{minipage}{\dimexpr\paperwidth-1.8cm\relax}
+    \usebeamerfont{footline}\color{fesbSiva}%
+    \textbf{FESB}\,\textbar\; Programiranje za UNIX
+    \hfill \insertsectionhead
+    \hfill \insertframenumber\,/\,\inserttotalframenumber
+  \end{minipage}%
+  \vspace{1.6ex}%
+  \fi
+}
+
+% ---------- naslovni slajd ---------------------------------------
+\setbeamertemplate{title page}{%
+  \vfill
+  \begin{center}
+    {\usebeamerfont{title}\usebeamercolor[fg]{title}\inserttitle\par}
+    \vspace{0.6ex}
+    {\usebeamerfont{subtitle}\usebeamercolor[fg]{subtitle}\insertsubtitle\par}
+    \vspace{1.4ex}
+    \textcolor{fesbSvijetla!60}{\rule{0.30\paperwidth}{1pt}}
+    \vspace{1.8ex}
+
+    {\usebeamercolor[fg]{author}\insertauthor\par}
+    \vspace{1.2ex}
+    \IfFileExists{slike/fesb-logo.png}{%
+      \includegraphics[height=1.1cm]{slike/fesb-logo.png}\par\vspace{0.8ex}}{}
+    {\footnotesize\usebeamercolor[fg]{institute}\insertinstitute\par}
+    \vspace{0.4ex}
+    {\footnotesize\usebeamercolor[fg]{date}\insertdate\par}
+  \end{center}
+  \vfill
+}
+
+% ---------- sekcijski medjuslajd ---------------------------------
+\AtBeginSection[]{%
+  \begin{frame}[plain, noframenumbering]
+    \vfill
+    \begin{center}
+      {\large\color{fesbSiva}\insertsectionnumber.}\\[0.8ex]
+      {\LARGE\bfseries\color{fesbPlava}\insertsectionhead}\\[1.2ex]
+      \textcolor{fesbSvijetla!60}{\rule{0.22\paperwidth}{1pt}}
+    \end{center}
+    \vfill
+  \end{frame}
+}
+
+% ---------- kod ---------------------------------------------------
+\setbeamercolor{verbatim}{fg=black!85}
+\usepackage{fancyvrb}
+\fvset{fontsize=\small}
