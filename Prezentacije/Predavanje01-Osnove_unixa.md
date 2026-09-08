@@ -204,7 +204,7 @@ Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program n
 
 ## Zastupljenost na listi TOP500
 
-![Slika 1.1: Zastupljenost operacijskih sustava na TOP500 listi superračunala (izvor: Wikipedia, *Usage share of operating systems*)](slike/top500_unix_linux.png){height=62%}
+![Zastupljenost operacijskih sustava na TOP500 listi superračunala (izvor: Wikipedia, *Usage share of operating systems*)](slike/top500_unix_linux.png){height=62%}
 
 ## Zaključak
 
@@ -216,7 +216,7 @@ Programi koje ćemo pisati na ovom kolegiju izvršavaju se, uz najviše ponovno 
 
 ## Slojevita arhitektura
 
-![Slika 1.2: Slojevita arhitektura UNIX operacijskog sustava](slike/arhitektura.png){height=62%}
+![Slojevita arhitektura UNIX operacijskog sustava (izvor: skripta, slika 1.2)](slike/arhitektura.png){height=62%}
 
 ## UNIX arhitektura --- razine apstrakcije
 
@@ -469,7 +469,7 @@ Ukupno **devet bitova**: tri prava puta tri skupine.
 
 ## Zapis prava
 
-![Slika 1.3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale](slike/rwx.png){width=80%}
+![Struktura prava pristupa (rwx) za vlasnika, grupu i ostale (izvor: skripta, slika 1.3)](slike/rwx.png){width=80%}
 
 - `rw-r--r--` --- vlasnik čita i piše, grupa i ostali samo čitaju.
 - `rwxr-x---` --- vlasnik sve, grupa čita i izvršava, ostali ništa.
