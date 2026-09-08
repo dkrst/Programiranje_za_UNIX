@@ -28,8 +28,6 @@ lang: hr
 3. **Programi i procesi** --- što se događa kad pokrenemo program.
 4. **Shell skripte** --- ljuska kao programski jezik.
 
-Prvo predavanje na kojem se sve može isprobati u terminalu usporedno.
-
 # Naredbena ljuska
 
 ## Podsjetnik
@@ -43,6 +41,42 @@ naredba [opcije] [argumenti]
 ```
 
 - Opcije se pišu s crticom (`-l`), duge opcije s dvije (`--all`), a više kratkih opcija može se spojiti: `ls -la` je isto što i `ls -l -a`.
+- **UNIX razlikuje velika i mala slova** --- u imenima naredbi, opcija i datoteka: `ls` i `LS` nisu ista naredba, `-r` i `-R` nisu ista opcija.
+
+\vspace{1ex}
+\hrule
+\vspace{1ex}
+
+`man <naredba>` --- pomoć za bilo koju UNIX naredbu.
+
+## Razlike među ljuskama
+
+Ljuska je **običan program**, a ne dio jezgre --- pa ih na sustavu može biti i više, i svaki korisnik može birati svoju.
+
+| Ljuska | Opis |
+|---------|-------------------------------------------------------|
+| `sh` | *Bourne shell*, izvorna UNIX ljuska; danas standard za skripte |
+| `bash` | *Bourne Again Shell*, proširuje `sh`; uobičajena na Linuxu |
+| `dash` | mala i brza `sh`-kompatibilna ljuska za sistemske skripte |
+| `ksh` | *Korn shell*, čest na komercijalnim UNIX sustavima |
+| `csh`, `tcsh` | *C shell*, sintaksa nalik C-u; drukčija od `sh` obitelji |
+| `zsh` | proširena `bash`-kompatibilna ljuska; zadana na macOS-u |
+
+Koju trenutno koristimo: `echo $SHELL`, popis dostupnih: `cat /etc/shells`.
+
+## Kada razlike postaju važne
+
+- **U interaktivnom radu gotovo nikad** --- naredbe (`ls`, `cp`, `grep`), putanje, prava i preusmjeravanje izlaza rade jednako u svim ljuskama.
+- **Razlike se pojavljuju kod:**
+    - sintakse skripti --- varijable, uvjeti, petlje (`bash` i `csh` bitno se razlikuju),
+    - preusmjeravanja pogreške (`stderr`),
+    - konfiguracijskih datoteka i varijabli okruženja.
+- **O tome treba voditi računa kada:**
+    - pišemo skriptu --- prvi redak (*shebang*) određuje interpreter i mora odgovarati sintaksi,
+    - radimo na tuđem ili udaljenom sustavu gdje zadana ljuska nije ona na koju smo navikli,
+    - preuzimamo primjer s interneta --- radi u `bash`-u, ne mora u `csh`-u.
+
+U primjerima skripti koje ćemo obraditi koristimo **`bash`**.
 
 ## Ugrađene naredbe i programi
 
@@ -81,25 +115,24 @@ Korisne opcije naredbe `ls`:
 
 | Naredba | Opis |
 |---|---|
-| `cp` | kopiranje (`-r` rekurzivno, `-i` s potvrdom) |
+| `cp` | kopiranje (`-r` rekurzivno, `-i` s potvrdom, `-f` bezuvjetno) |
 | `mv` | premještanje i preimenovanje |
-| `rm` | brisanje (`-r` rekurzivno, `-f` bez upita) |
+| `rm` | brisanje (`-R` rekurzivno, `-f` bez upita) |
 | `mkdir` | stvaranje direktorija (`-p` i svi roditelji) |
 | `rmdir` | brisanje **praznog** direktorija |
 | `touch` | stvaranje prazne datoteke ili osvježavanje vremena |
-| `ln` | stvaranje linka (`-s` simbolički) |
 
 U UNIX-u nema "koša za smeće" --- brisanje je trajno.
 
 ## Oprez s rm
 
 ```
-$ rm -rf stari_dir/
+$ rm -Rf stari_dir/
 ```
 
-- `-r` briše rekurzivno cijelo stablo, `-f` ne postavlja nijedno pitanje.
+- `-R` briše rekurzivno cijelo stablo, `-f` ne postavlja nijedno pitanje.
 - Kombinacija je nužna u svakodnevnom radu, ali i najčešći uzrok nepovratnog gubitka podataka.
-- Posebno opasno: `rm -rf /` ili slučajan razmak u `rm -rf * .o` umjesto `rm -rf *.o`.
+- Posebno opasno: `rm -Rf /` ili slučajan razmak u `rm -Rf * .o` umjesto `rm -Rf *.o`.
 
 \vspace{1ex}
 \hrule
@@ -117,7 +150,7 @@ $ rm -rf stari_dir/
 | `tail` | zadnjih 10 redaka (`-f` prati datoteku dok raste) |
 | `wc` | broj redaka, riječi i znakova (`-l`, `-w`, `-c`) |
 
-`tail -f` je nezaobilazan pri praćenju log datoteka poslužitelja u stvarnom vremenu.
+`tail -f` je nezaobilazan pri praćenju dinamičkih log datoteka poslužitelja u stvarnom vremenu.
 
 ## Pretraživanje
 
@@ -127,6 +160,7 @@ $ rm -rf stari_dir/
 $ grep "ERROR" program.log
 $ grep -i -n "greska" *.txt      # bez razlike u velicini slova, s brojem retka
 $ grep -r "TODO" .               # rekurzivno kroz stablo
+$ grep -C 2 "ERROR" program.log  # i po 2 retka prije i poslije
 ```
 
 - **`find`** --- traži datoteke po imenu, tipu, veličini ili vremenu:
@@ -174,6 +208,40 @@ $
 - `jobs` --- popis poslova, `fg %2` --- vraćanje u prvi plan, `bg %2` --- nastavak u pozadini.
 - `Ctrl+Z` suspendira program u prvom planu; `bg` ga zatim nastavlja u pozadini.
 
+## Grafičko sučelje
+
+- Na UNIX-u grafičko sučelje **nije dio operacijskog sustava** --- to je skup običnih korisničkih programa iznad iste jezgre i istih sistemskih poziva.
+- Slaže se od nekoliko nezavisnih slojeva koje korisnik bira:
+    - **grafički poslužitelj** --- `X Window System` (X11), danas sve češće `Wayland`,
+    - **upravitelj prozora** (*window manager*) --- crta okvire, pomiče i slaže prozore,
+    - **radna okolina** (*desktop environment*) --- GNOME, KDE, XFCE: upravitelj prozora, ploče, upravitelj datoteka i alati u jednoj cjelini.
+- Svaki se sloj može zamijeniti ili potpuno izostaviti. Poslužitelji redovito rade **bez ijednog od njih**, a njima se upravlja isključivo ljuskom.
+
+## X: klijent i poslužitelj
+
+- **X poslužitelj** radi na računalu koje ima zaslon, tipkovnicu i miša; on jedini upravlja grafičkim sklopovljem.
+- **X klijent** je program s grafičkim sučeljem. Klijent poslužitelju šalje zahtjeve "nacrtaj prozor", a prima događaje tipkovnice i miša.
+- Ključno: klijent i poslužitelj **ne moraju biti na istom računalu**. Program se izvršava na udaljenom stroju, a prikazuje se lokalno:
+
+```
+$ ssh -X korisnik@posluzitelj
+$ xclock &
+```
+
+- Uočite obrnutu perspektivu: *poslužitelj* je računalo ispred kojeg sjedite.
+
+## Razlika prema Windowsima
+
+| | UNIX | Windows |
+|---|---|---|
+| Položaj GUI-ja | korisnički programi iznad jezgre | dio sustava, dijelom u jezgri |
+| Može li se izostaviti | da, sustav radi bez njega | ne u punom smislu |
+| Izbor sučelja | GNOME, KDE, XFCE i drugi | jedno, zadano |
+| Rad na daljinu | ugrađen: prikaz na drugom računalu | naknadno dodan (RDP) |
+| Uobičajen rad na poslužitelju | bez GUI-ja, preko ljuske | često s grafičkim sučeljem |
+
+UNIX sustavom moguće je u potpunosti upravljati **bez grafičkog sučelja**, putem ljuske i sistemskih poziva.
+
 # Preusmjeravanje i ulančavanje
 
 ## Tri standardna toka
@@ -190,6 +258,8 @@ Razdvojenost `stdout` i `stderr` upravo zato ima smisla: rezultat možemo spremi
 
 ## Operatori preusmjeravanja
 
+Operatori se donekle razlikuju među ljuskama; ovo su operatori **`bash` ljuske**:
+
 | Operator | Opis |
 |---|---|
 | `>` | preusmjeri `stdout` u datoteku (briše postojeći sadržaj) |
@@ -199,6 +269,8 @@ Razdvojenost `stdout` i `stderr` upravo zato ima smisla: rezultat možemo spremi
 | `2>>` | dodaj `stderr` na kraj datoteke |
 | `&>` | preusmjeri `stdout` i `stderr` zajedno |
 | `2>&1` | spoji `stderr` na `stdout` |
+
+U `csh`/`tcsh` ljusci `stdout` i `stderr` ne mogu se razdvojiti tako jednostavno: oba se zajedno preusmjeravaju operatorom `>&`, a za razdvajanje je potrebna zaobilazna konstrukcija. Ljuske `sh`, `bash`, `ksh` i `zsh` koriste operatore iz tablice.
 
 ## Preusmjeravanje izlaza
 
@@ -250,7 +322,13 @@ Nijedan od tri programa ne zna ništa o ostalima --- a zajedno rješavaju konkre
 
 ## Lanci u praksi
 
-Različita korisnička imena koja su u `auth.log` izazvala grešku:
+Zapis u datoteci `auth.log` izgleda ovako --- korisničko ime je **peto polje**:
+
+```
+Mar 11 18:04 ERROR marko failed password from 10.0.0.7
+```
+
+Različita korisnička imena koja su izazvala grešku:
 
 ```
 $ grep "ERROR" auth.log | awk '{print $5}' | sort | uniq
@@ -259,7 +337,7 @@ ana
 marko
 ```
 
-- `awk '{print $5}'` izdvaja peto polje retka,
+- `awk '{print $5}'` izdvaja peto polje retka (polja dijeli razmak),
 - `sort` poreda imena,
 - `uniq` uklanja duplikate --- traži **susjedne**, pa se prije njega uvijek sortira.
 
@@ -347,10 +425,14 @@ Proces tijekom života prolazi kroz nekoliko stanja:
 
 - **Ready** --- spreman za izvršavanje, čeka procesor.
 - **Running** --- trenutno se izvršava.
-- **Blocked** --- čeka na događaj (podatke s diska, mreže, tipkovnice).
+- **Blocked** (*sleeping*) --- čeka na događaj (podatke s diska, mreže, tipkovnice).
 - **Terminated** --- završio, čeka da roditelj pokupi izlazni status.
 
 O prelascima između *ready* i *running* odlučuje **raspoređivač** (*scheduler*) jezgre. Proces sam ne bira kad će dobiti procesor.
+
+## Životni ciklus procesa
+
+![Životni ciklus procesa (izvor: skripta, slika 5.1)](slike/zivotni_ciklus.png){width=88% height=70%}
 
 ## Stvaranje i završetak
 
@@ -367,8 +449,8 @@ Detaljna obrada slijedi u poglavljima o okruženju procesa i signalima.
 
 Prema odnosu:
 
-- **roditeljski** (*parent*) --- proces koji pokreće druge,
-- **dječji** (*child*) --- pokrenut iz roditelja, u `PPID` nosi njegov PID.
+- **roditelj** (*parent*) --- proces koji pokreće druge,
+- **dijete** (*child*) --- pokrenut iz roditelja, u `PPID` nosi njegov PID.
 
 Prema stanju i ulozi:
 
@@ -390,7 +472,7 @@ Prema stanju i ulozi:
 ## Prioritet procesa
 
 - Prioritet određuje koliko često i koliko dugo proces dobiva procesor.
-- Mjeri se vrijednošću **niceness** u rasponu od **-20 do 19**; zadana vrijednost je 0.
+- Određuje se na temelju vrijednosti **nice value**, u rasponu od **-20 do 19**; zadana vrijednost je 0.
 - Veći broj znači **niži** prioritet --- proces je "ljubazniji" prema ostalima jer traži manje procesorskog vremena.
 - Obični korisnik smije prioritet samo **snižavati**; povisiti ga (negativne vrijednosti) može jedino `root`.
 
@@ -421,33 +503,6 @@ Trenutne vrijednosti vide se u stupcu `NI` naredbe `top`.
 | `SIGTSTP` | 20 | korisnik je pritisnuo Ctrl+Z |
 
 Puni popis: `man 7 signal`.
-
-## Slanje signala
-
-```
-$ kill 25016                  # posalji SIGTERM procesu 25016
-$ kill -9 25016               # posalji SIGKILL
-$ kill -SIGTERM 25016         # isto kao prvi primjer, citljivije
-$ killall program             # svim procesima zadanog imena
-```
-
-- Tipkovnicom: `Ctrl+C` šalje `SIGINT`, `Ctrl+Z` šalje `SIGTSTP`.
-- **Redoslijed je važan**: prvo `SIGTERM`, koji programu daje priliku da uredno spremi podatke i zatvori datoteke. Tek ako se ogluši, `SIGKILL`.
-- `SIGKILL` i `SIGSTOP` postoje upravo zato da sustav uvijek ima način zaustaviti "neposlušan" proces.
-
-## Demo: procesi i signali
-
-**Cilj:** vidjeti stvaranje, praćenje i prekid procesa.
-
-```
-sleep 300 &
-jobs ; ps -ef | grep sleep
-top -n 1 | head -12
-kill %1 ; jobs
-nice -n 15 sleep 60 & ; ps -o pid,ni,cmd -p $!
-```
-
-**Poanta:** proces je objekt sustava kojim se upravlja jednako kao datotekom.
 
 # Shell skripte
 
@@ -488,7 +543,7 @@ Primjer `pozdrav.sh` iz repozitorija skripte.
 ## Varijable
 
 ```bash
-ime="Marko"          # bez razmaka oko znaka =
+ime="Kuzma"          # bez razmaka oko znaka =
 broj=42
 echo "$ime ima $broj godine"
 ```
@@ -549,6 +604,30 @@ done
 ```
 
 Lista u `for` petlji može biti zadana izravno, generirana naredbom ili dobivena razrješavanjem uzorka imena datoteka.
+
+## Primjer: ispis argumenata
+
+```bash
+#!/bin/bash
+# Ispisuje sve argumente naredbenog retka, jedan po retku.
+
+echo "Broj argumenata: $#"
+i=1
+for arg in "$@"; do
+    echo "  argument $i: $arg"
+    (( i++ ))
+done
+```
+
+```
+$ ./argumenti.sh prvi drugi "treci s razmakom"
+Broj argumenata: 3
+  argument 1: prvi
+  argument 2: drugi
+  argument 3: treci s razmakom
+```
+
+Navodnici oko `"$@"` bitni su: bez njih bi se treći argument raspao na tri.
 
 ## Primjer: brojac.sh
 
@@ -615,7 +694,7 @@ Skripta je vezana uz ljusku za koju je pisana. Najčešće su `bash` i `csh`:
 | Operacija | bash | csh |
 |---|---|---|
 | Shebang | `#!/bin/bash` | `#!/usr/bin/csh` |
-| Dodjela varijable | `ime="Marko"` | `set ime="Marko"` |
+| Dodjela varijable | `ime="Kuzma"` | `set ime="Kuzma"` |
 | Uvjet | `if [ $a = $b ]; then` | `if ($a == $b) then` |
 | Kraj `if` bloka | `fi` | `endif` |
 | `for` petlja | `for i in lista; do` | `foreach i (lista)` |
@@ -624,22 +703,6 @@ Skripta je vezana uz ljusku za koju je pisana. Najčešće su `bash` i `csh`:
 | Argumenti | `$1, $2, ...` | `$argv[1], $argv[2], ...` |
 
 U nastavku kolegija koristimo `bash`.
-
-## Demo: pisanje skripte
-
-**Cilj:** napisati i pokrenuti skriptu od nule.
-
-```
-nano prebroji.sh
-chmod +x prebroji.sh
-./prebroji.sh
-./prebroji.sh /etc
-echo $?
-```
-
-Skripta prima direktorij kao argument, provjerava postoji li, pa ispisuje broj datoteka u njemu.
-
-**Poanta:** sve što radimo u ljusci može se zapisati i ponoviti.
 
 ## Što smo naučili
 
