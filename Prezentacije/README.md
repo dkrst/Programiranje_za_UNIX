@@ -8,7 +8,7 @@ Gradivo poglavlja P01–P07 podijeljeno je na 13 predavanja.
 | # | Predavanje | Poglavlje | Izvor | Slajdovi |
 |---|---|---|---|---|
 | 1 | Osnove UNIX-a | P01 | [md](Predavanje01-Osnove_unixa.md) | [pdf](Predavanje01-Osnove_unixa.pdf) |
-| 2 | Ljuska i shell skripte | P01 | — | — |
+| 2 | Ljuska, procesi i shell skripte | P01 | [md](Predavanje02-Ljuska_i_procesi.md) | [pdf](Predavanje02-Ljuska_i_procesi.pdf) |
 | 3 | Prevođenje i povezivanje, GCC | P02 | — | — |
 | 4 | `make` i biblioteke | P02 | — | — |
 | 5 | Sistemski pozivi za rad s datotekama | P03 | — | — |
@@ -30,8 +30,11 @@ Prezentacije/
 ├── README.md                      <- ovaj popis
 ├── build_slides.py                <- generiranje PDF-a
 ├── fesb_slides.tex                <- zajednicka Beamer tema (boje, podnozje, naslovnica)
+├── slides_filter.lua              <- slajd sa samo slikom -> bez podnozja
 ├── Predavanje01-Osnove_unixa.md   <- izvor (pandoc markdown, H2 = novi slajd)
 ├── Predavanje01-Osnove_unixa.pdf  <- generirani slajdovi
+├── Predavanje02-Ljuska_i_procesi.md
+├── Predavanje02-Ljuska_i_procesi.pdf
 ├── slike/                         <- slike svih predavanja
 └── OLD/                           <- stare prezentacije kolegija
 ```
@@ -53,5 +56,6 @@ Za svaku datoteku `Predavanje*.md` generira se `.pdf` istog imena.
 - Jedan slajd = jedna ideja; kod najviše ~15 redaka po slajdu.
 - Slike i njihova numeracija ("Slika X.Y") preuzimaju se iz skripte.
 - Slajdovi tipa **Demo** sadrže cilj, naredbe za tipkanje uživo i poantu.
+- Zadaci za samostalan rad ne idu na slajdove --- daju se usmeno na predavanju.
 - Imenovanje: `PredavanjeNN-Naziv.md`, dvoznamenkasti broj termina.
 - Izgled se mijenja isključivo u `fesb_slides.tex` — nikada u pojedinoj prezentaciji.

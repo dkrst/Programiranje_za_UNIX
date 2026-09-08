@@ -561,21 +561,11 @@ chmod 400 pozdrav.txt ; ls -l pozdrav.txt
 \item UNIX nastaje 1969.\ kao \textbf{jednostavniji odgovor na Multics}; oskudno sklopovlje, izostanak proračuna i besplatno dijeljenje s izvornim kodom oblikovali su sve ostalo.
 \item Danas ga nalazimo na poslužiteljima, telefonima, ugradbenim uređajima i \textbf{svim} superračunalima s liste TOP500.
 \item Arhitektura je slojevita; \textbf{sistemski pozivi su jedino sučelje} prema jezgri.
-\item \textbf{Sve je datoteka} --- isti \texttt{open}/\texttt{read}/\texttt{write}/\texttt{close} za sve resurse.
+\item \textbf{Sve je datoteka} --- pozivi \texttt{open}/\texttt{read}/\texttt{write}/\texttt{close} za sve resurse.
 \item Jedno stablo s korijenom \texttt{/}, bez slova diskova i bez ekstenzija.
-\item Prava: tri skupine $\times$ tri prava; \texttt{x} određuje izvršnost, \texttt{w} na direktoriju određuje brisanje.
+\item Prava: tri skupine $\times$ tri prava; \texttt{x} daje pravo izvršavanja, a \texttt{x} na direktoriju mogućnost otvaranja datoteka u njemu.
 \end{itemize}
 \end{beamercolorbox}
-
-## Za samostalan rad
-
-Skripta, poglavlje 1 --- zadaci za samostalno rješavanje:
-
-1. **Prava pristupa i preusmjeravanje**
-2. **Ulančavanje naredbi**
-3. **`ocisti.sh`**
-
-Prvi zadatak možete riješiti već sada; za druga dva trebat će vam gradivo sljedećeg predavanja.
 
 ## Sljedeće predavanje
 
