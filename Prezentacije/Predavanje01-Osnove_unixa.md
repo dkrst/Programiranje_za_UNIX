@@ -137,9 +137,9 @@ Iz jednog izvora vrlo brzo nastaje **stablo, a ne jedan sustav**:
 
 Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program napisan za jedan ne prevodi se na drugom.
 
-## Razvoj UNIX-a {.plain}
+## Razvoj UNIX-a
 
-![Razvoj UNIX-a i UNIX-sličnih sustava (izvor: Wikimedia Commons)](slike/unix_genealogija.png){width=97% height=64%}
+![Razvoj UNIX-a i UNIX-sličnih sustava (izvor: Wikimedia Commons)](slike/unix_genealogija.png){width=97% height=57%}
 
 ## POSIX
 
