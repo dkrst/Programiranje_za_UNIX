@@ -31,6 +31,7 @@ PANDOC_OPTS = [
     "-V", "theme=default",
     "-V", "colortheme=default",
     "-H", str(BASE / "fesb_slides.tex"),
+    "--lua-filter", str(BASE / "slides_filter.lua"),
     "-V", "aspectratio=169",
     "-V", "classoption=t",
 ]

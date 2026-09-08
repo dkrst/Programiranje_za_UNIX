@@ -139,7 +139,7 @@ Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program n
 
 ## Razvoj UNIX-a
 
-![Razvoj UNIX-a i UNIX-sličnih sustava (izvor: Wikimedia Commons)](slike/unix_genealogija.png){width=97% height=57%}
+![Razvoj UNIX-a i UNIX-sličnih sustava (izvor: Wikimedia Commons)](slike/unix_genealogija.png){width=100% height=74%}
 
 ## POSIX
 
@@ -204,7 +204,7 @@ Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program n
 
 ## Zastupljenost na listi TOP500
 
-![Slika 1.1: Zastupljenost operacijskih sustava na TOP500 listi superračunala](slike/top500_unix_linux.png){height=62%}
+![Slika 1.1: Zastupljenost operacijskih sustava na TOP500 listi superračunala (izvor: Wikipedia, *Usage share of operating systems*)](slike/top500_unix_linux.png){height=62%}
 
 ## Zaključak
 
