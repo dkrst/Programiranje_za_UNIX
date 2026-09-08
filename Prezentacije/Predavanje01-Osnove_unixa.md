@@ -137,13 +137,9 @@ Iz jednog izvora vrlo brzo nastaje **stablo, a ne jedan sustav**:
 
 Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program napisan za jedan ne prevodi se na drugom.
 
-## Razvoj UNIX-a
+## Razvoj UNIX-a {.plain}
 
-\begin{center}
-\includegraphics[width=0.97\textwidth]{slike/unix_genealogija.png}
-
-\small\emph{Razvoj UNIX-a i UNIX-sličnih sustava (izvor: Wikimedia Commons)}
-\end{center}
+![Razvoj UNIX-a i UNIX-sličnih sustava (izvor: Wikimedia Commons)](slike/unix_genealogija.png){width=97% height=64%}
 
 ## POSIX
 
@@ -208,11 +204,7 @@ Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program n
 
 ## Zastupljenost na listi TOP500
 
-\begin{center}
-\includegraphics[height=0.62\textheight]{slike/top500_unix_linux.png}
-
-\small\emph{Slika 1.1: Zastupljenost operacijskih sustava na TOP500 listi superračunala}
-\end{center}
+![Slika 1.1: Zastupljenost operacijskih sustava na TOP500 listi superračunala](slike/top500_unix_linux.png){height=62%}
 
 ## Zaključak
 
@@ -224,11 +216,7 @@ Programi koje ćemo pisati na ovom kolegiju izvršavaju se, uz najviše ponovno 
 
 ## Slojevita arhitektura
 
-\begin{center}
-\includegraphics[height=0.62\textheight]{slike/arhitektura.png}
-
-\small\emph{Slika 1.2: Slojevita arhitektura UNIX operacijskog sustava}
-\end{center}
+![Slika 1.2: Slojevita arhitektura UNIX operacijskog sustava](slike/arhitektura.png){height=62%}
 
 ## UNIX arhitektura --- razine apstrakcije
 
@@ -481,11 +469,7 @@ Ukupno **devet bitova**: tri prava puta tri skupine.
 
 ## Zapis prava
 
-\begin{center}
-\includegraphics[width=0.8\textwidth]{slike/rwx.png}
-
-\small\emph{Slika 1.3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale}
-\end{center}
+![Slika 1.3: Struktura prava pristupa (rwx) za vlasnika, grupu i ostale](slike/rwx.png){width=80%}
 
 - `rw-r--r--` --- vlasnik čita i piše, grupa i ostali samo čitaju.
 - `rwxr-x---` --- vlasnik sve, grupa čita i izvršava, ostali ništa.

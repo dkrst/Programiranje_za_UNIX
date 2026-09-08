@@ -77,7 +77,7 @@
     \hfill \insertsectionhead
     \hfill \insertframenumber\,/\,\inserttotalframenumber
   \end{minipage}%
-  \vspace{1.6ex}%
+  \vspace{3.4ex}%
   \fi
 }
 
@@ -115,6 +115,11 @@
     \vfill
   \end{frame}
 }
+
+% ---------- opisi slika: bez oznake "Slika N:" ------------------
+\setbeamertemplate{caption}{\centering\small\itshape\insertcaption\par}
+\setbeamertemplate{caption label separator}{}
+\AtBeginDocument{\renewcommand{\figurename}{}}
 
 % ---------- kod ---------------------------------------------------
 \setbeamercolor{verbatim}{fg=black!85}
