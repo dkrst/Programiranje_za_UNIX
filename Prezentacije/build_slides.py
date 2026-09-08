@@ -5,9 +5,9 @@ Generiranje PDF prezentacija (pandoc -> beamer) za kolegij
 
 Uporaba:
     ./build_slides.py            # sve prezentacije
-    ./build_slides.py P01        # samo poglavlja koja pocinju s "P01"
+    ./build_slides.py 01         # samo Predavanje01
 
-Za svaki .md u direktoriju P*/ generira se .pdf istog imena.
+Za svaku datoteku Predavanje*.md generira se .pdf istog imena.
 
 Preduvjeti: pandoc, xelatex, lmodern, DejaVu fontovi.
 """
@@ -30,7 +30,7 @@ PANDOC_OPTS = [
     "-V", "lang=hr",
     "-V", "theme=default",
     "-V", "colortheme=default",
-    "-H", str(BASE / "fesb.tex"),
+    "-H", str(BASE / "fesb_slides.tex"),
     "-V", "aspectratio=169",
     "-V", "classoption=t",
 ]
@@ -39,7 +39,7 @@ PANDOC_OPTS = [
 def build(src: Path) -> bool:
     out = src.with_suffix(".pdf")
     cmd = ["pandoc", src.name, *PANDOC_OPTS, "-o", out.name]
-    print(f"==> {src.parent.name}/{src.name}")
+    print(f"==> {src.name}")
     res = subprocess.run(cmd, cwd=src.parent, capture_output=True, text=True)
     if res.returncode != 0:
         print(res.stdout)
@@ -52,9 +52,7 @@ def build(src: Path) -> bool:
 def main() -> int:
     prefix = sys.argv[1] if len(sys.argv) > 1 else ""
     sources = sorted(
-        p
-        for p in BASE.glob("P*/*.md")
-        if p.name != "README.md" and p.parent.name.startswith(prefix)
+        p for p in BASE.glob("Predavanje*.md") if prefix in p.stem
     )
     if not sources:
         print(f"Nema prezentacija za '{prefix}'.")
