@@ -712,7 +712,7 @@ U nastavku kolegija koristimo `bash`.
 
 \begin{beamercolorbox}[sep=1.5ex, rounded=false]{block body}
 \begin{itemize}
-\item Ljuska pokreće vanjske programe i vlastite ugrađene naredbe; \texttt{man} je prva adresa za svaku od njih.
+\item Ljuska pokreće vanjske programe i vlastite ugrađene naredbe; \texttt{man}: pomoć za bilo koju UNIX naredbu (programe i ugrađene naredbe).
 \item Tri standardna toka mogu se preusmjeriti u datoteke ili ulančati operatorom \texttt{|} --- programi se pritom ne mijenjaju.
 \item Program je datoteka, proces je program u izvođenju; svaki proces ima PID, roditelja i vlasnika.
 \item Procesi nastaju pozivom \texttt{fork()}, mijenjaju kôd pozivom \texttt{exec()} i završavaju pozivom \texttt{exit()}.

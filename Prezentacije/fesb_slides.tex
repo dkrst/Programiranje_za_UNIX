@@ -104,7 +104,11 @@
 }
 
 % ---------- sekcijski medjuslajd ---------------------------------
+\newif\ifbezmedjuslajda
 \AtBeginSection[]{%
+  \ifbezmedjuslajda
+    \global\bezmedjuslajdafalse
+  \else
   \begin{frame}[plain, noframenumbering]
     \vfill
     \begin{center}
@@ -114,6 +118,7 @@
     \end{center}
     \vfill
   \end{frame}
+  \fi
 }
 
 % ---------- opisi slika: bez oznake "Slika N:" ------------------

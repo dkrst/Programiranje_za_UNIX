@@ -20,7 +20,30 @@ local function is_slika(blok)
   return false
 end
 
+-- Naslov poglavlja ispred kojega stoji HTML komentar <!-- bez-medjuslajda -->
+-- pretvara se u \section*, cime beamer ne generira medjuslajd s naslovom
+-- poglavlja. Komentar je nevidljiv u prikazu .md datoteke na GitHubu.
+local function bez_medjuslajda(blokovi)
+  local izlaz = {}
+  local preskoci = false
+  for i, blok in ipairs(blokovi) do
+    if blok.t == "RawBlock" and blok.format == "html"
+       and blok.text:find("bez%-medjuslajda") then
+      preskoci = true
+    elseif preskoci and blok.t == "Header" and blok.level == 1 then
+      table.insert(izlaz, pandoc.RawBlock("latex", "\\global\\bezmedjuslajdatrue"))
+      table.insert(izlaz, blok)
+      preskoci = false
+    else
+      if preskoci then preskoci = false end
+      table.insert(izlaz, blok)
+    end
+  end
+  return izlaz
+end
+
 function Pandoc(doc)
+  doc.blocks = bez_medjuslajda(doc.blocks)
   local blokovi = doc.blocks
   local i = 1
   while i <= #blokovi do

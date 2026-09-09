@@ -9,7 +9,7 @@ Gradivo poglavlja P01–P07 podijeljeno je na 13 predavanja.
 |---|---|---|---|---|
 | 1 | Osnove UNIX-a | P01 | [md](Predavanje01-Osnove_unixa.md) | [pdf](Predavanje01-Osnove_unixa.pdf) |
 | 2 | Ljuska, procesi i shell skripte | P01 | [md](Predavanje02-Ljuska_i_procesi.md) | [pdf](Predavanje02-Ljuska_i_procesi.pdf) |
-| 3 | Prevođenje i povezivanje, GCC | P02 | — | — |
+| 3 | Osnove programiranja: GCC, make, ar | P02 | [md](Predavanje03-Osnove_programiranja.md) | [pdf](Predavanje03-Osnove_programiranja.pdf) |
 | 4 | `make` i biblioteke | P02 | — | — |
 | 5 | Sistemski pozivi za rad s datotekama | P03 | — | — |
 | 6 | I/O strukture i dijeljenje datoteka | P03 | — | — |
@@ -35,6 +35,8 @@ Prezentacije/
 ├── Predavanje01-Osnove_unixa.pdf  <- generirani slajdovi
 ├── Predavanje02-Ljuska_i_procesi.md
 ├── Predavanje02-Ljuska_i_procesi.pdf
+├── Predavanje03-Osnove_programiranja.md
+├── Predavanje03-Osnove_programiranja.pdf
 ├── slike/                         <- slike svih predavanja
 └── OLD/                           <- stare prezentacije kolegija
 ```
