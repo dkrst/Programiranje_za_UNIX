@@ -131,7 +131,7 @@ gcc -c pozdrav.c             # samo prevodjenje -> pozdrav.o
 Uputa: \texttt{man gcc}
 \end{center}
 
-## Osnovne opcije
+## GCC --- osnovne opcije
 
 | Opcija | Značenje |
 |--------------|--------------------------------------------------|
