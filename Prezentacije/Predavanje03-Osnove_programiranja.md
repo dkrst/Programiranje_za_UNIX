@@ -207,7 +207,12 @@ $ gcc -Wall pozdrav.o -o pozdrav   # povezivanje: pozdrav.o -> pozdrav
 - Prvi poziv staje nakon prevođenja jer je zadana opcija `-c`.
 - Drugi poziv nema `.c` datoteka na ulazu --- samo povezuje objektni kôd.
 
-Rezultat je **identičan** onome iz jednog koraka. Razdvajanje ima smisla tek kod programa iz više datoteka.
+Rezultat je **identičan**.
+
+\vfill
+\begin{center}
+\emph{Ima li smisla prevođenje i povezivanje pokretati odvojeno, ako je rezultat isti kao kada koristimo jednu naredbu?}
+\end{center}
 
 ## Pokretanje programa
 
@@ -216,7 +221,7 @@ $ ./pozdrav
 Dobar jutar!
 ```
 
-- Zašto `./`? Ljuska program traži isključivo u direktorijima navedenima u varijabli okruženja **`PATH`**.
+- Ljuska program traži isključivo u direktorijima navedenima u varijabli okruženja **`PATH`**.
 - Trenutni direktorij (`.`) **nije** u `PATH`-u, pa ga navodimo izričito --- `./pozdrav` znači "program `pozdrav` u ovom direktoriju".
 
 ```sh
@@ -226,7 +231,7 @@ $ echo $PATH
 
 - To nije nespretnost nego **sigurnosna mjera**: da je `.` u `PATH`-u, dovoljno bi bilo da netko u zajednički direktorij podmetne program imena `ls`.
 
-## Zašto više datoteka
+## Izvorni kôd u više datoteka
 
 - U stvarnim programima organizacija koda u više datoteka gotovo je univerzalno pravilo.
 - Primjer `pozdrav_fn` radi **isto** što i `pozdrav`, ali je razbijen u tri datoteke:
@@ -274,7 +279,7 @@ int main() {
 
 Uočite: `<stdio.h>` u šiljastim zagradama traži se u sistemskim direktorijima, `"funkcije.h"` u navodnicima najprije u trenutnom.
 
-## Prevođenje iz više datoteka
+## Prevođenje i povezivanje
 
 ```sh
 $ gcc -Wall -c pozdrav_fn.c                        # -> pozdrav_fn.o
@@ -284,7 +289,17 @@ $ gcc -Wall pozdrav_fn.o funkcije.o -o pozdrav_fn
 
 - Svaka `.c` datoteka prevodi se **zasebno** u pripadnu `.o`.
 - Zadnji poziv nema `.c` datoteka --- samo povezuje dvije objektne datoteke u izvršni program.
-- Tek se ovdje jasno vidi razlika između dviju faza.
+
+I ovdje sve može stati u jednu naredbu:
+
+```sh
+$ gcc -Wall pozdrav_fn.c funkcije.c -o pozdrav_fn
+```
+
+\vfill
+\begin{center}
+\emph{Ima li smisla prevođenje i povezivanje pokretati odvojeno, ako je rezultat isti kao kada koristimo jednu naredbu?}
+\end{center}
 
 ## Što nakon izmjene koda?
 
@@ -298,53 +313,80 @@ $ gcc -Wall pozdrav_fn.o funkcije.o -o pozdrav_fn  # nuzno: novo povezivanje
 - `pozdrav_fn.c` **nije** dirana, pa `pozdrav_fn.o` ostaje valjana --- nema je potrebe ponovno prevoditi.
 - Povezivanje se **uvijek** mora ponoviti.
 
-U projektu od nekoliko datoteka ručno pratiti što treba, a što ne treba iznova prevesti brzo postaje naporno i podložno greškama.
+\vspace{2ex}
+
+U složenim projektima s većim brojem datoteka izvornog koda, praćenje svake izmjene i pozivanje odgovarajućih naredbi vrlo brzo postaje naporno i podložno greškama.
 
 # Automatiziranje prevođenja i povezivanja
 
 ## make alat (utility)
 
-- `make` automatizira prevođenje i povezivanje. Iz datoteke s pravilima --- **`Makefile`** --- čita:
-    - koje datoteke čine projekt,
-    - kako ovise jedna o drugoj,
-    - kojim se naredbama iz njih generiraju izlazne datoteke.
-- Na temelju **vremena zadnje izmjene** sam odlučuje što je zastarjelo i izvodi **samo nužne korake**.
+- `make` je alat koji **automatizira prevođenje i povezivanje** programa prema pravilima definiranim u datoteci koja se najčešće zove **`Makefile`**.
+- Sintaksa:
 
 ```sh
-$ make              # izvrsava prvo pravilo u Makefileu
-$ make ime_pravila  # izvrsava navedeno pravilo
+make [opcije] [ime_pravila]
+make -f <datoteka> [ime_pravila]
 ```
 
-Potpuna referenca: *GNU Make Manual* (Stallman, McGrath & Smith), besplatno dostupan na stranicama GNU projekta.
+- Ukoliko ime pravila nije navedeno, izvršava se **prvo pravilo** u `Makefile` datoteci.
+- Opcija `-f` znači da `make` ne traži zadanu datoteku `Makefile` ili `makefile`, nego koristi točno navedenu:
 
-## Struktura pravila
+```sh
+$ make -f moj_makefile
+```
+
+- Izvršavaju se **samo ona pravila** kod kojih je target zastario u odnosu na dependencies.
+
+## Struktura Makefile datoteke
+
+Sintaksa pravila:
 
 ```make
-cilj: ovisnosti
-	naredbe
+target: dependencies
+	commands
 ```
 
-- **cilj** --- najčešće ime datoteke koja nastaje izvršavanjem pravila (izvršna ili objektna datoteka),
-- **ovisnosti** --- popis datoteka o kojima cilj ovisi; ako je bilo koja **novija** od cilja, pravilo se izvršava,
-- **naredbe** --- naredbe ljuske koje pravilo izvršava.
+- **target** --- naziv pravila, najčešće ime datoteke koja nastaje njegovim izvršavanjem (izvršna ili objektna datoteka),
+- **dependencies** --- datoteke o kojima target ovisi; ako je bilo koja **novija** od targeta, pravilo se izvršava,
+- **commands** --- skup naredbi koje pravilo izvršava.
 
 \vspace{1ex}
 \hrule
 \vspace{1.5ex}
 
-**Naredbe moraju biti uvučene tabulatorom, nikako razmacima. To je najčešća greška početnika s `make`-om.**
+**Redak s naredbama obavezno započinje s `<tab>` (ne razmacima).**
 
-## Korak 1: jednostavna pravila
+## Makefile datoteka
 
 ```make
-pozdrav: pozdrav.o
-	gcc -Wall pozdrav.o -o pozdrav
+pozdrav: pozdrav.c
+	gcc -Wall pozdrav.c -o pozdrav
 
-pozdrav.o: pozdrav.c
-	gcc -Wall -c pozdrav.c
+pozdrav_fn: pozdrav_fn.c funkcije.c
+	gcc -Wall pozdrav_fn.c funkcije.c -o pozdrav_fn
+```
 
+\vspace{1ex}
+\hrule
+\vspace{1.5ex}
+
+Pozivanje:
+
+```sh
+$ make pozdrav
+$ make pozdrav_fn
+```
+
+\vspace{2ex}
+
+Bilo koja promjena u datotekama izvornog koda uzrokovat će ponovno pozivanje zadanog pravila.
+
+## Makefile datoteka
+
+```make
 pozdrav_fn: pozdrav_fn.o funkcije.o
-	gcc -Wall pozdrav_fn.o funkcije.o -o pozdrav_fn
+	gcc pozdrav_fn.o funkcije.o -o pozdrav_fn
 
 pozdrav_fn.o: pozdrav_fn.c
 	gcc -Wall -c pozdrav_fn.c
@@ -353,29 +395,7 @@ funkcije.o: funkcije.c
 	gcc -Wall -c funkcije.c
 ```
 
-## Kako make bira što izvršiti
-
-Na `make pozdrav_fn`:
-
-1. `make` traži pravilo čiji je cilj `pozdrav_fn`; ono ovisi o `pozdrav_fn.o` i `funkcije.o`.
-2. Te datoteke ne postoje, pa `make` traži pravila u kojima su **one** ciljevi i izvršava ih.
-3. Tek na kraju izvršava pravilo za `pozdrav_fn`.
-
-Ako objektna datoteka **već postoji**, `make` uspoređuje vremena:
-
-- izvorna datoteka novija od objektne $\rightarrow$ pravilo se izvršava iznova,
-- objektna novija od izvorne $\rightarrow$ korak se **preskače**.
-
-Tako `make` rekurzivno provjerava cijelo stablo ovisnosti i radi samo ono što je nužno.
-
-## Dva problema
-
-Prethodni `Makefile` je funkcionalan, ali:
-
-- **(a)** pravila za `.o` datoteke praktički su identična --- razlikuju se samo po imenu datoteke,
-- **(b)** naredba `gcc -Wall` ponavlja se u svakom pravilu, pa promjena prevodioca ili zastavica traži izmjenu na više mjesta.
-
-Rješenja su **implicitna pravila** i **varijable**.
+`make` rekurzivno provjerava pravila za generiranje ovisnosti (*dependencies*) i izvršava ih ukoliko su zastarjela.
 
 ## Implicitna pravila
 
@@ -386,16 +406,19 @@ Postupak `.c` $\rightarrow$ `.o` uvijek je isti, pa ga možemo zapisati jednim p
 	gcc -Wall -c $<
 ```
 
-- `$<` --- **automatska varijabla**, zamjenjuje se imenom ulazne datoteke (ovisnosti).
-- `$@` --- ime cilja.
+Automatske varijable:
 
-Time otpadaju sva pojedinačna `.c` $\rightarrow$ `.o` pravila --- ostaju samo dva pravila za povezivanje i ovo jedno implicitno.
+- `$<` --- zamjenjuje se imenom ulazne datoteke (*dependency*),
+- `$@` --- zamjenjuje se imenom cilja (*target*).
+
+Ovako zadano pravilo zamjenjuje sva pojedinačna `.c` $\rightarrow$ `.o` pravila. U našoj `Makefile` datoteci sada ostaju samo implicitno pravilo i dva pravila za povezivanje.
 
 ## Varijable
 
 ```make
 CC = /usr/bin/gcc
 CFLAGS = -Wall
+# CFLAGS = -Wall -g
 LDFLAGS =
 
 pozdrav: pozdrav.o
@@ -408,11 +431,11 @@ pozdrav_fn: pozdrav_fn.o funkcije.o
 	$(CC) $(CFLAGS) -c $<
 ```
 
-- Varijabla se deklarira imenom, znakom `=` i tekstualnom vrijednošću; dohvaća se kao `$(IME)`.
-- GNU konvencija: zastavice za **prevođenje** u `CFLAGS`, zastavice za **povezivanje** u `LDFLAGS`.
-- Promjena prevodioca sada je izmjena **jednog retka**.
+\vspace{2ex}
 
-## Pravila bez naredbi: default i all
+Znak `#` označava komentar (do kraja retka).
+
+## Preusmjeravanje: pravilo bez naredbi
 
 ```make
 TARGETS = pozdrav pozdrav_fn
@@ -422,11 +445,13 @@ default: pozdrav_fn
 all: $(TARGETS)
 ```
 
-- Oba pravila imaju cilj i ovisnosti, ali **nemaju naredbi**. `make` razriješi ovisnosti, a samo pravilo ne radi ništa --- služi kao **preusmjeravanje** na korisno pravilo.
-- `make` bez argumenata izvršava **prvo** pravilo u datoteci, kako god se zvalo. Po konvenciji se zove `default` i stavlja na vrh.
-- `all` istim trikom gradi sve ciljeve odjednom.
+- Oba pravila imaju cilj (*target*) i ovisnosti (*dependencies*), ali ne i naredbe (*commands*).
+- `make` rekurzivno osigura da ovisnosti nisu zastarjele, a samo pravilo ne radi ništa --- efektivno **preusmjerava** na drugo pravilo.
+- `make` bez argumenata izvršava **prvo** pravilo u datoteci.
 
-Imena `default`, `all` i `clean` **nisu rezervirane riječi** --- to je dogovorna konvencija radi čitljivosti.
+\vspace{2ex}
+
+Imena `default`, `all` i `clean` **nisu rezervirane riječi**.
 
 ## Pravilo bez ovisnosti: clean
 
@@ -463,39 +488,51 @@ clean:
 	$(CC) $(CFLAGS) -c $<
 ```
 
-## Tipična uporaba
+## Primjeri korištenja
 
 ```sh
-$ make              # izvrsava "default", tj. gradi pozdrav_fn
-$ make all          # gradi oba primjera
-$ make pozdrav      # gradi samo pozdrav
-$ make clean        # brise izvrsne i objektne datoteke
+$ make                    # izvrsava "default", tj. gradi pozdrav_fn
+$ make all                # gradi oba primjera
+$ make pozdrav            # gradi samo pozdrav
+$ make clean              # brise izvrsne i objektne datoteke
+$ make clean all          # ocisti pa izgradi sve
+$ make clean pozdrav_fn   # ocisti pa izgradi pozdrav_fn
 ```
 
-Uvijek isti obrazac: izmijenimo kôd, upišemo `make`, a alat sam odluči što treba iznova prevesti.
+\vspace{2ex}
+
+- U istom pozivu možemo navesti više od jednog pravila --- `make` ih izvršava redoslijedom kojim su navedeni.
+- Rekurzivno se provjeravaju pravila u `Makefile` datoteci i izvršavaju samo nužni koraci.
 
 # Biblioteke funkcija --- libovi
 
-## Arhive objektnih datoteka
+## Biblioteke funkcija
 
-- Kako program raste, izvorni kôd se dijeli u sve više datoteka. Kod desetaka ili stotina `.o` datoteka rukovanje svakom pojedinom postaje nepregledno.
-- Rješenje su **arhive objektnih datoteka**, u UNIX terminologiji **libovi**: jedna datoteka u koju je upakirano više objektnih datoteka, organiziranih po tematskom kriteriju.
-- Najpoznatiji primjer je standardna C biblioteka **`libc`** --- `printf`, `fopen`, `malloc` i ostalo.
+- **Lib** je datoteka u koju je upakirano više datoteka objektnog koda, u pravilu grupiranih po sličnoj funkcionalnosti.
+- Umjesto mnoštva pojedinačnih `.o` datoteka, programu pri povezivanju navodimo jednu tematsku cjelinu.
 
-## Statičke i dinamičke biblioteke
-
-| | Statičke (`.a`) | Dinamičke (`.so`) |
+| | Statički (`.a`) | Dinamički (`.so`) |
 |---|---|---|
-| Povezivanje | pri prevođenju, kôd se kopira u program | pri pokretanju, program nosi samo referencu |
+| Povezivanje | pri prevođenju, kôd se kopira u program | pri pokretanju programa |
 | Veličina programa | veća | manja |
-| Ovisnost o sustavu | nikakva, program je samostalan | lib mora postojati pri pokretanju |
+| Ovisnost o sustavu | nema je, program je samostalan | lib mora postojati na sustavu |
 | Više procesa | svaki ima svoju kopiju | svi dijele isti lib u memoriji |
+| Izmjena liba | traži ponovno povezivanje | dovoljno zamijeniti `.so` datoteku |
 
-U ovom se poglavlju zadržavamo na **statičkim** bibliotekama.
+## Statički libovi
 
-## Korištenje tuđih libova
+- Statički lib je **arhiva datoteka objektnog koda**, u pravilu grupiranih po sličnoj funkcionalnosti.
+- Ime po konvenciji počinje s `lib`, a ekstenzija je `.a`: `libjpeg.a`, `libm.a`.
+- Najpoznatiji primjer je **standardna C biblioteka** `libc`:
+    - sadrži `printf`, `scanf`, `fopen`, `malloc`, `strlen` i ostale funkcije koje svakodnevno koristimo,
+    - `gcc` je povezuje **automatski**, bez ijedne dodatne opcije --- zato `printf` radi "sam od sebe",
+    - deklaracije tih funkcija dolaze iz zaglavlja `stdio.h`, `stdlib.h`, `string.h`.
 
-Prvi način --- putanja do `.a` datoteke, kao da je objektna datoteka:
+## Povezivanje libova
+
+Za povezivač je lib **isto što i objektni kôd** --- iz arhive izdvoji samo one objektne datoteke koje programu stvarno trebaju.
+
+Prvi način --- navedemo putanju do `.a` datoteke, kao da je objektna datoteka:
 
 ```sh
 $ gcc -Wall prog.o /putanja/do/libjpeg.a -o izvrsna
@@ -515,11 +552,9 @@ Uočite konvenciju: na disku je `libjpeg.a`, u naredbi `-ljpeg` --- bez prefiksa
 - Te funkcije zatim traži u libovima koji u naredbenom retku **slijede**.
 - Ako je arhiva navedena **prije** objektne datoteke koja koristi njezine funkcije, taj kôd neće biti izdvojen i povezivanje će javiti grešku.
 
-\vspace{1ex}
-\hrule
-\vspace{1.5ex}
+\vspace{2ex}
 
-**Arhive stavljajte na kraj naredbe za povezivanje. Ako jedan lib koristi funkcije drugoga, onaj "više razine" mora doći prije onoga o kojem ovisi.**
+Arhive stavljajte na kraj naredbe za povezivanje. Ako jedan lib koristi funkcije drugoga, onaj "više razine" mora doći prije onoga o kojem ovisi.
 
 ## Alat ar
 
@@ -558,12 +593,6 @@ $ gcc -Wall -L. niz.o -lniz -o niz3   # preko -L i -l opcija
 ```
 
 Sve tri izvršne datoteke su **identične** --- provjerite alatom `diff`.
-
-## Zašto vlastiti libovi
-
-- Ako iste funkcije koristimo u više projekata, arhiviranjem ih **sistematiziramo**: umjesto mnoštva objektnih datoteka koristimo jednu tematsku arhivu.
-- Najlošija je praksa **kopirati izvorni kôd** u svaki novi projekt --- vrlo se lako izgubiti među verzijama i izmjenama.
-- Lib se lako uključi u `Makefile` kao još jedan cilj, pa se gradi automatski kao i sve ostalo.
 
 ## Što smo naučili
 
