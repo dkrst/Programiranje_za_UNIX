@@ -230,6 +230,10 @@ $ xclock &
 
 - Uočite obrnutu perspektivu: *poslužitelj* je računalo ispred kojeg sjedite.
 
+## X Windows sustav
+
+![X poslužitelj i X klijent na različitim računalima](slike/x_windows.png){width=92% height=68%}
+
 ## Razlika prema Windowsima
 
 | | UNIX | Windows |
