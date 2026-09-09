@@ -152,6 +152,39 @@ Osamdesete: gotovo svaki proizvođač računala nudi vlastiti UNIX --- program n
 - Sustav se može **certificirati** kao usklađen (macOS, AIX, HP-UX, Solaris); Linux i BSD nisu certificirani, ali standard u praksi slijede.
 - Za nas praktično: gradivo ovog kolegija vrijedi na svim tim sustavima --- učimo sučelje, ne jednu inačicu.
 
+## POSIX IEEE 1003.1
+
+**Standard sučelja operacijskog sustava --- POSIX.1**
+
+- Promiče prenosivost aplikacija na različite UNIX platforme.
+- Uključuje **ISO C** te dodatna, dijelom obavezna, a dijelom opcionalna zaglavlja.
+
+Neka obavezna POSIX zaglavlja:
+
+| Zaglavlje | Sadržaj |
+|-----------------|-------------------------------------------|
+| `unistd.h` | simboličke konstante i sistemski pozivi |
+| `sys/types.h` | osnovni sistemski tipovi podataka |
+| `sys/socket.h` | sučelje za rad sa socketima |
+
+Opcionalna zaglavlja, npr. `pthread.h` --- rad s nitima.
+
+## ISO C
+
+**Standard programskog jezika C** --- osigurava prenosivost C programa na različite platforme.
+
+Funkcije standardne biblioteke podijeljene su u **24 područja**, svako sa svojim zaglavljem:
+
+| Zaglavlje | Sadržaj |
+|-------------|-----------------------------------------------|
+| `stdio.h` | standardni ulaz i izlaz |
+| `stdlib.h` | opće pomoćne funkcije |
+| `string.h` | rad sa znakovnim nizovima |
+| `limits.h` | konstante ovisne o implementaciji |
+| `errno.h` | oznake i kodovi grešaka |
+
+Ista zaglavlja koriste se na svim platformama.
+
 ## Linux
 
 - **1991.**: Linus Torvalds, student u Helsinkiju, objavljuje vlastitu jezgru --- isprva kao hobi projekt, nadahnut Minixom (nastavnim UNIX-om A. Tanenbauma).
