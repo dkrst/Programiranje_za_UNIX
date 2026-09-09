@@ -336,11 +336,10 @@ Svaki od njih obradit ćemo detaljno kroz kolegij.
 naredba [opcije] [argumenti]
 ```
 
-\vspace{1ex}
-\hrule
-\vspace{1ex}
-
-`man <naredba>` --- pomoć za bilo koju UNIX naredbu.
+\vfill
+\begin{center}
+Uputa: \texttt{man <naredba>}
+\end{center}
 
 ## Standardni ulaz i izlaz
 

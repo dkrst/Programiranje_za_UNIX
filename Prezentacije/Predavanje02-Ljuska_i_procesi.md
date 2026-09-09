@@ -43,11 +43,10 @@ naredba [opcije] [argumenti]
 - Opcije se pišu s crticom (`-l`), duge opcije s dvije (`--all`), a više kratkih opcija može se spojiti: `ls -la` je isto što i `ls -l -a`.
 - **UNIX razlikuje velika i mala slova** --- u imenima naredbi, opcija i datoteka: `ls` i `LS` nisu ista naredba, `-r` i `-R` nisu ista opcija.
 
-\vspace{1ex}
-\hrule
-\vspace{1ex}
-
-`man <naredba>` --- pomoć za bilo koju UNIX naredbu.
+\vfill
+\begin{center}
+Uputa: \texttt{man <naredba>}
+\end{center}
 
 ## Razlike među ljuskama
 

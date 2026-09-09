@@ -108,10 +108,11 @@ Upravo je taj uvid razlog postojanja alata `make`, kojim se bavimo u drugom dije
 
 - **GNU** (rekurzivni akronim: *GNU's Not UNIX*) --- projekt slobodnog softvera koji je **1983.** pokrenuo **Richard Stallman**, s ciljem stvaranja potpuno slobodnog UNIX-kompatibilnog operacijskog sustava.
 - Iz projekta su nastali alati koje svakodnevno koristimo: `gcc`, `make`, `bash`, `gdb`, `emacs`, `coreutils` (`ls`, `cp`, `mv`, ...).
-- Kad je 1991. objavljena Linux jezgra, prirodno se kombinirala s GNU alatima --- otuda naziv **GNU/Linux**.
+- Vlastita jezgra projekta, **GNU Hurd**, započeta je 1990. kao skup poslužitelja iznad mikrojezgre. Ambiciozna zamisao pokazala se teškom za izvedbu i razvoj se odužio --- ni danas nije spremna za širu uporabu.
+- Kad je 1991. objavljena Linux jezgra, prirodno se kombinirala s već gotovim GNU alatima --- otuda naziv **GNU/Linux**. Da je Hurd stigao na vrijeme, povijest bi vjerojatno izgledala drukčije.
 - Iza projekta stoji **Free Software Foundation**, koja održava i licencu **GPL**.
 
-## Sintaksa
+## GCC --- GNU C i C++ prevodilac
 
 ```sh
 gcc [opcije] ulazne_datoteke
@@ -121,11 +122,14 @@ gcc [opcije] ulazne_datoteke
 - S opcijom `-c`: `gcc` **staje nakon prevođenja** --- rezultat je objektna datoteka.
 
 ```sh
-gcc -Wall pozdrav.c -o pozdrav     # prevodjenje + povezivanje
-gcc -Wall -c pozdrav.c             # samo prevodjenje -> pozdrav.o
+gcc pozdrav.c -o pozdrav     # prevodjenje + povezivanje
+gcc -c pozdrav.c             # samo prevodjenje -> pozdrav.o
 ```
 
-Detaljna uputa: `man gcc`.
+\vfill
+\begin{center}
+Uputa: \texttt{man gcc}
+\end{center}
 
 ## Osnovne opcije
 
@@ -531,7 +535,10 @@ ar [-opcije] arhiva [ulazne_datoteke]
 | `t` | ispiši popis članova arhive |
 | `v` | ispis dodatnih informacija (*verbose*) |
 
-Detaljna uputa: `man ar`.
+\vfill
+\begin{center}
+Uputa: \texttt{man ar}
+\end{center}
 
 ## Primjer: vlastita arhiva
 
