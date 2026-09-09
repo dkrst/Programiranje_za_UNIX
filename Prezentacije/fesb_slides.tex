@@ -126,6 +126,21 @@
 \setbeamertemplate{caption label separator}{}
 \AtBeginDocument{\renewcommand{\figurename}{}}
 
+% ---------- okvir za deklaracije funkcija ------------------------
+\usepackage{mdframed}
+\newmdenv[
+  linecolor=fesbSvijetla!45,
+  linewidth=0.8pt,
+  backgroundcolor=fesbSvijetla!6,
+  innertopmargin=1.2ex,
+  innerbottommargin=1.2ex,
+  innerleftmargin=1.5ex,
+  innerrightmargin=1.5ex,
+  skipabove=1ex,
+  skipbelow=1ex,
+  roundcorner=2pt
+]{deklaracija}
+
 % ---------- kod ---------------------------------------------------
 \setbeamercolor{verbatim}{fg=black!85}
 \usepackage{fancyvrb}

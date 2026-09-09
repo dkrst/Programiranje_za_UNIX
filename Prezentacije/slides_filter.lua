@@ -42,8 +42,32 @@ local function bez_medjuslajda(blokovi)
   return izlaz
 end
 
+-- Blok koda ispred kojega stoji HTML komentar <!-- deklaracija -->
+-- uokviruje se (LaTeX okruzenje "deklaracija" definirano u fesb_slides.tex).
+-- Komentar je nevidljiv u prikazu .md datoteke na GitHubu.
+local function uokviri_deklaracije(blokovi)
+  local izlaz = {}
+  local oznaceno = false
+  for _, blok in ipairs(blokovi) do
+    if blok.t == "RawBlock" and blok.format == "html"
+       and blok.text:find("deklaracija") then
+      oznaceno = true
+    elseif oznaceno and blok.t == "CodeBlock" then
+      table.insert(izlaz, pandoc.RawBlock("latex", "\\begin{deklaracija}"))
+      table.insert(izlaz, blok)
+      table.insert(izlaz, pandoc.RawBlock("latex", "\\end{deklaracija}"))
+      oznaceno = false
+    else
+      if oznaceno then oznaceno = false end
+      table.insert(izlaz, blok)
+    end
+  end
+  return izlaz
+end
+
 function Pandoc(doc)
   doc.blocks = bez_medjuslajda(doc.blocks)
+  doc.blocks = uokviri_deklaracije(doc.blocks)
   local blokovi = doc.blocks
   local i = 1
   while i <= #blokovi do

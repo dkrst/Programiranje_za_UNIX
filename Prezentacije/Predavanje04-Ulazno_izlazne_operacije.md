@@ -31,60 +31,39 @@ lang: hr
 
 # Deskriptori datoteka
 
-## Što možemo s datotekom?
+## Deskriptor datoteke
 
-- Uobičajeni odgovori: obrisati je, preimenovati, kopirati.
-- Sve je to točno --- ali jednako kao kad bismo za stolicu rekli da je možemo prebojati, premjestiti ili nacijepati. Ne otkriva čemu stolica služi: na nju se **sjeda**.
-- Datoteka postoji da bismo u nju nešto **upisali** ili iz nje nešto **pročitali**. To je sve.
-- Uz to nam treba još samo nekoliko funkcionalnosti: **otvaranje**, **zatvaranje** i **pozicioniranje** unutar datoteke.
-
-Svaki operacijski sustav mora osigurati upravo te operacije da bi bio upotrebljiv.
-
-## Zašto sistemski pozivi
-
-- U C-u za rad s datotekama koristimo `fopen`, `fscanf`, `fprintf`, `fread`; za komunikaciju s korisnikom `printf` i `scanf`. Sve su to funkcije standardne C biblioteke.
-- Svaka od njih je **funkcija omotač** (*wrapper*) --- u konačnici se svodi na jedan ili više **sistemskih poziva**.
-- Podsjetnik s prvog predavanja: sistemski pozivi jedino su sučelje prema jezgri.
-- Zato ćemo raditi izravno sa sistemskim pozivima --- da vidimo što se zapravo događa "ispod" funkcija koje ste dosad koristili.
-
-## Sve je datoteka
-
-Isti mali skup sistemskih poziva koristi se za:
-
-- komunikaciju s korisnikom preko terminala,
-- rad s datotekama na disku,
-- upravljanje uređajima,
-- mrežnu komunikaciju (socketi),
-- komunikaciju između procesa.
-
-Zato ovo poglavlje ima daleko širu primjenu nego što mu naslov daje naslutiti --- ono je temelj za razumijevanje UNIX logike.
+- **Deskriptor** ili opisnik datoteke (*file descriptor*) nenegativni je cijeli broj koji jedinstveno identificira otvorenu datoteku i služi za komunikaciju s njom.
+- Dodjeljuje ga **jezgra**, procesu koji je zatražio otvaranje datoteke. Proces ga koristi za sve daljnje operacije, pri čemu **ne mora nužno znati gdje se datoteka nalazi ni kojeg je tipa**.
+- Proces dodjele:
+    1. Jezgra kao deskriptor uzima **prvi slobodan**, najniži mogući nenegativni broj.
+    2. U svoju tablicu upisuje podatke o datoteci: pristupna prava, pokazivač na podatke i stanje.
+    3. Jezgra procesu vraća deskriptor (broj) na kojem je datoteka otvorena; program ga koristi za sve buduće operacije nad datotekom.
+    4. Kad se datoteka zatvori, deskriptor se oslobađa i može biti pridijeljen novoj datoteci koju proces otvori.
 
 ## Deskriptor datoteke
 
-- Jezgra sve otvorene datoteke referencira **nenegativnim cijelim brojevima** --- **deskriptorima datoteke** (*file descriptors*).
-- Deskriptor je apstraktna referenca koju proces dobiva pri otvaranju datoteke i koristi za sve daljnje operacije: čitanje, pisanje, pozicioniranje, do zatvaranja.
-- Proces **ne mora znati ništa** o datoteci iza deskriptora: gdje je fizički, radi li se o datoteci na disku, terminalu ili mrežnom portu.
-- Jezgra o svakom deskriptoru čuva podatke i sama bira odgovarajuću komunikacijsku rutinu. Sučelje je za programera jedinstveno.
+Na UNIX sustavu u pravilu su prilikom pokretanja procesa otvorena tri standardna deskriptora:
 
-## Predefinirani deskriptori
+- **0** --- standardni ulaz (*standard input*), za unos podataka u program; obično tipkovnica,
+- **1** --- standardni izlaz (*standard output*), za ispis podataka iz programa; obično zaslon,
+- **2** --- standardni izlaz za greške (*standard error*), za poruke o greškama; također zaslon.
 
-Pri pokretanju programa deskriptori 0, 1 i 2 u pravilu su već zauzeti:
+Ova tri deskriptora ključna su za komunikaciju UNIX procesa (pokrenutog programa) s vanjskim svijetom.
 
-| Deskriptor | Naziv | Izvor / odredište |
-|---|---|---|
-| 0 | standardni ulaz | tipkovnica |
-| 1 | standardni izlaz | korisnički terminal |
-| 2 | standardni izlaz za greške | korisnički terminal |
+## Deskriptor datoteke
 
-- Konvencija datira iz ranih 1970-ih i danas je dio POSIX standarda.
-- U `<unistd.h>` definirane su simboličke konstante `STDIN_FILENO`, `STDOUT_FILENO` i `STDERR_FILENO` --- koristite njih umjesto golih brojeva.
-- Jezgra pri otvaranju uvijek dodjeljuje **najniži slobodan** deskriptor, pa `open()` u pravilu vraća 3 ili više.
+- Konvencija deskriptora 0, 1 i 2 datira iz UNIX sustava **1970-ih**, a danas je dio **POSIX standarda**.
+- Simboličke konstante `STDIN_FILENO`, `STDOUT_FILENO` i `STDERR_FILENO` definirane su u zaglavlju `<unistd.h>` --- koristite njih umjesto golih brojeva 0, 1 i 2, kôd time postaje čitljiviji.
+- Pri otvaranju datoteke (sistemski poziv `open`), jezgra procesu vraća **najniži slobodni** deskriptor datoteke --- prvi `open` u pravilu vraća **3**.
 
 # Sistemski pozivi
 
 ## open()
 
-Osnovna funkcija za otvaranje i, po potrebi, kreiranje datoteka.
+Otvara postojeću ili stvara novu datoteku.
+
+<!-- deklaracija -->
 
 ```c
 #include <sys/types.h>
@@ -99,76 +78,93 @@ int open(const char *pathname, int oflag, /* mode_t mode */);
 - **`oflag`** --- kombinacija bitovnih konstanti koja određuje način otvaranja,
 - **`mode`** --- prava pristupa, navodi se samo pri kreiranju nove datoteke.
 
-## Zastavice: način pristupa
+## oflag: način pristupa datoteci
 
-Argument `oflag` mora sadržavati **točno jednu** od tri konstante:
+Vrijednost argumenta `oflag` dobiva se kombinacijom bitovnog (*bitwise*) **OR**-a konstanti definiranih u zaglavlju `<fcntl.h>`.
+
+Mora sadržavati **točno jednu** od tri konstante:
 
 - `O_RDONLY` --- otvori samo za čitanje,
 - `O_WRONLY` --- otvori samo za pisanje,
 - `O_RDWR` --- otvori za čitanje i pisanje.
 
-Uz nju se bitovnim *OR*-om (`|`) mogu dodati opcionalne:
+\vspace{2ex}
 
-- `O_CREAT` --- stvori datoteku ako ne postoji (traži treći argument),
-- `O_APPEND` --- prije svakog pisanja pomakni offset na kraj datoteke,
-- `O_TRUNC` --- obriši postojeći sadržaj,
-- `O_EXCL` --- uz `O_CREAT`: greška ako datoteka već postoji; provjera i kreiranje su **atomska operacija**,
-- `O_NONBLOCK`, `O_SYNC` --- neblokirajući rad, odnosno čekanje fizičkog upisa.
+Uključivanjem dodatnih konstanti, uz jednu od tri navedene, fino se podešava način otvaranja datoteke.
+
+## oflag: način pristupa datoteci
+
+- `O_CREAT` --- stvori datoteku ako ne postoji; uz ovu zastavicu obavezan je treći argument (`mode`) kojim se zadaju prava pristupa.
+- `O_TRUNC` --- ako je datoteka otvorena za pisanje, obriši njezin sadržaj (duljina postaje 0).
+- `O_APPEND` --- prije **svakog** pisanja pomakni offset na kraj datoteke, bez obzira na njegovu trenutnu vrijednost.
+- `O_EXCL` --- u kombinaciji s `O_CREAT`: vrati grešku ako datoteka već postoji. Provjera postojanja i stvaranje izvode se kao **atomska operacija** --- jezgra jamči da ih nijedan drugi proces ne može prekinuti na pola.
+- `O_NONBLOCK` --- neblokirajući način rada: ako operacija ne može odmah započeti, poziv se odmah vraća umjesto da čeka.
+- `O_SYNC` --- čekaj da se svaka operacija pisanja fizički dovrši na disku.
 
 ## Tipične kombinacije
 
 ```c
-O_WRONLY | O_TRUNC             /* pisanje, obrisi sadrzaj      */
-O_WRONLY | O_CREAT             /* pisanje; stvori ako ne postoji */
-O_WRONLY | O_CREAT | O_TRUNC   /* pisanje ispocetka            */
-O_WRONLY | O_CREAT | O_EXCL    /* stvori novu; greska ako postoji */
-O_WRONLY | O_APPEND            /* pisanje na kraj datoteke     */
+O_WRONLY | O_TRUNC             /* obrisi postojeci sadrzaj        */
+O_WRONLY | O_CREAT             /* stvori novu datoteku ako ne postoji */
+O_WRONLY | O_CREAT | O_TRUNC   /* stvori novu, ako postoji obrisi
+                                  postojeci sadrzaj               */
+O_WRONLY | O_CREAT | O_EXCL    /* stvori novu, vrati gresku ako
+                                  vec postoji                     */
+O_WRONLY | O_APPEND            /* svako pisanje ide na kraj datoteke */
+O_RDWR   | O_CREAT             /* otvori za citanje i pisanje,
+                                  stvori novu ako ne postoji      */
+O_RDONLY | O_NONBLOCK          /* citanje bez cekanja: open se odmah
+                                  vraca i kad drugi kraj (FIFO,
+                                  uredjaj) jos nije spreman       */
 ```
 
-Ovih pet kombinacija pokriva golemu većinu stvarnih slučajeva.
+\vspace{1ex}
 
-## Prava nove datoteke
+Zastavica `O_NONBLOCK` smislena je i uz `O_RDONLY` i uz `O_WRONLY` --- otvaranje FIFO-a inače čeka dok netko ne otvori drugi kraj.
 
-Treći argument `mode` navodi se uz `O_CREAT`. Zadaje se oktalno ili konstantama iz `<sys/stat.h>`:
+## mode: prava pristupa datoteci
 
 | Konstanta | Oktalno | Značenje |
-|---|---|---|
+|-----------|--------|-----------------------------|
 | `S_IRUSR` | `0400` | čitanje za vlasnika |
 | `S_IWUSR` | `0200` | pisanje za vlasnika |
 | `S_IXUSR` | `0100` | izvršavanje za vlasnika |
-| `S_IRGRP`, `S_IWGRP`, `S_IXGRP` | `0040`, `0020`, `0010` | isto za grupu |
-| `S_IROTH`, `S_IWOTH`, `S_IXOTH` | `0004`, `0002`, `0001` | isto za ostale |
+| `S_IRGRP` | `0040` | čitanje za grupu |
+| `S_IWGRP` | `0020` | pisanje za grupu |
+| `S_IXGRP` | `0010` | izvršavanje za grupu |
+| `S_IROTH` | `0004` | čitanje za ostale |
+| `S_IWOTH` | `0002` | pisanje za ostale |
+| `S_IXOTH` | `0001` | izvršavanje za ostale |
 
-`S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH` ekvivalentno je zapisu `0644`.
+Prava se zadaju bitovnim OR-om konstanti iz `<sys/stat.h>` ili izravno oktalnim brojem: `S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH` isto je što i `0644`.
 
 ## creat()
+
+<!-- deklaracija -->
 
 ```c
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
 int creat(const char *pathname, mode_t mode);
 ```
 
-Ekvivalentno je pozivu:
+Stvaranje nove datoteke --- ekvivalentno pozivu:
 
 ```c
 open(pathname, O_WRONLY | O_CREAT | O_TRUNC, mode);
 ```
 
-Iz toga slijede dva ograničenja: datoteka se otvara **samo za pisanje**, a postojeći sadržaj se briše. U modernom kodu obično se ide izravno preko `open()`-a.
+- **Povratna vrijednost**: deskriptor otvorene datoteke, ili `-1` u slučaju greške.
+- Datoteka se otvara **samo za pisanje**, a postojeći sadržaj se briše.
 
-## Zašto creat bez e?
+\vspace{1ex}
 
-- Nije pogreška --- naslijeđeno je iz prvih verzija UNIX-a s početka 1970-ih, kad je ime sistemskog poziva smjelo imati najviše šest znakova.
-- Jedna od najpoznatijih neobičnosti UNIX-a.
-
-\vspace{2ex}
-
-Na pitanje što bi promijenio u UNIX-u kad bi mogao, **Ken Thompson** je odgovorio: *"I'd spell creat with an e."*
+Upitan što bi promijenio u UNIX-u, **Ken Thompson** je odgovorio: *"I'd spell creat with an e."*
 
 ## close()
+
+<!-- deklaracija -->
 
 ```c
 #include <unistd.h>
@@ -183,6 +179,8 @@ int close(int filedes);
 
 ## read()
 
+<!-- deklaracija -->
+
 ```c
 #include <unistd.h>
 
@@ -196,6 +194,8 @@ ssize_t read(int filedes, void *buff, size_t nbytes);
 - Pročitano može biti **manje** od traženog: kraj datoteke, čitanje s terminala ili s mrežnog socketa.
 
 ## write()
+
+<!-- deklaracija -->
 
 ```c
 #include <unistd.h>
@@ -380,6 +380,8 @@ strace -c ./read_file
 
 ## lseek()
 
+<!-- deklaracija -->
+
 ```c
 #include <sys/types.h>
 #include <unistd.h>
@@ -417,7 +419,6 @@ int main() {
 }
 ```
 
-Provjere povratnih vrijednosti izostavljene su radi preglednosti.
 
 ## f_strip.c --- rezultat
 
@@ -435,6 +436,8 @@ Prvi redak teksDrugi redak teksta
 
 - Prava koja tražimo argumentom `mode` **nisu nužno ona koja ćemo dobiti**.
 - Svaki proces ima **masku kreiranja datoteka** (`umask`) --- bitove koji se iz traženih prava **uklanjaju**.
+
+<!-- deklaracija -->
 
 ```c
 #include <sys/types.h>
