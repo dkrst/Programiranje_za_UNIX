@@ -341,6 +341,10 @@ naredba [opcije] [argumenti]
 Uputa: \texttt{man <naredba>}
 \end{center}
 
+## Ljuska
+
+![Komunikacija s ljuskom preko standardnih tokova](slike/ljuska_stdio.png){width=88%}
+
 ## Standardni ulaz i izlaz
 
 Svaki program u UNIX-u pri pokretanju dobiva tri otvorena kanala:
