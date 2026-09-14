@@ -175,7 +175,7 @@ Upisuje podatke iz memorijskog bloka u datoteku identificiranu deskriptorom `fil
 ssize_t write(int filedes, const void *buff, size_t nbytes);
 ```
 
-**Povratna vrijednost:** broj stvarno upisanih bajtova (po POSIX-u garantirano jednak `nbytes` u uspješnom slučaju za obične datoteke; može biti manji za neke tipove datoteka poput mrežnih socketa), ili `-1` u slučaju greške.
+**Povratna vrijednost:** broj stvarno upisanih bajtova, ili `-1` u slučaju greške.
 
 **Argumenti:**
 
@@ -184,6 +184,20 @@ ssize_t write(int filedes, const void *buff, size_t nbytes);
 - **`nbytes`** — broj bajtova koji se piše.
 
 Pisanje počinje na trenutnom file offsetu, a nakon uspješnog upisa offset se pomiče za broj upisanih bajtova. Iznimka je kad je datoteka otvorena s `O_APPEND` zastavicom — tada jezgra prije svakog pisanja postavlja offset na kraj datoteke.
+
+Broj upisanih bajtova može biti manji od `nbytes` i kod običnih datoteka. To se događa kad na uređaju nema dovoljno slobodnog prostora (`ENOSPC`), kad je premašena korisnička kvota (`EDQUOT`) ili kad bi upis premašio ograničenje veličine datoteke za taj proces (`EFBIG`, uz signal `SIGXFSZ`). Kod mrežnih socketa i cjevovoda djelomičan upis uobičajena je pojava. Zbog svega navedenog pisanje se u praksi realizira u petlji, koja se ponavlja dok se ne upiše cijeli sadržaj međuspremnika:
+
+```c
+while (preostalo > 0) {
+    n = write(fd, p, preostalo);
+    if (n < 0) {
+        perror("write");
+        break;
+    }
+    preostalo -= n;
+    p += n;
+}
+```
 
 ## Primjeri
 

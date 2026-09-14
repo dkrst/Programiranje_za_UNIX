@@ -25,9 +25,8 @@ lang: hr
 ## Danas
 
 1. **Deskriptori datoteka** --- kako proces referencira otvorene datoteke.
-2. **Sistemski pozivi** --- `open`, `creat`, `close`, `read`, `write`.
-3. **Primjeri** --- od čitanja datoteke do vlastite inačice `cat`-a.
-4. **Pozicioniranje i prava** --- `lseek` i `umask`.
+2. **Sistemski pozivi** --- `open`, `creat`, `close`, `read`, `write`, uz primjere.
+3. **Pozicioniranje i prava** --- `lseek` i `umask`.
 
 # Deskriptori datoteka
 
@@ -204,28 +203,11 @@ ssize_t write(int filedes, const void *buff, size_t nbytes);
 ```
 
 - **Povratna vrijednost**: broj stvarno upisanih bajtova, ili `-1` u slučaju greške.
-- Za obične datoteke POSIX jamči da je u uspješnom slučaju jednak `nbytes`; kod socketa može biti manji.
+- Povratna vrijednost može biti **manja** od `nbytes` --- pisanje u pravilu treba realizirati u petlji.
 - Pisanje kreće od trenutnog offseta, koji se nakon upisa pomiče.
 - Iznimka je `O_APPEND`: tada jezgra prije svakog pisanja postavlja offset na kraj datoteke.
 
 `ssize_t` (*signed size*) POSIX-ov je ekvivalent tipa `size_t` koji može biti negativan --- upravo zato da funkcija može vratiti `-1`.
-
-## Obrada grešaka
-
-- Sistemski pozivi grešku signaliziraju povratnom vrijednošću `-1`, a **razlog** upisuju u globalnu varijablu `errno`.
-- `perror("open")` ispisuje na `stderr` zadani tekst i tekstualni opis zadnje greške.
-
-```c
-fd = open("moja_datoteka.txt", O_RDONLY);
-if (fd == -1) {
-    perror("open");
-    return 1;
-}
-```
-
-Povratnu vrijednost provjeravajte **uvijek**. Program koji nastavi raditi s deskriptorom `-1` ponaša se nepredvidivo.
-
-# Primjeri
 
 ## read_file.c
 
@@ -248,7 +230,7 @@ int main() {
 }
 ```
 
-## read_file.c --- što program radi
+## read_file.c
 
 - Otvara datoteku samo za čitanje, čita je **znak po znak** i svaki znak ispisuje na standardni izlaz.
 - Ilustrira osnovni slijed rada s datotekom: `open` $\rightarrow$ `read` / `write` $\rightarrow$ `close`.
@@ -258,6 +240,49 @@ int main() {
 \vspace{2ex}
 
 Nedostatak: jedan sistemski poziv po znaku. Za datoteku od megabajta to je dva milijuna prijelaza u jezgru.
+
+## perror()
+
+<!-- deklaracija -->
+
+```c
+#include <stdio.h>
+
+void perror(const char *s);
+```
+
+- Sistemski pozivi grešku signaliziraju povratnom vrijednošću `-1`, a **razlog** upisuju u globalnu varijablu `errno`.
+- `perror("open")` ispisuje na `stderr` zadani tekst i tekstualni opis zadnje greške.
+
+```c
+fd = open("moja_datoteka.txt", O_RDONLY);
+if (fd == -1) {
+    perror("open");
+    return 1;
+}
+```
+
+Povratnu vrijednost provjeravajte **uvijek**. Program koji nastavi raditi s deskriptorom `-1` ponaša se nepredvidivo.
+
+## perror()
+
+```c
+fd = open("nepostojeca.txt", O_RDONLY);
+if (fd == -1) {
+    perror("open nepostojeca.txt");
+    return 1;
+}
+```
+
+Ispis programa:
+
+```
+$ ./primjer
+open nepostojeca.txt: No such file or directory
+```
+
+- Tekst zadan kao **argument** služi programeru da locira grešku --- pokazuje **gdje** je u programu nastala.
+- Tekst koji se ispisuje **iza dvotočke** služi za otkrivanje razloga greške; generira ga sustav na temelju vrijednosti varijable `errno`.
 
 ## io_copy.c
 
@@ -285,7 +310,7 @@ int main() {
 
 - Kopira standardni ulaz na standardni izlaz, čitajući u **međuspremnik** veličine `BUFFSIZE`.
 - Time se broj sistemskih poziva smanjuje višestruko u odnosu na čitanje znak po znak.
-- Uočite da se u `write()` prosljeđuje `n`, a **ne** `BUFFSIZE`: zadnje čitanje gotovo nikad nije puno.
+- Uočite da se u `write()` prosljeđuje `n`, a **ne** `BUFFSIZE`: broj pročitanih znakova gotovo nikad neće biti jednak 1024.
 - Primjer je ujedno ilustracija načela "sve je datoteka": bez preusmjeravanja ulaz je tipkovnica, izlaz terminal, a kôd je isti kao za datoteke na disku.
 
 ```
@@ -323,26 +348,23 @@ int main(int argc, char *argv[])
 - `argc` --- broj argumenata, **uključujući ime programa**,
 - `argv[0]` --- ime kojim je program pokrenut, `argv[1]` nadalje --- stvarni argumenti.
 
-Za poziv `./f_write izlaz.txt`: `argc = 2`, `argv[0] = "./f_write"`, `argv[1] = "izlaz.txt"`.
-
 ## f_write.c
 
 ```c
-#define FMODE S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
-
 int main(int argc, char *argv[]) {
     int fd, n; char s;
+
     if (argc != 2) {
         printf("koristenje: %s <ime_datoteke>\n", argv[0]);
         return 0;
     }
-    fd = creat(argv[1], FMODE);
-    if (fd == -1) {
-        perror("creat");
-        return 1;
-    }
+
+    /* Obavezno provjeriti povratnu vrijednost */
+    fd = creat(argv[1], S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
     while ((n = read(STDIN_FILENO, &s, 1)) > 0)
         write(fd, &s, 1);
+
     close(fd);
     return 0;
 }
@@ -361,20 +383,24 @@ $ cat izlaz.txt
 Prvi red teksta
 ```
 
-## Demo: sistemski pozivi na djelu
+## f_write.c --- prava pristupa i #define
 
-**Cilj:** pokazati da naši programi rade jednako kao standardni UNIX alati.
+Prava se mogu izdvojiti u **predprocesorsku direktivu**:
 
+```c
+#define FMODE S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+
+    fd = creat(argv[1], FMODE);
 ```
-./io_copy < /etc/hostname
-./f_write test.txt
-ls -l test.txt
-strace -c ./read_file
+
+umjesto da se pišu izravno u pozivu:
+
+```c
+    fd = creat(argv[1], S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 ```
 
-- `strace -c` prebrojava sistemske pozive --- usporedite `read_file` i `io_copy`.
-
-**Poanta:** `cat` nije ništa posebno; to je program s `open`, `read`, `write` i `close`.
+- Predprocesor prije prevođenja svako pojavljivanje imena `FMODE` zamijeni zadanim tekstom --- poziv je time kraći i čitljiviji.
+- Ako program stvara više datoteka, prava se mijenjaju na **jednom mjestu**, umjesto u svakom pozivu posebno.
 
 # Pozicioniranje i prava
 
@@ -420,6 +446,10 @@ int main() {
 ```
 
 
+## f_strip.c
+
+![Offset u odnosu na početak datoteke](slike/lseek_f_strip.png){width=100%}
+
 ## f_strip.c --- rezultat
 
 ```
@@ -432,7 +462,27 @@ Prvi redak teksDrugi redak teksta
 - Od 15. bajta nadalje drugi upis je **prepisao** postojeći sadržaj.
 - Offset koji jezgra pamti nema veze s fizičkim rasporedom blokova na disku --- pozicioniranje se slobodno kombinira s čitanjem i pisanjem.
 
-## Prava pristupa i maska
+## f_hole.c
+
+Isti primjer, ali s pomakom u odnosu na **trenutnu** poziciju:
+
+```c
+    fd = creat("file.hole", (mode_t)0644);
+    write(fd, buf1, strlen(buf1)+1);
+    lseek(fd, 15, SEEK_CUR);
+    write(fd, buf2, strlen(buf2)+1);
+    close(fd);
+```
+
+- Nakon prvog upisa offset je na kraju upisanog teksta (18), pa ga `SEEK_CUR` pomiče na 33.
+- Preskočeni dio nije upisan --- u datoteci nastaje **rupa** (*hole*).
+- Pri čitanju jezgra na tim mjestima vraća nul-bajtove, ali oni **ne zauzimaju prostor na disku**. Takve datoteke nazivamo *sparse files*.
+
+## f_hole.c
+
+![Offset u odnosu na trenutnu poziciju](slike/lseek_f_hole.png){width=100%}
+
+## umask()
 
 - Prava koja tražimo argumentom `mode` **nisu nužno ona koja ćemo dobiti**.
 - Svaki proces ima **masku kreiranja datoteka** (`umask`) --- bitove koji se iz traženih prava **uklanjaju**.
@@ -449,7 +499,7 @@ mode_t umask(mode_t cmask);
 - Rezultantna prava su `mode & ~cmask`. Poziv vraća **prethodnu** vrijednost maske.
 - Maska se nasljeđuje od roditeljskog procesa; tipična vrijednost u ljusci je `0022` --- oduzima pravo pisanja grupi i ostalima.
 
-## perm_mask.c
+## umask()
 
 ```c
 #define PRAVA S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH
@@ -485,17 +535,43 @@ $ ls -al datoteka1 datoteka2
 
 Isto vrijedi i za datoteke koje stvarate u ljusci: naredba `umask` bez argumenta ispisuje trenutnu vrijednost maske.
 
+## Sistemski pozivi i C biblioteka
+
+- Kroz cijelo poglavlje koristili smo **isključivo sistemske pozive**. To ne znači da je takav pristup jedini ispravan, ni da je uvijek najpraktičniji.
+- `write()` je jednostavan i izravan --- upisuje točno zadani broj bajtova iz međuspremnika:
+
+```c
+write(STDOUT_FILENO, "Pozdrav!!", 9);
+```
+
+- Za ispis vrijednosti varijable zajedno s tekstom morali bismo sami formatirati niz znakova: analizirati broj znamenaka, decimala, dodati kontrolne sekvence. `printf()` sve to rješava jednim pozivom:
+
+```c
+printf("Rezultat: %d (hex: 0x%x)\n", vrijednost, vrijednost);
+```
+
+## Sistemski pozivi i C biblioteka
+
+- Funkcije C biblioteke u pozadini se oslanjaju upravo na sistemske pozive --- one su **praktičan i prenosiv sloj** iznad njih.
+- Uz to koriste vlastiti **međuspremnik** (*buffering*): umjesto poziva `write()` za svaki znak, podaci se akumuliraju i šalju u jednom bloku. Isti razlog zbog kojeg je `io_copy` brži od čitanja znak po znak.
+- **Nisu konkurenti, nego se nadopunjuju:**
+    - sistemski pozivi daju **kontrolu** i uvid u rad operacijskog sustava,
+    - funkcije biblioteke daju **produktivnost** i prenosivost.
+
+\vspace{2ex}
+
+Iskusan UNIX programer zna kada koristiti koje.
+
 ## Što smo naučili
 
 \begin{beamercolorbox}[sep=1.5ex, rounded=false]{block body}
 \begin{itemize}
-\item S datotekom radimo samo pet stvari: otvaranje, čitanje, pisanje, pozicioniranje i zatvaranje.
-\item \textbf{Deskriptor} je nenegativan cijeli broj kojim proces referencira otvorenu datoteku; 0, 1 i 2 su zauzeti pri pokretanju.
-\item \texttt{open()} vraća najniži slobodan deskriptor; način otvaranja zadaje se kombinacijom zastavica.
-\item \texttt{read()} vraća broj pročitanih bajtova, \texttt{0} na kraju datoteke, \texttt{-1} kod greške --- povratnu vrijednost provjeravamo uvijek.
-\item Čitanje u međuspremnik višestruko smanjuje broj sistemskih poziva.
-\item \texttt{lseek()} mijenja file offset; pomak je logički, disk se dira tek pri sljedećem pristupu.
-\item Stvarna prava nove datoteke su \texttt{mode \& \textasciitilde cmask} --- maska oduzima ono što je program tražio.
+\item \textbf{Deskriptor} je nenegativan cijeli broj kojim proces referencira otvorenu datoteku; 0, 1 i 2 najčešće su zauzeti pri pokretanju.
+\item \texttt{open()} vraća najniži slobodni deskriptor; \texttt{creat()} otvara datoteku isključivo za pisanje.
+\item \texttt{read()} i \texttt{write()} --- sistemski pozivi za čitanje i pisanje u datoteku.
+\item \texttt{lseek()} --- pozicioniranje unutar datoteke.
+\item \texttt{umask()} --- postavljanje maske za prava pristupa.
+\item \texttt{perror()} --- praktična funkcija za obradu grešaka.
 \end{itemize}
 \end{beamercolorbox}
 
